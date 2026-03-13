@@ -27,6 +27,7 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
 const PAYMENT_METHODS = [
   { id: "masrafi", name: "مصرفي", nameFr: "Masrafi", number: "20479725", color: "#1A56DB", icon: "university" as const },
   { id: "bankily", name: "بنكيلي", nameFr: "Bankily", number: "46576659", color: "#F59E0B", icon: "mobile-alt" as const },
+  { id: "bimbank", name: "بيم بنك", nameFr: "BIM Bank", number: "46576659", color: "#16A34A", icon: "building" as const },
 ];
 
 type Notification = {
@@ -220,8 +221,8 @@ export default function NotificationsScreen() {
                 </Text>
                 <Text style={[styles.paymentSubtitle, isRTL && styles.rtlText]}>
                   {isRTL
-                    ? "أرسل 1 MRU عبر أحد التطبيقين أدناه، ثم اضغط «لقد دفعتُ» لتحصل فوراً على اسم الصيدلية وموقعها."
-                    : "Envoyez 1 MRU via l'une des applications ci-dessous, puis appuyez sur «J'ai payé» pour recevoir immédiatement le nom et l'adresse de la pharmacie."}
+                    ? "أرسل 10 MRU عبر أحد التطبيقات أدناه، ثم اضغط «لقد دفعتُ» لتحصل فوراً على اسم الصيدلية وموقعها."
+                    : "Envoyez 10 MRU via l'une des applications ci-dessous, puis appuyez sur «J'ai payé» pour recevoir immédiatement le nom et l'adresse de la pharmacie."}
                 </Text>
               </View>
 
@@ -277,7 +278,7 @@ export default function NotificationsScreen() {
                 <Text style={styles.amountLabel}>
                   {isRTL ? "المبلغ المطلوب:" : "Montant requis:"}
                 </Text>
-                <Text style={styles.amountValue}>1 MRU</Text>
+                <Text style={styles.amountValue}>10 MRU</Text>
               </View>
 
               {/* زر تأكيد الدفع */}

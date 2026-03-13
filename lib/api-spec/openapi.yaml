@@ -1,22 +1,24 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Pharmacy Finder API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: requests
+    description: Drug search requests
+  - name: notifications
+    description: Notifications
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +26,99 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /requests:
+    get:
+      operationId: listRequests
+      tags: [requests]
+      summary: List all drug search requests (admin)
+      responses:
+        "200":
+          description: List of requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DrugRequest"
+    post:
+      operationId: createRequest
+      tags: [requests]
+      summary: Submit a new drug search request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDrugRequest"
+      responses:
+        "201":
+          description: Request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrugRequest"
+  /requests/{id}/respond:
+    post:
+      operationId: respondToRequest
+      tags: [requests]
+      summary: Admin responds to a drug request with pharmacy info
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RespondToRequest"
+      responses:
+        "200":
+          description: Response sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrugRequest"
+  /notifications/{userId}:
+    get:
+      operationId: getUserNotifications
+      tags: [notifications]
+      summary: Get notifications for a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+  /notifications/{id}/unlock:
+    post:
+      operationId: unlockNotification
+      tags: [notifications]
+      summary: Unlock a notification after payment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Notification unlocked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +128,89 @@ components:
           type: string
       required:
         - status
-
+    DrugRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        drugName:
+          type: string
+        status:
+          type: string
+          enum: [pending, responded]
+        createdAt:
+          type: string
+        respondedAt:
+          type: string
+          nullable: true
+        pharmacyName:
+          type: string
+          nullable: true
+        pharmacyAddress:
+          type: string
+          nullable: true
+        pharmacyPhone:
+          type: string
+          nullable: true
+      required:
+        - id
+        - userId
+        - drugName
+        - status
+        - createdAt
+    CreateDrugRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+        drugName:
+          type: string
+      required:
+        - userId
+        - drugName
+    RespondToRequest:
+      type: object
+      properties:
+        pharmacyName:
+          type: string
+        pharmacyAddress:
+          type: string
+        pharmacyPhone:
+          type: string
+      required:
+        - pharmacyName
+        - pharmacyAddress
+        - pharmacyPhone
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        requestId:
+          type: string
+        pharmacyName:
+          type: string
+        pharmacyAddress:
+          type: string
+        pharmacyPhone:
+          type: string
+        isLocked:
+          type: boolean
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - userId
+        - requestId
+        - pharmacyName
+        - pharmacyAddress
+        - pharmacyPhone
+        - isLocked
+        - isRead
+        - createdAt

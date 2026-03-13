@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "صيدليتي - Pharmacy Finder"
+version = "1.0.0"
+id = "artifacts/pharma-finder"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+localPort = 19768
+name = "expo"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/pharma-finder run dev"
+
+[services.env]
+PORT = "19768"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/pharma-finder", "run", "build"]
+run = ["pnpm", "--filter", "@workspace/pharma-finder", "run", "serve"]

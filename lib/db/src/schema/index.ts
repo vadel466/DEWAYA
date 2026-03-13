@@ -1,20 +1,35 @@
-// Export your models here. Add one export per file
-// export * from "./posts";
-//
-// Each model/table should ideally be split into different files.
-// Each model/table should define a Drizzle table, insert schema, and types:
-//
-//   import { pgTable, text, serial } from "drizzle-orm/pg-core";
-//   import { createInsertSchema } from "drizzle-zod";
-//   import { z } from "zod/v4";
-//
-//   export const postsTable = pgTable("posts", {
-//     id: serial("id").primaryKey(),
-//     title: text("title").notNull(),
-//   });
-//
-//   export const insertPostSchema = createInsertSchema(postsTable).omit({ id: true });
-//   export type InsertPost = z.infer<typeof insertPostSchema>;
-//   export type Post = typeof postsTable.$inferSelect;
+import { pgTable, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
 
-export {}
+export const drugRequestsTable = pgTable("drug_requests", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  drugName: text("drug_name").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  respondedAt: timestamp("responded_at"),
+  pharmacyName: text("pharmacy_name"),
+  pharmacyAddress: text("pharmacy_address"),
+  pharmacyPhone: text("pharmacy_phone"),
+});
+
+export const insertDrugRequestSchema = createInsertSchema(drugRequestsTable).omit({ createdAt: true, respondedAt: true });
+export type InsertDrugRequest = z.infer<typeof insertDrugRequestSchema>;
+export type DrugRequest = typeof drugRequestsTable.$inferSelect;
+
+export const notificationsTable = pgTable("notifications", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  requestId: text("request_id").notNull(),
+  pharmacyName: text("pharmacy_name").notNull(),
+  pharmacyAddress: text("pharmacy_address").notNull(),
+  pharmacyPhone: text("pharmacy_phone").notNull(),
+  isLocked: boolean("is_locked").notNull().default(true),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertNotificationSchema = createInsertSchema(notificationsTable).omit({ createdAt: true });
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Notification = typeof notificationsTable.$inferSelect;

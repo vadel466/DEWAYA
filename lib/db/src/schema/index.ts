@@ -27,6 +27,8 @@ export const notificationsTable = pgTable("notifications", {
   pharmacyPhone: text("pharmacy_phone").notNull(),
   isLocked: boolean("is_locked").notNull().default(true),
   isRead: boolean("is_read").notNull().default(false),
+  paymentPending: boolean("payment_pending").notNull().default(false),
+  paymentRef: text("payment_ref"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import {
   RefreshControl,
   ActivityIndicator,
   ScrollView,
-  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
@@ -39,6 +38,8 @@ type Notification = {
   pharmacyPhone: string;
   isLocked: boolean;
   isRead: boolean;
+  paymentPending: boolean;
+  paymentRef: string | null;
   createdAt: string;
 };
 
@@ -63,6 +64,7 @@ export default function NotificationsScreen() {
   const [paymentModal, setPaymentModal] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [detailModal, setDetailModal] = useState(false);
+  const prevNotificationsRef = useRef<Notification[]>([]);
 
   const { data: notifications = [], isLoading, refetch, isRefetching } = useQuery<Notification[]>({
     queryKey: ["notifications", userId],
@@ -75,18 +77,33 @@ export default function NotificationsScreen() {
     refetchInterval: 5000,
   });
 
-  const unlockMutation = useMutation({
+  useEffect(() => {
+    const prev = prevNotificationsRef.current;
+    for (const notif of notifications) {
+      const old = prev.find((p) => p.id === notif.id);
+      if (old && old.isLocked && !notif.isLocked) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setSelectedNotif(notif);
+        setPaymentModal(false);
+        setDetailModal(true);
+      }
+      if (selectedNotif?.id === notif.id && old?.paymentPending !== notif.paymentPending) {
+        setSelectedNotif(notif);
+      }
+    }
+    prevNotificationsRef.current = notifications;
+  }, [notifications]);
+
+  const requestUnlockMutation = useMutation({
     mutationFn: async (id: string) => {
-      const resp = await fetch(`${API_BASE}/notifications/${id}/unlock`, { method: "POST" });
+      const resp = await fetch(`${API_BASE}/notifications/${id}/request-unlock`, { method: "POST" });
       if (!resp.ok) throw new Error("Failed");
-      return resp.json();
+      return resp.json() as Promise<Notification>;
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["notifications", userId] });
-      setPaymentModal(false);
       setSelectedNotif(data);
-      setDetailModal(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     },
   });
 
@@ -100,60 +117,75 @@ export default function NotificationsScreen() {
     }
   }, []);
 
-  const handleCopy = async (number: string, methodId: string) => {
-    await Clipboard.setStringAsync(number);
-    setCopiedId(methodId);
+  const handleCopy = async (text: string, key: string) => {
+    await Clipboard.setStringAsync(text);
+    setCopiedId(key);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setTimeout(() => setCopiedId(null), 3000);
   };
 
-  const handleConfirmPayment = () => {
+  const handleRequestUnlock = () => {
     if (selectedNotif) {
-      unlockMutation.mutate(selectedNotif.id);
+      requestUnlockMutation.mutate(selectedNotif.id);
     }
   };
 
   const lockedCount = notifications.filter((n) => n.isLocked).length;
 
-  const renderNotif = ({ item }: { item: Notification }) => (
-    <TouchableOpacity
-      style={[styles.notifCard, !item.isRead && styles.unreadCard]}
-      onPress={() => handleNotifPress(item)}
-      activeOpacity={0.85}
-    >
-      <View style={[styles.notifRow, isRTL && styles.rtlRow]}>
-        <View style={[styles.notifIcon, item.isLocked ? styles.lockedIcon : styles.unlockedIcon]}>
-          <Ionicons
-            name={item.isLocked ? "lock-closed" : "checkmark-circle"}
-            size={22}
-            color={item.isLocked ? Colors.warning : Colors.accent}
-          />
-        </View>
-        <View style={[styles.notifContent, isRTL && styles.rtlContent]}>
-          <View style={[styles.notifHeader, isRTL && styles.rtlRow]}>
-            <Text style={[styles.notifTitle, isRTL && styles.rtlText]}>
-              {item.isLocked ? t("newNotification") : item.pharmacyName}
-            </Text>
-            {!item.isRead && <View style={styles.unreadDot} />}
+  const renderNotif = ({ item }: { item: Notification }) => {
+    const isPending = item.isLocked && item.paymentPending;
+    return (
+      <TouchableOpacity
+        style={[styles.notifCard, !item.isRead && styles.unreadCard, isPending && styles.pendingCard]}
+        onPress={() => handleNotifPress(item)}
+        activeOpacity={0.85}
+      >
+        <View style={[styles.notifRow, isRTL && styles.rtlRow]}>
+          <View style={[styles.notifIcon, item.isLocked ? (isPending ? styles.pendingIcon : styles.lockedIcon) : styles.unlockedIcon]}>
+            <Ionicons
+              name={item.isLocked ? (isPending ? "time" : "lock-closed") : "checkmark-circle"}
+              size={22}
+              color={item.isLocked ? (isPending ? Colors.primary : Colors.warning) : Colors.accent}
+            />
           </View>
-          {item.isLocked ? (
-            <View style={[styles.lockedBadge, isRTL && styles.rtlRow]}>
-              <Ionicons name="lock-closed" size={11} color={Colors.warning} />
-              <Text style={[styles.lockedBadgeText, isRTL && styles.rtlText]}>{t("locked")}</Text>
+          <View style={[styles.notifContent, isRTL && styles.rtlContent]}>
+            <View style={[styles.notifHeader, isRTL && styles.rtlRow]}>
+              <Text style={[styles.notifTitle, isRTL && styles.rtlText]}>
+                {item.isLocked ? t("newNotification") : item.pharmacyName}
+              </Text>
+              {!item.isRead && <View style={styles.unreadDot} />}
             </View>
-          ) : (
-            <Text style={[styles.notifAddress, isRTL && styles.rtlText]} numberOfLines={1}>
-              {item.pharmacyAddress}
+            {item.isLocked ? (
+              isPending ? (
+                <View style={[styles.pendingBadge, isRTL && styles.rtlRow]}>
+                  <ActivityIndicator size={10} color={Colors.primary} />
+                  <Text style={[styles.pendingBadgeText, isRTL && styles.rtlText]}>
+                    {isRTL ? "في انتظار تأكيد المسؤول..." : "En attente de confirmation..."}
+                  </Text>
+                </View>
+              ) : (
+                <View style={[styles.lockedBadge, isRTL && styles.rtlRow]}>
+                  <Ionicons name="lock-closed" size={11} color={Colors.warning} />
+                  <Text style={[styles.lockedBadgeText, isRTL && styles.rtlText]}>{t("locked")}</Text>
+                </View>
+              )
+            ) : (
+              <Text style={[styles.notifAddress, isRTL && styles.rtlText]} numberOfLines={1}>
+                {item.pharmacyAddress}
+              </Text>
+            )}
+            <Text style={[styles.notifTime, isRTL && styles.rtlText]}>
+              {formatTime(item.createdAt, language)}
             </Text>
-          )}
-          <Text style={[styles.notifTime, isRTL && styles.rtlText]}>
-            {formatTime(item.createdAt, language)}
-          </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={Colors.light.textTertiary} />
         </View>
-        <Ionicons name="chevron-forward" size={16} color={Colors.light.textTertiary} />
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
+
+  const currentNotif = notifications.find((n) => n.id === selectedNotif?.id) ?? selectedNotif;
+  const isRequestPending = currentNotif?.paymentPending && currentNotif?.isLocked;
 
   return (
     <View style={[styles.container, { paddingTop: Platform.OS === "web" ? 67 : insets.top }]}>
@@ -211,101 +243,155 @@ export default function NotificationsScreen() {
             <View style={styles.modalHandle} />
 
             <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-              {/* رأس النافذة */}
-              <View style={styles.paymentHeader}>
-                <View style={styles.lockRing}>
-                  <Ionicons name="lock-closed" size={32} color={Colors.warning} />
-                </View>
-                <Text style={[styles.paymentTitle, isRTL && styles.rtlText]}>
-                  {isRTL ? "هذا الإشعار مؤمَّن" : "Notification verrouillée"}
-                </Text>
-                <Text style={[styles.paymentSubtitle, isRTL && styles.rtlText]}>
-                  {isRTL
-                    ? "أرسل 10 MRU عبر أحد التطبيقات أدناه، ثم اضغط «لقد دفعتُ» لتحصل فوراً على اسم الصيدلية وموقعها."
-                    : "Envoyez 10 MRU via l'une des applications ci-dessous, puis appuyez sur «J'ai payé» pour recevoir immédiatement le nom et l'adresse de la pharmacie."}
-                </Text>
-              </View>
 
-              {/* بطاقات أرقام الدفع */}
-              <View style={styles.methodsContainer}>
-                {PAYMENT_METHODS.map((method) => {
-                  const isCopied = copiedId === method.id;
-                  return (
-                    <View key={method.id} style={[styles.methodCard, { borderLeftColor: method.color, borderLeftWidth: 4 }]}>
-                      {/* اسم التطبيق */}
-                      <View style={[styles.methodTop, isRTL && styles.rtlRow]}>
-                        <View style={[styles.methodIconBg, { backgroundColor: method.color + "18" }]}>
-                          <FontAwesome5 name={method.icon} size={18} color={method.color} />
-                        </View>
-                        <View style={[styles.methodNameWrap, isRTL && styles.rtlContent]}>
+              {isRequestPending ? (
+                /* ── حالة الانتظار: الكود صدر وفي انتظار المسؤول ── */
+                <>
+                  <View style={styles.paymentHeader}>
+                    <View style={styles.waitingRing}>
+                      <ActivityIndicator size="large" color={Colors.primary} />
+                    </View>
+                    <Text style={[styles.paymentTitle, isRTL && styles.rtlText]}>
+                      {isRTL ? "في انتظار التحقق من الدفع" : "Vérification du paiement en cours"}
+                    </Text>
+                    <Text style={[styles.paymentSubtitle, isRTL && styles.rtlText]}>
+                      {isRTL
+                        ? "أرسل 10 MRU مع ذكر الكود المرجعي. سيتحقق المسؤول ويُفتح الإشعار تلقائياً."
+                        : "Envoyez 10 MRU avec le code de référence. Le responsable vérifiera et débloquera automatiquement."}
+                    </Text>
+                  </View>
+
+                  {/* الكود المرجعي */}
+                  <View style={styles.refCodeBox}>
+                    <Text style={[styles.refCodeLabel, isRTL && styles.rtlText]}>
+                      {isRTL ? "الكود المرجعي للدفع" : "Code de référence"}
+                    </Text>
+                    <View style={styles.refCodeRow}>
+                      <Text style={styles.refCodeText}>{currentNotif?.paymentRef}</Text>
+                      <TouchableOpacity
+                        style={[styles.copyRefBtn, copiedId === "ref" && { backgroundColor: Colors.accent }]}
+                        onPress={() => handleCopy(currentNotif?.paymentRef ?? "", "ref")}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name={copiedId === "ref" ? "checkmark" : "copy-outline"} size={16} color="#fff" />
+                        <Text style={styles.copyRefBtnText}>
+                          {copiedId === "ref" ? (isRTL ? "تم!" : "Copié!") : (isRTL ? "نسخ" : "Copier")}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={[styles.refCodeHint, isRTL && styles.rtlText]}>
+                      {isRTL
+                        ? "⚠️ اذكر هذا الكود في وصف تحويلك حتى يتمكن المسؤول من التحقق"
+                        : "⚠️ Mentionnez ce code dans la description de votre virement pour que l'admin puisse vérifier"}
+                    </Text>
+                  </View>
+
+                  {/* أرقام الدفع */}
+                  <View style={styles.methodsContainer}>
+                    {PAYMENT_METHODS.map((method) => (
+                      <View key={method.id} style={[styles.methodCard, { borderLeftColor: method.color, borderLeftWidth: 4 }]}>
+                        <View style={[styles.methodTop, isRTL && styles.rtlRow]}>
+                          <View style={[styles.methodIconBg, { backgroundColor: method.color + "18" }]}>
+                            <FontAwesome5 name={method.icon} size={16} color={method.color} />
+                          </View>
                           <Text style={[styles.methodName, { color: method.color }]}>
                             {isRTL ? method.name : method.nameFr}
                           </Text>
-                          <Text style={[styles.methodHint, isRTL && styles.rtlText]}>
-                            {isRTL ? "انسخ الرقم وأرسل منه" : "Copiez le numéro et envoyez"}
-                          </Text>
                         </View>
+                        <TouchableOpacity
+                          style={[styles.numberRow, copiedId === method.id && { backgroundColor: Colors.accent + "12" }, isRTL && styles.rtlRow]}
+                          onPress={() => handleCopy(method.number, method.id)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.accountNumber, { color: method.color }]}>{method.number}</Text>
+                          <View style={[styles.copyBtn, { backgroundColor: copiedId === method.id ? Colors.accent : method.color }]}>
+                            <Ionicons name={copiedId === method.id ? "checkmark" : "copy-outline"} size={14} color="#fff" />
+                            <Text style={styles.copyBtnText}>
+                              {copiedId === method.id ? (isRTL ? "✓" : "✓") : (isRTL ? "نسخ" : "Copier")}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
                       </View>
+                    ))}
+                  </View>
 
-                      {/* رقم الحساب + زر النسخ */}
-                      <TouchableOpacity
-                        style={[styles.numberRow, isCopied && { backgroundColor: Colors.accent + "12" }, isRTL && styles.rtlRow]}
-                        onPress={() => handleCopy(method.number, method.id)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[styles.accountNumber, { color: method.color }]}>{method.number}</Text>
-                        <View style={[styles.copyBtn, { backgroundColor: isCopied ? Colors.accent : method.color }]}>
-                          <Ionicons
-                            name={isCopied ? "checkmark" : "copy-outline"}
-                            size={16}
-                            color="#fff"
-                          />
-                          <Text style={styles.copyBtnText}>
-                            {isCopied
-                              ? (isRTL ? "تم النسخ!" : "Copié!")
-                              : (isRTL ? "نسخ" : "Copier")}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-              </View>
-
-              {/* مبلغ الدفع */}
-              <View style={styles.amountRow}>
-                <MaterialCommunityIcons name="cash-multiple" size={20} color={Colors.accent} />
-                <Text style={styles.amountLabel}>
-                  {isRTL ? "المبلغ المطلوب:" : "Montant requis:"}
-                </Text>
-                <Text style={styles.amountValue}>10 MRU</Text>
-              </View>
-
-              {/* زر تأكيد الدفع */}
-              <TouchableOpacity
-                style={styles.confirmBtn}
-                onPress={handleConfirmPayment}
-                activeOpacity={0.85}
-                disabled={unlockMutation.isPending}
-              >
-                {unlockMutation.isPending ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <>
-                    <Ionicons name="lock-open-outline" size={20} color="#fff" />
-                    <Text style={styles.confirmBtnText}>
-                      {isRTL ? "لقد دفعتُ — افتح الإشعار" : "J'ai payé — Débloquer"}
+                  <View style={styles.waitingFooter}>
+                    <Ionicons name="shield-checkmark-outline" size={16} color={Colors.primary} />
+                    <Text style={[styles.waitingFooterText, isRTL && styles.rtlText]}>
+                      {isRTL
+                        ? "سيُفتح الإشعار تلقائياً بعد تأكيد الدفع — لا حاجة لأي إجراء"
+                        : "La notification s'ouvrira automatiquement après confirmation — aucune action requise"}
                     </Text>
-                  </>
-                )}
-              </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                /* ── حالة البداية: لم يُطلب الفتح بعد ── */
+                <>
+                  <View style={styles.paymentHeader}>
+                    <View style={styles.lockRing}>
+                      <Ionicons name="lock-closed" size={32} color={Colors.warning} />
+                    </View>
+                    <Text style={[styles.paymentTitle, isRTL && styles.rtlText]}>
+                      {isRTL ? "هذا الإشعار مؤمَّن" : "Notification verrouillée"}
+                    </Text>
+                    <Text style={[styles.paymentSubtitle, isRTL && styles.rtlText]}>
+                      {isRTL
+                        ? "لفتح هذا الإشعار، اضغط على «طلب فتح» لتحصل على كود مرجعي فريد، ثم أرسل 10 MRU مع ذكر الكود. سيتحقق المسؤول ويُفتح الإشعار تلقائياً في هاتفك."
+                        : "Pour débloquer, appuyez sur «Demander déblocage» pour obtenir un code unique, puis envoyez 10 MRU avec ce code. Le responsable vérifiera et débloquera automatiquement."}
+                    </Text>
+                  </View>
+
+                  <View style={styles.stepsBox}>
+                    {[
+                      { n: "1", ar: "اضغط «طلب فتح» لتحصل على كودك", fr: "Appuyez «Demander» pour obtenir votre code" },
+                      { n: "2", ar: "أرسل 10 MRU وأذكر الكود في الوصف", fr: "Envoyez 10 MRU avec le code en description" },
+                      { n: "3", ar: "سيُفتح الإشعار تلقائياً بعد التحقق", fr: "La notification s'ouvre automatiquement" },
+                    ].map((step) => (
+                      <View key={step.n} style={[styles.stepRow, isRTL && styles.rtlRow]}>
+                        <View style={styles.stepNum}>
+                          <Text style={styles.stepNumText}>{step.n}</Text>
+                        </View>
+                        <Text style={[styles.stepText, isRTL && styles.rtlText]}>
+                          {isRTL ? step.ar : step.fr}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  <View style={styles.amountRow}>
+                    <MaterialCommunityIcons name="cash-multiple" size={20} color={Colors.accent} />
+                    <Text style={styles.amountLabel}>
+                      {isRTL ? "رسوم الخدمة:" : "Frais de service:"}
+                    </Text>
+                    <Text style={styles.amountValue}>10 MRU</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.confirmBtn}
+                    onPress={handleRequestUnlock}
+                    activeOpacity={0.85}
+                    disabled={requestUnlockMutation.isPending}
+                  >
+                    {requestUnlockMutation.isPending ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <>
+                        <Ionicons name="key-outline" size={20} color="#fff" />
+                        <Text style={styles.confirmBtnText}>
+                          {isRTL ? "طلب فتح الإشعار" : "Demander le déblocage"}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
 
               <TouchableOpacity
                 style={styles.cancelBtn}
                 onPress={() => { setPaymentModal(false); setCopiedId(null); }}
                 activeOpacity={0.7}
               >
-                <Text style={styles.cancelText}>{t("cancel")}</Text>
+                <Text style={styles.cancelText}>{t("close")}</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -374,23 +460,17 @@ const styles = StyleSheet.create({
   list: { padding: 16, gap: 10 },
   emptyList: { flex: 1, justifyContent: "center" },
   notifCard: {
-    backgroundColor: Colors.light.card,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    marginBottom: 2,
+    backgroundColor: Colors.light.card, borderRadius: 16, padding: 16,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
+    borderWidth: 1, borderColor: Colors.light.border, marginBottom: 2,
   },
   unreadCard: { borderLeftWidth: 3, borderLeftColor: Colors.primary },
+  pendingCard: { borderLeftWidth: 3, borderLeftColor: Colors.primary + "80" },
   notifRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   rtlRow: { flexDirection: "row-reverse" },
   notifIcon: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
   lockedIcon: { backgroundColor: Colors.warning + "18" },
+  pendingIcon: { backgroundColor: Colors.primary + "15" },
   unlockedIcon: { backgroundColor: Colors.accent + "18" },
   notifContent: { flex: 1 },
   rtlContent: { alignItems: "flex-end" },
@@ -399,6 +479,8 @@ const styles = StyleSheet.create({
   unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary, marginLeft: 6 },
   lockedBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 4 },
   lockedBadgeText: { color: Colors.warning, fontFamily: "Inter_600SemiBold", fontSize: 12 },
+  pendingBadge: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
+  pendingBadgeText: { color: Colors.primary, fontFamily: "Inter_500Medium", fontSize: 12 },
   notifAddress: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, marginBottom: 4 },
   notifTime: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary },
   rtlText: { textAlign: "right" },
@@ -408,81 +490,81 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
   loadingText: { color: Colors.light.textSecondary, fontFamily: "Inter_400Regular", fontSize: 14 },
 
-  // Modal base
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalSheet: { backgroundColor: Colors.light.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 36, maxHeight: "92%" },
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.light.border, alignSelf: "center", marginBottom: 20 },
 
-  // Payment modal
   paymentHeader: { alignItems: "center", marginBottom: 20 },
   lockRing: {
-    width: 72, height: 72, borderRadius: 36,
-    backgroundColor: Colors.warning + "15",
-    alignItems: "center", justifyContent: "center",
-    borderWidth: 2, borderColor: Colors.warning + "30",
-    marginBottom: 14,
+    width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.warning + "15",
+    alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: Colors.warning + "30", marginBottom: 14,
+  },
+  waitingRing: {
+    width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.primary + "12",
+    alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: Colors.primary + "25", marginBottom: 14,
   },
   paymentTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: Colors.light.text, textAlign: "center", marginBottom: 10 },
-  paymentSubtitle: { fontSize: 13.5, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, textAlign: "center", lineHeight: 22, paddingHorizontal: 4 },
+  paymentSubtitle: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, textAlign: "center", lineHeight: 21, paddingHorizontal: 4 },
 
-  // Payment method cards
-  methodsContainer: { gap: 12, marginBottom: 16 },
-  methodCard: {
-    backgroundColor: Colors.light.background,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    overflow: "hidden",
+  stepsBox: { backgroundColor: Colors.light.background, borderRadius: 14, padding: 16, marginBottom: 16, gap: 14, borderWidth: 1, borderColor: Colors.light.border },
+  stepRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  stepNum: { width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.primary, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  stepNumText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 13 },
+  stepText: { flex: 1, fontSize: 13.5, fontFamily: "Inter_400Regular", color: Colors.light.text, lineHeight: 20, paddingTop: 2 },
+
+  refCodeBox: {
+    backgroundColor: Colors.primary + "08", borderRadius: 16, padding: 16, marginBottom: 16,
+    borderWidth: 1.5, borderColor: Colors.primary + "30",
   },
-  methodTop: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 },
-  methodIconBg: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  methodNameWrap: { flex: 1 },
-  methodName: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  methodHint: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, marginTop: 1 },
-  numberRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: Colors.light.inputBackground,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-  },
-  accountNumber: { fontSize: 22, fontFamily: "Inter_700Bold", letterSpacing: 2 },
-  copyBtn: {
+  refCodeLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.primary, marginBottom: 10, textAlign: "center" },
+  refCodeRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 10 },
+  refCodeText: { fontSize: 26, fontFamily: "Inter_700Bold", color: Colors.primary, letterSpacing: 3 },
+  copyRefBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
-    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6,
+    backgroundColor: Colors.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7,
   },
-  copyBtnText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 },
+  copyRefBtnText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 },
+  refCodeHint: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, textAlign: "center", lineHeight: 18 },
 
-  // Amount row
+  methodsContainer: { gap: 10, marginBottom: 16 },
+  methodCard: { backgroundColor: Colors.light.background, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: Colors.light.border, overflow: "hidden" },
+  methodTop: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
+  methodIconBg: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  methodName: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  numberRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: Colors.light.inputBackground, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 12,
+  },
+  accountNumber: { fontSize: 20, fontFamily: "Inter_700Bold", letterSpacing: 2 },
+  copyBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 7, paddingHorizontal: 10, paddingVertical: 5 },
+  copyBtnText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12 },
+
+  waitingFooter: {
+    flexDirection: "row", alignItems: "flex-start", gap: 8,
+    backgroundColor: Colors.accentLight, borderRadius: 12, padding: 12, marginBottom: 8,
+  },
+  waitingFooterText: { flex: 1, fontSize: 12.5, fontFamily: "Inter_400Regular", color: Colors.primary, lineHeight: 19 },
+
   amountRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, marginBottom: 18,
-    backgroundColor: Colors.accentLight,
+    gap: 6, marginBottom: 18, backgroundColor: Colors.accentLight,
     borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16,
   },
   amountLabel: { fontFamily: "Inter_500Medium", fontSize: 14, color: Colors.light.textSecondary },
   amountValue: { fontFamily: "Inter_700Bold", fontSize: 18, color: Colors.accent },
 
-  // Confirm button
   confirmBtn: {
-    backgroundColor: Colors.primary, borderRadius: 14,
-    paddingVertical: 15, flexDirection: "row", alignItems: "center",
-    justifyContent: "center", gap: 8, marginBottom: 12,
-    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28, shadowRadius: 8, elevation: 6,
+    backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 15,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 12,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 6,
   },
   confirmBtnText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16 },
   cancelBtn: { paddingVertical: 12, alignItems: "center" },
   cancelText: { color: Colors.light.textSecondary, fontFamily: "Inter_500Medium", fontSize: 15 },
 
-  // Pharmacy detail modal
   successIconLarge: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: Colors.accentLight, alignItems: "center", justifyContent: "center",
-    alignSelf: "center", marginBottom: 14,
+    width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.accentLight,
+    alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: 14,
     borderWidth: 2, borderColor: Colors.accent + "30",
   },
   modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: Colors.light.text, textAlign: "center", marginBottom: 16 },

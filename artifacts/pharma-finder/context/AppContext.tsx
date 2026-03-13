@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-type Language = "ar" | "en";
+type Language = "ar" | "fr";
 
 type AppContextType = {
   language: Language;
@@ -12,7 +12,8 @@ type AppContextType = {
 
 const translations: Record<Language, Record<string, string>> = {
   ar: {
-    appName: "صيدليتي",
+    appName: "أدْواَيَ",
+    appNameSub: "DEWAYA",
     appTagline: "أقرب صيدلية إليك",
     searchTitle: "البحث عن دواء",
     searchPlaceholder: "أدخل اسم الدواء...",
@@ -42,7 +43,7 @@ const translations: Record<Language, Record<string, string>> = {
     phonePlaceholder: "رقم الهاتف",
     sendResponse: "إرسال الرد",
     cancel: "إلغاء",
-    changeLanguage: "English",
+    changeLanguage: "Français",
     home: "الرئيسية",
     admin: "الإدارة",
     close: "إغلاق",
@@ -60,54 +61,55 @@ const translations: Record<Language, Record<string, string>> = {
     newNotification: "إشعار جديد",
     requestId: "رقم الطلب",
   },
-  en: {
-    appName: "Saydaliyati",
-    appTagline: "Nearest Pharmacy to You",
-    searchTitle: "Find a Medicine",
-    searchPlaceholder: "Enter medicine name...",
-    searchButton: "Search",
-    orText: "OR",
-    uploadImage: "Upload Package Photo",
-    requestSent: "Request Submitted",
-    requestSentSubtitle: "Watch your notifications — we'll notify you as soon as we find the medicine",
-    newSearch: "New Search",
+  fr: {
+    appName: "DEWAYA",
+    appNameSub: "أدْواَيَ",
+    appTagline: "La pharmacie la plus proche",
+    searchTitle: "Rechercher un médicament",
+    searchPlaceholder: "Entrez le nom du médicament...",
+    searchButton: "Rechercher",
+    orText: "OU",
+    uploadImage: "Importer une photo de la boîte",
+    requestSent: "Demande envoyée",
+    requestSentSubtitle: "Surveillez vos notifications, nous vous informerons dès que le médicament est trouvé",
+    newSearch: "Nouvelle recherche",
     notifications: "Notifications",
-    noNotifications: "No notifications yet",
-    noNotificationsSubtitle: "Search for a medicine to receive notifications",
-    lockedNotification: "Tap to unlock for 1 MRU",
-    unlockFor: "Unlock for 1 MRU",
-    pharmacyFound: "Pharmacy Found",
-    pharmacyName: "Pharmacy Name",
-    pharmacyAddress: "Address",
-    pharmacyPhone: "Phone",
-    adminPanel: "Admin Panel",
-    pendingRequests: "Pending Requests",
-    noPendingRequests: "No pending requests",
-    drugName: "Medicine Name",
-    requestTime: "Request Time",
-    respondToRequest: "Respond to Request",
-    respondPlaceholder: "Pharmacy name",
-    addressPlaceholder: "Full address",
-    phonePlaceholder: "Phone number",
-    sendResponse: "Send Response",
-    cancel: "Cancel",
+    noNotifications: "Aucune notification pour l'instant",
+    noNotificationsSubtitle: "Recherchez un médicament pour recevoir des notifications",
+    lockedNotification: "Appuyez pour débloquer pour 1 MRU",
+    unlockFor: "Débloquer pour 1 MRU",
+    pharmacyFound: "Pharmacie trouvée",
+    pharmacyName: "Nom de la pharmacie",
+    pharmacyAddress: "Adresse",
+    pharmacyPhone: "Téléphone",
+    adminPanel: "Panneau d'administration",
+    pendingRequests: "Demandes en attente",
+    noPendingRequests: "Aucune demande en attente",
+    drugName: "Nom du médicament",
+    requestTime: "Heure de la demande",
+    respondToRequest: "Répondre à la demande",
+    respondPlaceholder: "Nom de la pharmacie",
+    addressPlaceholder: "Adresse complète",
+    phonePlaceholder: "Numéro de téléphone",
+    sendResponse: "Envoyer la réponse",
+    cancel: "Annuler",
     changeLanguage: "عربي",
-    home: "Home",
+    home: "Accueil",
     admin: "Admin",
-    close: "Close",
-    responded: "Responded",
-    pending: "Pending",
-    paymentInfo: "To unlock this notification, please pay the small service fee of 1 MRU only",
-    payNow: "Pay Now - 1 MRU",
-    loading: "Loading...",
-    error: "An error occurred",
-    retry: "Retry",
-    user: "User",
-    requestedBy: "Requested by",
-    unlock: "Unlock",
-    locked: "Locked • 1 MRU",
-    newNotification: "New Notification",
-    requestId: "Request ID",
+    close: "Fermer",
+    responded: "Répondu",
+    pending: "En attente",
+    paymentInfo: "Pour débloquer cette notification, veuillez payer les frais de service modiques de 1 MRU seulement",
+    payNow: "Payer maintenant - 1 MRU",
+    loading: "Chargement...",
+    error: "Une erreur s'est produite",
+    retry: "Réessayer",
+    user: "Utilisateur",
+    requestedBy: "Demandé par",
+    unlock: "Débloquer",
+    locked: "Verrouillé • 1 MRU",
+    newNotification: "Nouvelle notification",
+    requestId: "ID de la demande",
   },
 };
 
@@ -120,7 +122,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       const saved = await AsyncStorage.getItem("language");
-      if (saved === "ar" || saved === "en") setLanguageSt(saved);
+      if (saved === "ar" || saved === "fr") setLanguageSt(saved);
 
       let uid = await AsyncStorage.getItem("userId");
       if (!uid) {

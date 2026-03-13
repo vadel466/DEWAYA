@@ -79,7 +79,7 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.langButton}
-            onPress={() => setLanguage(language === "ar" ? "en" : "ar")}
+            onPress={() => setLanguage(language === "ar" ? "fr" : "ar")}
             activeOpacity={0.7}
           >
             <Text style={styles.langText}>{t("changeLanguage")}</Text>
@@ -95,6 +95,7 @@ export default function HomeScreen() {
             </View>
           </View>
           <Text style={[styles.appName, isRTL && styles.rtlText]}>{t("appName")}</Text>
+          <Text style={[styles.appNameSub, isRTL && styles.rtlText]}>{t("appNameSub")}</Text>
           <Text style={[styles.tagline, isRTL && styles.rtlText]}>{t("appTagline")}</Text>
         </View>
 
@@ -251,6 +252,13 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontFamily: "Inter_700Bold",
     color: Colors.light.text,
+    marginBottom: 2,
+  },
+  appNameSub: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: Colors.light.textSecondary,
+    letterSpacing: 2,
     marginBottom: 6,
   },
   tagline: {

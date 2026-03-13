@@ -35,7 +35,8 @@ type Notification = {
 
 function formatTime(dateStr: string, lang: string) {
   const date = new Date(dateStr);
-  return date.toLocaleString(lang === "ar" ? "ar-SA" : "en-US", {
+  const locale = lang === "ar" ? "ar-SA" : "fr-FR";
+  return date.toLocaleString(locale, {
     hour: "2-digit",
     minute: "2-digit",
     day: "numeric",

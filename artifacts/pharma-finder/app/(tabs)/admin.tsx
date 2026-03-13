@@ -36,9 +36,10 @@ type DrugRequest = {
   pharmacyPhone: string | null;
 };
 
-function formatTime(dateStr: string) {
+function formatTime(dateStr: string, lang = "ar") {
   const date = new Date(dateStr);
-  return date.toLocaleString("ar-SA", {
+  const locale = lang === "ar" ? "ar-SA" : "fr-FR";
+  return date.toLocaleString(locale, {
     hour: "2-digit",
     minute: "2-digit",
     day: "numeric",
@@ -127,7 +128,7 @@ export default function AdminScreen() {
           <Text style={[styles.userId, isRTL && styles.rtlText]}>
             {t("requestedBy")}: {item.userId.substring(0, 16)}...
           </Text>
-          <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{formatTime(item.createdAt)}</Text>
+          <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{formatTime(item.createdAt, language)}</Text>
           {item.status === "responded" && item.pharmacyName && (
             <View style={[styles.responseBadge, isRTL && styles.rtlRow]}>
               <Ionicons name="business-outline" size={12} color={Colors.accent} />

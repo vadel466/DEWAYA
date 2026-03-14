@@ -14,9 +14,22 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "يحتاج التطبيق إلى الكاميرا لتصوير علبة الدواء / L'application a besoin de la caméra pour photographier la boîte du médicament",
+        "NSPhotoLibraryUsageDescription": "يحتاج التطبيق إلى معرض الصور لاختيار صورة علبة الدواء / L'application a besoin de la galerie pour sélectionner une image",
+        "NSUserNotificationUsageDescription": "للتنبيه عند العثور على الدواء القريب منك / Pour vous alerter quand le médicament est trouvé"
+      }
     },
-    "android": {},
+    "android": {
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ]
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
@@ -28,7 +41,23 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "يحتاج التطبيق إلى الكاميرا لتصوير علبة الدواء / L'application a besoin de la caméra pour photographier la boîte du médicament"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#0D9488",
+          "sounds": [],
+          "androidMode": "default",
+          "androidCollapsedTitle": "DEWAYA • أدْواَيَ"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

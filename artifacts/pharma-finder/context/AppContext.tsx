@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Vibration, Platform, AppState } from "react-native";
+import * as Notifications from "expo-notifications";
 
 type Language = "ar" | "fr";
 
@@ -8,6 +10,7 @@ type AppContextType = {
   setLanguage: (lang: Language) => void;
   userId: string;
   t: (key: string) => string;
+  lockedCount: number;
 };
 
 const translations: Record<Language, Record<string, string>> = {
@@ -19,7 +22,7 @@ const translations: Record<Language, Record<string, string>> = {
     searchPlaceholder: "أدخل اسم الدواء...",
     searchButton: "بحث",
     orText: "أو",
-    uploadImage: "رفع صورة العلبة",
+    uploadImage: "تصوير العلبة",
     requestSent: "تم إرسال طلبكم",
     requestSentSubtitle: "راقب الإشعارات، سنُعلمك فور العثور على الدواء",
     newSearch: "بحث جديد",
@@ -60,6 +63,10 @@ const translations: Record<Language, Record<string, string>> = {
     locked: "مقفل • 10 MRU",
     newNotification: "إشعار جديد",
     requestId: "رقم الطلب",
+    notifAlertTitle: "🔔 وصل إشعار جديد!",
+    notifAlertBody: "تم العثور على الدواء الذي بحثت عنه. اضغط للتفاصيل.",
+    notifUnlockedTitle: "✅ تم فتح الإشعار",
+    notifUnlockedBody: "يمكنك الآن رؤية تفاصيل الصيدلية.",
   },
   fr: {
     appName: "DEWAYA",
@@ -69,7 +76,7 @@ const translations: Record<Language, Record<string, string>> = {
     searchPlaceholder: "Entrez le nom du médicament...",
     searchButton: "Rechercher",
     orText: "OU",
-    uploadImage: "Importer une photo de la boîte",
+    uploadImage: "Photographier la boîte",
     requestSent: "Demande envoyée",
     requestSentSubtitle: "Surveillez vos notifications, nous vous informerons dès que le médicament est trouvé",
     newSearch: "Nouvelle recherche",
@@ -110,19 +117,65 @@ const translations: Record<Language, Record<string, string>> = {
     locked: "Verrouillé • 10 MRU",
     newNotification: "Nouvelle notification",
     requestId: "ID de la demande",
+    notifAlertTitle: "🔔 Nouvelle notification !",
+    notifAlertBody: "Le médicament recherché a été trouvé. Appuyez pour les détails.",
+    notifUnlockedTitle: "✅ Notification débloquée",
+    notifUnlockedBody: "Vous pouvez maintenant voir les détails de la pharmacie.",
   },
 };
 
+const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+  : "/api";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
 const AppContext = createContext<AppContextType | null>(null);
+
+async function requestNotificationPermissions() {
+  if (Platform.OS === "web") return;
+  const { status: existing } = await Notifications.getPermissionsAsync();
+  if (existing !== "granted") {
+    await Notifications.requestPermissionsAsync();
+  }
+}
+
+async function fireLocalNotification(title: string, body: string, lockedCount: number) {
+  if (Platform.OS === "web") return;
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      sound: true,
+      badge: lockedCount,
+      data: { screen: "notifications" },
+    },
+    trigger: null,
+  });
+}
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageSt] = useState<Language>("ar");
   const [userId, setUserId] = useState<string>("");
+  const [lockedCount, setLockedCount] = useState(0);
+
+  const knownIdsRef = useRef<Set<string>>(new Set());
+  const knownUnlockedRef = useRef<Set<string>>(new Set());
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const appStateRef = useRef(AppState.currentState);
 
   useEffect(() => {
     (async () => {
       const saved = await AsyncStorage.getItem("language");
-      if (saved === "ar" || saved === "fr") setLanguageSt(saved);
+      if (saved === "ar" || saved === "fr") setLanguageSt(saved as Language);
 
       let uid = await AsyncStorage.getItem("userId");
       if (!uid) {
@@ -130,8 +183,78 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await AsyncStorage.setItem("userId", uid);
       }
       setUserId(uid);
+
+      await requestNotificationPermissions();
     })();
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const poll = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/notifications/${userId}`);
+        if (!resp.ok) return;
+        const notifs: Array<{
+          id: string;
+          isLocked: boolean;
+          isRead: boolean;
+          paymentPending: boolean;
+        }> = await resp.json();
+
+        const locked = notifs.filter((n) => n.isLocked);
+        setLockedCount(locked.length);
+
+        await Notifications.setBadgeCountAsync(locked.length);
+
+        for (const n of notifs) {
+          if (!knownIdsRef.current.has(n.id)) {
+            knownIdsRef.current.add(n.id);
+            if (n.isLocked) {
+              if (Platform.OS !== "web") {
+                Vibration.vibrate([0, 400, 200, 400, 200, 400]);
+              }
+              await fireLocalNotification(
+                translations[language].notifAlertTitle,
+                translations[language].notifAlertBody,
+                locked.length
+              );
+            }
+          }
+          if (knownUnlockedRef.current.has(n.id) && !n.isLocked) {
+          } else if (!knownUnlockedRef.current.has(n.id) && !n.isLocked && knownIdsRef.current.has(n.id)) {
+            knownUnlockedRef.current.add(n.id);
+          }
+          const wasLocked = !knownUnlockedRef.current.has(n.id);
+          if (wasLocked && !n.isLocked && knownIdsRef.current.has(n.id)) {
+            knownUnlockedRef.current.add(n.id);
+            if (Platform.OS !== "web") {
+              Vibration.vibrate([0, 300, 100, 300]);
+            }
+            await fireLocalNotification(
+              translations[language].notifUnlockedTitle,
+              translations[language].notifUnlockedBody,
+              Math.max(0, locked.length - 1)
+            );
+          }
+        }
+      } catch {
+      }
+    };
+
+    poll();
+    intervalRef.current = setInterval(poll, 6000);
+
+    const sub = AppState.addEventListener("change", (state) => {
+      appStateRef.current = state;
+      if (state === "active") poll();
+    });
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      sub.remove();
+    };
+  }, [userId, language]);
 
   const setLanguage = async (lang: Language) => {
     setLanguageSt(lang);
@@ -141,7 +264,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const t = (key: string) => translations[language][key] ?? key;
 
   return (
-    <AppContext.Provider value={{ language, setLanguage, userId, t }}>
+    <AppContext.Provider value={{ language, setLanguage, userId, t, lockedCount }}>
       {children}
     </AppContext.Provider>
   );

@@ -10,7 +10,7 @@ import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 
 function NativeTabLayout() {
-  const { t } = useApp();
+  const { t, lockedCount } = useApp();
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
@@ -18,7 +18,10 @@ function NativeTabLayout() {
         <Label>{t("home")}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="notifications">
-        <Icon sf={{ default: "bell", selected: "bell.fill" }} />
+        <Icon
+          sf={{ default: "bell", selected: "bell.fill" }}
+          badgeValue={lockedCount > 0 ? String(lockedCount) : undefined}
+        />
         <Label>{t("notifications")}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="admin">
@@ -30,7 +33,7 @@ function NativeTabLayout() {
 }
 
 function ClassicTabLayout() {
-  const { t } = useApp();
+  const { t, lockedCount } = useApp();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
@@ -72,6 +75,14 @@ function ClassicTabLayout() {
         name="notifications"
         options={{
           title: t("notifications"),
+          tabBarBadge: lockedCount > 0 ? lockedCount : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: "#EF4444",
+            color: "#fff",
+            fontSize: 10,
+            minWidth: 18,
+            height: 18,
+          },
           tabBarIcon: ({ color, size }) =>
             isIOS ? (
               <SymbolView name="bell.fill" tintColor={color} size={size} />

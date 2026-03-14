@@ -10,6 +10,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   ScrollView,
+  Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
@@ -56,7 +57,7 @@ function formatTime(dateStr: string, lang: string) {
 
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
-  const { t, userId, language } = useApp();
+  const { t, userId, language, lockedCount } = useApp();
   const isRTL = language === "ar";
   const qc = useQueryClient();
 
@@ -65,6 +66,21 @@ export default function NotificationsScreen() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [detailModal, setDetailModal] = useState(false);
   const prevNotificationsRef = useRef<Notification[]>([]);
+
+  const bellAnim = useRef(new Animated.Value(0)).current;
+  const bellScale = useRef(new Animated.Value(1)).current;
+
+  const ringBell = useCallback(() => {
+    Animated.sequence([
+      Animated.spring(bellScale, { toValue: 1.3, useNativeDriver: true, speed: 20 }),
+      Animated.timing(bellAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
+      Animated.timing(bellAnim, { toValue: -1, duration: 80, useNativeDriver: true }),
+      Animated.timing(bellAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
+      Animated.timing(bellAnim, { toValue: -1, duration: 80, useNativeDriver: true }),
+      Animated.timing(bellAnim, { toValue: 0, duration: 80, useNativeDriver: true }),
+      Animated.spring(bellScale, { toValue: 1, useNativeDriver: true }),
+    ]).start();
+  }, [bellAnim, bellScale]);
 
   const { data: notifications = [], isLoading, refetch, isRefetching } = useQuery<Notification[]>({
     queryKey: ["notifications", userId],
@@ -79,10 +95,15 @@ export default function NotificationsScreen() {
 
   useEffect(() => {
     const prev = prevNotificationsRef.current;
+    const isFirst = prev.length === 0 && notifications.length > 0;
     for (const notif of notifications) {
       const old = prev.find((p) => p.id === notif.id);
+      if (!old && !isFirst) {
+        ringBell();
+      }
       if (old && old.isLocked && !notif.isLocked) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        ringBell();
         setSelectedNotif(notif);
         setPaymentModal(false);
         setDetailModal(true);
@@ -129,8 +150,6 @@ export default function NotificationsScreen() {
       requestUnlockMutation.mutate(selectedNotif.id);
     }
   };
-
-  const lockedCount = notifications.filter((n) => n.isLocked).length;
 
   const renderNotif = ({ item }: { item: Notification }) => {
     const isPending = item.isLocked && item.paymentPending;
@@ -187,15 +206,40 @@ export default function NotificationsScreen() {
   const currentNotif = notifications.find((n) => n.id === selectedNotif?.id) ?? selectedNotif;
   const isRequestPending = currentNotif?.paymentPending && currentNotif?.isLocked;
 
+  const bellRotate = bellAnim.interpolate({
+    inputRange: [-1, 1],
+    outputRange: ["-18deg", "18deg"],
+  });
+
   return (
     <View style={[styles.container, { paddingTop: Platform.OS === "web" ? 67 : insets.top }]}>
-      <View style={styles.header}>
+      <View style={[styles.header, isRTL && styles.rtlRow]}>
+        {/* أيقونة الجرس المتحركة */}
+        <Animated.View
+          style={[
+            styles.bellWrap,
+            lockedCount > 0 && styles.bellWrapActive,
+            {
+              transform: [
+                { rotate: bellRotate },
+                { scale: bellScale },
+              ],
+            },
+          ]}
+        >
+          <Ionicons
+            name={lockedCount > 0 ? "notifications" : "notifications-outline"}
+            size={28}
+            color={lockedCount > 0 ? Colors.warning : Colors.primary}
+          />
+          {lockedCount > 0 && (
+            <View style={styles.bellBadge}>
+              <Text style={styles.bellBadgeText}>{lockedCount > 9 ? "9+" : lockedCount}</Text>
+            </View>
+          )}
+        </Animated.View>
+
         <Text style={[styles.headerTitle, isRTL && styles.rtlText]}>{t("notifications")}</Text>
-        {lockedCount > 0 && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{lockedCount}</Text>
-          </View>
-        )}
       </View>
 
       {isLoading ? (
@@ -453,10 +497,27 @@ function InfoRow({ icon, label, value, isRTL }: { icon: string; label: string; v
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 16, gap: 10 },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 16, gap: 12 },
   headerTitle: { fontSize: 26, fontFamily: "Inter_700Bold", color: Colors.light.text },
-  badge: { backgroundColor: Colors.primary, borderRadius: 12, minWidth: 24, height: 24, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
-  badgeText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 12 },
+  bellWrap: {
+    width: 50, height: 50, borderRadius: 25,
+    backgroundColor: Colors.primary + "12",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5, borderColor: Colors.primary + "20",
+  },
+  bellWrapActive: {
+    backgroundColor: Colors.warning + "18",
+    borderColor: Colors.warning + "40",
+  },
+  bellBadge: {
+    position: "absolute", top: -2, right: -2,
+    backgroundColor: "#EF4444",
+    borderRadius: 10, minWidth: 18, height: 18,
+    alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 3,
+    borderWidth: 1.5, borderColor: "#fff",
+  },
+  bellBadgeText: { color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold", lineHeight: 13 },
   list: { padding: 16, gap: 10 },
   emptyList: { flex: 1, justifyContent: "center" },
   notifCard: {

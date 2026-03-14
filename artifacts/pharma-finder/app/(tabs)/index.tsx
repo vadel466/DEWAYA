@@ -26,7 +26,7 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const { t, language, setLanguage, userId } = useApp();
+  const { t, language, setLanguage, userId, lockedCount } = useApp();
   const [drugName, setDrugName] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -149,13 +149,34 @@ export default function HomeScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, isRTL && styles.headerRTL]}>
           <TouchableOpacity
             style={styles.langButton}
             onPress={() => setLanguage(language === "ar" ? "fr" : "ar")}
             activeOpacity={0.7}
           >
             <Text style={styles.langText}>{t("changeLanguage")}</Text>
+          </TouchableOpacity>
+
+          {/* زر الجرس — يفتح الإشعارات */}
+          <TouchableOpacity
+            style={[styles.bellButton, lockedCount > 0 && styles.bellButtonActive]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/(tabs)/notifications");
+            }}
+            activeOpacity={0.75}
+          >
+            <Ionicons
+              name={lockedCount > 0 ? "notifications" : "notifications-outline"}
+              size={22}
+              color={lockedCount > 0 ? Colors.warning : Colors.primary}
+            />
+            {lockedCount > 0 && (
+              <View style={styles.bellDot}>
+                <Text style={styles.bellDotText}>{lockedCount > 9 ? "9+" : lockedCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -310,13 +331,34 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },
   scrollContent: { flexGrow: 1, paddingHorizontal: 20, paddingBottom: Platform.OS === "web" ? 34 : 20 },
-  header: { flexDirection: "row", justifyContent: "flex-end", paddingVertical: 12 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 12 },
+  headerRTL: { flexDirection: "row-reverse" },
   langButton: {
     backgroundColor: Colors.light.card, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6,
     borderWidth: 1, borderColor: Colors.light.border,
     shadowColor: Colors.light.shadow, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 3, elevation: 2,
   },
   langText: { color: Colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 13 },
+  bellButton: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: Colors.light.card,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: Colors.light.border,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
+  },
+  bellButtonActive: {
+    backgroundColor: Colors.warning + "15",
+    borderColor: Colors.warning + "50",
+  },
+  bellDot: {
+    position: "absolute", top: -1, right: -1,
+    backgroundColor: "#EF4444",
+    borderRadius: 9, minWidth: 17, height: 17,
+    alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 3,
+    borderWidth: 1.5, borderColor: Colors.light.background,
+  },
+  bellDotText: { color: "#fff", fontSize: 9, fontFamily: "Inter_700Bold", lineHeight: 12 },
   logoSection: { alignItems: "center", paddingVertical: 28 },
   logoContainer: {
     width: 100, height: 100, borderRadius: 50, backgroundColor: Colors.accentLight,

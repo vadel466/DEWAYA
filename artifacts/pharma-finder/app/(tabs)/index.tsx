@@ -176,10 +176,23 @@ export default function HomeScreen() {
         </TouchableOpacity>
 
         <View style={[styles.identityRow, isRTL && styles.rowReverse]}>
+          {/* ── Pharmacy badge logo ── */}
           <View style={styles.miniLogo}>
-            <MaterialCommunityIcons name="pill" size={16} color="#fff" />
+            <MaterialCommunityIcons name="stethoscope" size={20} color="#fff" />
+            <View style={styles.miniLogoIcons}>
+              <MaterialCommunityIcons name="pill" size={9} color="rgba(255,255,255,0.88)" />
+              <MaterialCommunityIcons name="hospital-box" size={9} color="rgba(255,255,255,0.88)" />
+            </View>
           </View>
-          <Text style={styles.headerTitle}>{t("appName")}</Text>
+
+          {/* ── Bilingual name ── */}
+          <View style={[styles.nameStack, isRTL && { alignItems: "flex-end" }]}>
+            <Text style={styles.headerTitle}>{t("appName")}</Text>
+            <View style={[styles.frNameRow, isRTL && styles.rowReverse]}>
+              <View style={styles.frDivider} />
+              <Text style={styles.headerFrName}>DEWAYA</Text>
+            </View>
+          </View>
         </View>
 
         <TouchableOpacity
@@ -476,13 +489,53 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary + "20",
   },
   langPillText: { color: Colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 12 },
-  identityRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  identityRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   miniLogo: {
-    width: 28, height: 28, borderRadius: 14,
+    width: 50, height: 50, borderRadius: 25,
     backgroundColor: Colors.primary,
     alignItems: "center", justifyContent: "center",
+    paddingBottom: 2,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.32,
+    shadowRadius: 7,
+    elevation: 5,
   },
-  headerTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: Colors.light.text },
+  miniLogoIcons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    marginTop: 1,
+  },
+  nameStack: {
+    alignItems: "flex-start",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    color: Colors.light.text,
+    lineHeight: 22,
+  },
+  frNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 1,
+  },
+  frDivider: {
+    width: 18,
+    height: 1.5,
+    backgroundColor: Colors.primary,
+    borderRadius: 1,
+    opacity: 0.6,
+  },
+  headerFrName: {
+    fontSize: 9.5,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.primary,
+    letterSpacing: 3.5,
+    opacity: 0.85,
+  },
   bellBtn: {
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: Colors.light.card,

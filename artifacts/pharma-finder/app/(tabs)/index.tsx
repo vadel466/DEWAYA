@@ -32,7 +32,7 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : "/api";
 
-const DUTY_RED = "#C0392B";
+const DUTY_RED = "#DC3545";
 const DUTY_RED_LIGHT = "#FDECEA";
 const AMBER = "#F59E0B";
 const AMBER_LIGHT = "#FEF9EE";

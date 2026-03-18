@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Dimensions, StyleSheet, Text, View } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Animated, Dimensions, Image, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 
 const { width, height } = Dimensions.get("window");
@@ -63,12 +62,11 @@ export default function IntroScreen({ onFinish, language = "ar" }: IntroScreenPr
           { opacity: logoOpacity, transform: [{ scale: Animated.multiply(logoScale, pulse) }] },
         ]}
       >
-        <View style={styles.logoCircle}>
-          <MaterialCommunityIcons name="pill" size={52} color="#fff" />
-        </View>
-        <View style={styles.logoBadge}>
-          <MaterialCommunityIcons name="map-marker-check" size={18} color="#fff" />
-        </View>
+        <Image
+          source={require("../assets/images/icon.png")}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
       </Animated.View>
 
       <Animated.View style={{ opacity: titleOpacity, transform: [{ translateY: titleY }], alignItems: "center" }}>
@@ -134,31 +132,18 @@ const styles = StyleSheet.create({
     right: -width * 0.3,
   },
   logoWrapper: {
-    marginBottom: 28,
-    position: "relative",
-  },
-  logoCircle: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.35)",
+    marginBottom: 24,
     alignItems: "center",
     justifyContent: "center",
   },
-  logoBadge: {
-    position: "absolute",
-    bottom: 4,
-    right: 4,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: Colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: Colors.primary,
+  logoImage: {
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
   },
   titleAr: {
     fontSize: 42,

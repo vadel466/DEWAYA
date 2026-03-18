@@ -21,31 +21,35 @@ export default function IntroScreen({ onFinish, language = "ar" }: IntroScreenPr
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    const ND = false;
+
     const pulseLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.12, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1.12, duration: 900, useNativeDriver: ND }),
+        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: ND }),
       ])
     );
 
+    const timer = setTimeout(() => onFinish(), 3400);
+
     Animated.sequence([
-      Animated.timing(bgScale, { toValue: 1, duration: 700, useNativeDriver: true }),
+      Animated.timing(bgScale, { toValue: 1, duration: 700, useNativeDriver: ND }),
       Animated.parallel([
-        Animated.spring(logoScale, { toValue: 1, tension: 60, friction: 7, useNativeDriver: true }),
-        Animated.timing(logoOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.spring(logoScale, { toValue: 1, tension: 60, friction: 7, useNativeDriver: ND }),
+        Animated.timing(logoOpacity, { toValue: 1, duration: 400, useNativeDriver: ND }),
       ]),
       Animated.delay(100),
       Animated.parallel([
-        Animated.timing(titleOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
-        Animated.timing(titleY, { toValue: 0, duration: 350, useNativeDriver: true }),
+        Animated.timing(titleOpacity, { toValue: 1, duration: 350, useNativeDriver: ND }),
+        Animated.timing(titleY, { toValue: 0, duration: 350, useNativeDriver: ND }),
       ]),
-      Animated.timing(taglineOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+      Animated.timing(taglineOpacity, { toValue: 1, duration: 300, useNativeDriver: ND }),
       Animated.delay(800),
-      Animated.timing(exitOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
-    ]).start(() => onFinish());
+      Animated.timing(exitOpacity, { toValue: 0, duration: 400, useNativeDriver: ND }),
+    ]).start(() => { clearTimeout(timer); onFinish(); });
 
     pulseLoop.start();
-    return () => pulseLoop.stop();
+    return () => { pulseLoop.stop(); clearTimeout(timer); };
   }, []);
 
   return (
@@ -92,8 +96,8 @@ function DotsAnimated({ delay }: { delay: number }) {
     const loop = Animated.loop(
       Animated.sequence([
         Animated.delay(delay),
-        Animated.timing(opacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.3, duration: 400, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 400, useNativeDriver: false }),
+        Animated.timing(opacity, { toValue: 0.3, duration: 400, useNativeDriver: false }),
       ])
     );
     loop.start();

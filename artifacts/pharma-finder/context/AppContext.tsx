@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from "r
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Vibration, Platform, AppState } from "react-native";
 import * as Notifications from "expo-notifications";
+import type { Region } from "@/constants/regions";
 
 type Language = "ar" | "fr";
 
@@ -11,6 +12,8 @@ type AppContextType = {
   userId: string;
   t: (key: string) => string;
   lockedCount: number;
+  region: Region | null;
+  setRegion: (r: Region | null) => void;
 };
 
 const translations: Record<Language, Record<string, string>> = {
@@ -18,9 +21,28 @@ const translations: Record<Language, Record<string, string>> = {
     appName: "أدْواَيَ",
     appNameSub: "DEWAYA",
     appTagline: "أقرب صيدلية إليك",
+
+    nearestPharmacy: "أقرب صيدلية",
+    nearestPharmacyDesc: "ابحث عن الصيدلية الأقرب إليك",
+    searchDrug: "أبحث عن دواء",
+    searchDrugDesc: "ابحث بالاسم أو صوّر العلبة",
+    drugPrice: "سعر الدواء",
+    drugPriceDesc: "تعرف على سعر دوائك",
+    dutyPharmacies: "صيدليات المداومة",
+    dutyPharmaciesDesc: "الصيدليات المفتوحة في منطقتك",
+
+    regionLabel: "اختر منطقتك",
+    regionPlaceholder: "حدد منطقتك...",
+    detectLocation: "تحديد موقعي",
+    locationDetecting: "جارٍ التحديد...",
+    locationError: "تعذّر تحديد الموقع",
+    selectRegion: "اختر المنطقة",
+    comingSoon: "قريباً",
+    comingSoonMsg: "هذه الخدمة ستكون متاحة قريباً",
+
     searchTitle: "البحث عن دواء",
     searchPlaceholder: "أدخل اسم الدواء...",
-    searchButton: "بحث",
+    searchButton: "إرسال الطلب",
     orText: "أو",
     uploadImage: "تصوير العلبة",
     requestSent: "تم إرسال طلبكم",
@@ -72,9 +94,28 @@ const translations: Record<Language, Record<string, string>> = {
     appName: "DEWAYA",
     appNameSub: "أدْواَيَ",
     appTagline: "La pharmacie la plus proche",
+
+    nearestPharmacy: "Pharmacie proche",
+    nearestPharmacyDesc: "Trouvez la pharmacie la plus proche",
+    searchDrug: "Chercher un médicament",
+    searchDrugDesc: "Par nom ou photo de la boîte",
+    drugPrice: "Prix du médicament",
+    drugPriceDesc: "Connaître le prix de votre médicament",
+    dutyPharmacies: "Pharmacies de garde",
+    dutyPharmaciesDesc: "Pharmacies ouvertes dans votre zone",
+
+    regionLabel: "Votre région",
+    regionPlaceholder: "Sélectionnez votre région...",
+    detectLocation: "Ma position",
+    locationDetecting: "Détection...",
+    locationError: "Impossible de détecter",
+    selectRegion: "Choisir la région",
+    comingSoon: "Bientôt disponible",
+    comingSoonMsg: "Ce service sera bientôt disponible",
+
     searchTitle: "Rechercher un médicament",
     searchPlaceholder: "Entrez le nom du médicament...",
-    searchButton: "Rechercher",
+    searchButton: "Envoyer la demande",
     orText: "OU",
     uploadImage: "Photographier la boîte",
     requestSent: "Demande envoyée",
@@ -166,6 +207,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageSt] = useState<Language>("ar");
   const [userId, setUserId] = useState<string>("");
   const [lockedCount, setLockedCount] = useState(0);
+  const [region, setRegionSt] = useState<Region | null>(null);
 
   const knownIdsRef = useRef<Set<string>>(new Set());
   const knownUnlockedRef = useRef<Set<string>>(new Set());
@@ -261,10 +303,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem("language", lang);
   };
 
+  const setRegion = (r: Region | null) => setRegionSt(r);
+
   const t = (key: string) => translations[language][key] ?? key;
 
   return (
-    <AppContext.Provider value={{ language, setLanguage, userId, t, lockedCount }}>
+    <AppContext.Provider value={{ language, setLanguage, userId, t, lockedCount, region, setRegion }}>
       {children}
     </AppContext.Provider>
   );

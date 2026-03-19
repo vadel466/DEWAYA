@@ -180,14 +180,14 @@ export default function AdminScreen() {
     queryKey: ["admin-requests"],
     queryFn: async () => { const r = await fetch(`${API_BASE}/requests`); if (!r.ok) throw new Error(); return r.json(); },
     refetchInterval: reqTabActive ? 5000 : false,
-    enabled: isAdmin,
+    enabled: reqTabActive,
   });
 
   const { data: pendingPayments = [], isLoading: payLoading, refetch: refetchPay, isRefetching: payRefetching } = useQuery<PendingPayment[]>({
     queryKey: ["admin-pending-payments"],
     queryFn: async () => { const r = await fetch(`${API_BASE}/notifications/admin/pending-payments`); if (!r.ok) throw new Error(); return r.json(); },
     refetchInterval: payTabActive ? 5000 : false,
-    enabled: isAdmin,
+    enabled: payTabActive,
   });
 
   const { data: pharmacies = [], isLoading: pharmaLoading, refetch: refetchPharma, isRefetching: pharmaRefetching } = useQuery<Pharmacy[]>({

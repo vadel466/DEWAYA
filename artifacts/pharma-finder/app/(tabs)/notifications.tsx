@@ -453,11 +453,23 @@ export default function NotificationsScreen() {
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
 
-            <View style={styles.successIconLarge}>
-              <Ionicons name="medical" size={36} color={Colors.primary} />
+            {/* شعار DEWAYA + أيقونة النجاح */}
+            <View style={styles.resultHeaderWrap}>
+              <View style={styles.successIconLarge}>
+                <MaterialCommunityIcons name="check-circle" size={38} color={Colors.accent} />
+              </View>
+              <View style={styles.dewaяBadge}>
+                <View style={styles.dewaяLogoMini}>
+                  <MaterialCommunityIcons name="stethoscope" size={11} color="#fff" />
+                </View>
+                <Text style={styles.dewaяBadgeText}>DEWAYA</Text>
+              </View>
             </View>
 
             <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>{t("pharmacyFound")}</Text>
+            <Text style={[styles.modalSubtitle, isRTL && styles.rtlText]}>
+              {isRTL ? "تم العثور على الدواء في الصيدلية التالية" : "Ce médicament est disponible dans la pharmacie suivante"}
+            </Text>
 
             {selectedNotif && (
               <View style={styles.infoCard}>
@@ -476,6 +488,16 @@ export default function NotificationsScreen() {
             >
               <Text style={styles.closeButtonText}>{t("close")}</Text>
             </TouchableOpacity>
+
+            {/* توقيع خفيف */}
+            <View style={styles.modalFooterBrand}>
+              <View style={styles.modalFooterLogoMini}>
+                <MaterialCommunityIcons name="stethoscope" size={9} color={Colors.primary} />
+              </View>
+              <Text style={styles.modalFooterBrandText}>
+                {isRTL ? "أدواي | DEWAYA" : "DEWAYA | أدواي"}
+              </Text>
+            </View>
           </View>
         </View>
       </Modal>
@@ -623,12 +645,28 @@ const styles = StyleSheet.create({
   cancelBtn: { paddingVertical: 12, alignItems: "center" },
   cancelText: { color: Colors.light.textSecondary, fontFamily: "Inter_500Medium", fontSize: 15 },
 
+  resultHeaderWrap: { alignItems: "center", marginBottom: 12, position: "relative" },
   successIconLarge: {
     width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.accentLight,
-    alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: 14,
+    alignItems: "center", justifyContent: "center", alignSelf: "center",
     borderWidth: 2, borderColor: Colors.accent + "30",
   },
-  modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: Colors.light.text, textAlign: "center", marginBottom: 16 },
+  dewaяBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: Colors.primary + "0E", borderRadius: 20,
+    paddingHorizontal: 10, paddingVertical: 4, marginTop: 10,
+    borderWidth: 1, borderColor: Colors.primary + "20",
+  },
+  dewaяLogoMini: {
+    width: 18, height: 18, borderRadius: 9, backgroundColor: Colors.primary,
+    alignItems: "center", justifyContent: "center",
+  },
+  dewaяBadgeText: { fontSize: 11, fontFamily: "Inter_700Bold", color: Colors.primary, letterSpacing: 0.5 },
+  modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: Colors.light.text, textAlign: "center", marginBottom: 6 },
+  modalSubtitle: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, textAlign: "center", marginBottom: 16, lineHeight: 18 },
+  modalFooterBrand: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 12, opacity: 0.45 },
+  modalFooterLogoMini: { width: 14, height: 14, borderRadius: 7, backgroundColor: Colors.primary, alignItems: "center", justifyContent: "center" },
+  modalFooterBrandText: { fontSize: 10, fontFamily: "Inter_500Medium", color: Colors.primary, letterSpacing: 0.4 },
   infoCard: { width: "100%", backgroundColor: Colors.light.background, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.light.border },
   infoRow: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingVertical: 6 },
   infoContent: { flex: 1 },

@@ -31,6 +31,8 @@ const DUTY_RED = "#DC3545";
 const DUTY_RED_LIGHT = "#FEF0F0";
 const AMBER = "#F59E0B";
 const AMBER_LIGHT = "#FEF9EE";
+const DOCTOR_BLUE = "#1A6FA8";
+const DOCTOR_LIGHT = "#EFF6FF";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -447,12 +449,12 @@ export default function HomeScreen() {
 
         <View style={styles.gridRow}>
           {/* جِدْ طبيبك */}
-          <TouchableOpacity style={[styles.card, { backgroundColor: "#EDFAF4" }]} onPress={goToFindDoctor} activeOpacity={0.82}>
-            <View style={[styles.cardAccent, { backgroundColor: Colors.accent }]} />
-            <View style={[styles.cardIconCircle, { backgroundColor: Colors.accent + "22" }]}>
-              <MaterialCommunityIcons name="doctor" size={22} color={Colors.accent} />
+          <TouchableOpacity style={[styles.card, { backgroundColor: DOCTOR_LIGHT }]} onPress={goToFindDoctor} activeOpacity={0.82}>
+            <View style={[styles.cardAccent, { backgroundColor: DOCTOR_BLUE }]} />
+            <View style={[styles.cardIconCircle, { backgroundColor: DOCTOR_BLUE + "18", width: 48, height: 48, borderRadius: 14 }]}>
+              <MaterialCommunityIcons name="stethoscope" size={26} color={DOCTOR_BLUE} />
             </View>
-            <Text style={[styles.cardTitle, { color: Colors.accent }, isRTL && styles.textRight]} numberOfLines={2}>
+            <Text style={[styles.cardTitle, { color: DOCTOR_BLUE }, isRTL && styles.textRight]} numberOfLines={2}>
               {t("findDoctor")}
             </Text>
             <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>

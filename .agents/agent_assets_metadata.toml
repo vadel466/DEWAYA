@@ -5,10 +5,10 @@ generated = []
 id = "L1Ge_AAPgrdOpRE5MPFyQ"
 uri = "file://artifacts/pharma-finder/assets/images/icon.png"
 type = "image"
-title = "رمز Rx بارز"
+title = "النسخة 1 — صليب أخضر + سماعة + أقراص"
 
 [[outputs]]
 id = "u7AKXTzFh5WvC9C2UnFtP"
 uri = "file://artifacts/pharma-finder/assets/images/icon_v2.png"
 type = "image"
-title = "صليب الصيدلية الأخضر"
+title = "النسخة 2 — Rx + سماعة + أقراص"

@@ -766,13 +766,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   appDescText: {
-    flex: 1,
     textAlign: "center",
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    color: Colors.primary + "80",
-    letterSpacing: 0.2,
-    lineHeight: 17,
+    fontFamily: "Inter_500Medium",
+    fontSize: 13,
+    color: Colors.primary + "90",
+    letterSpacing: 2.5,
   },
 
   /* HEADER */

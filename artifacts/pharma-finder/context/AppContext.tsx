@@ -109,7 +109,7 @@ const translations: Record<Language, Record<string, string>> = {
     pharmacyPortalTab: "مخزوني",
     noScheduleAdded: "لم يُضَف جدول بعد",
     scheduleTitle: "جدول الدوام",
-    appDescription: "نُسهِّل عليك إيجاد دوائك والصيدلية الأقرب إليك في موريتانيا",
+    appDescription: "دوائك، أقرب صيدلية إليك، وطبيبك — خدمات صحية واقعية في تطبيق واحد",
   },
   fr: {
     appName: "DEWAYA",
@@ -199,7 +199,7 @@ const translations: Record<Language, Record<string, string>> = {
     pharmacyPortalTab: "Mon stock",
     noScheduleAdded: "Aucun horaire disponible",
     scheduleTitle: "Horaires de consultation",
-    appDescription: "Trouvez vos médicaments et la pharmacie la plus proche en Mauritanie",
+    appDescription: "Médicaments, pharmacie la plus proche et médecin — des services de santé concrets en une seule application",
   },
 };
 

@@ -178,7 +178,7 @@ export default function NearestPharmacyScreen() {
         >
           <Ionicons name="navigate" size={16} color={Colors.primary} />
           <Text style={[styles.actionBtnText, { color: Colors.primary }]}>
-            {isRTL ? "الاتجاهات" : "Itinéraire"}
+            {t("directionsLabel")}
           </Text>
         </TouchableOpacity>
       </View>
@@ -223,10 +223,7 @@ export default function NearestPharmacyScreen() {
         <View style={[styles.locationBanner, isRTL && styles.rtlRow]}>
           <Ionicons name="location" size={14} color={Colors.primary} />
           <Text style={styles.locationText}>
-            {locating
-              ? (isRTL ? "جارٍ تحديد الموقع..." : "Localisation en cours...")
-              : (isRTL ? "تم تحديد موقعك • الترتيب حسب القرب" : "Position détectée • Triées par distance")
-            }
+            {locating ? t("locatingLabel") : t("locationDetectedLabel")}
           </Text>
         </View>
       )}
@@ -272,12 +269,10 @@ export default function NearestPharmacyScreen() {
             <View style={styles.emptyState}>
               <MaterialCommunityIcons name="map-marker-off" size={64} color={Colors.light.textTertiary} />
               <Text style={[styles.emptyTitle, isRTL && styles.rtlText]}>
-                {isRTL ? "لا توجد صيدليات مسجلة في منطقتك" : "Aucune pharmacie enregistrée dans votre région"}
+                {t("noPharmaciesRegion")}
               </Text>
               <Text style={[styles.emptySub, isRTL && styles.rtlText]}>
-                {isRTL
-                  ? "تواصل معنا لإضافة صيدليتك إلى الدليل"
-                  : "Contactez-nous pour ajouter votre pharmacie"}
+                {t("contactToAdd")}
               </Text>
             </View>
           }

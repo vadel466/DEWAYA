@@ -203,7 +203,7 @@ export default function HomeScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId,
-          drugName: drugName.trim() || (isRTL ? "صورة علبة دواء" : "Image de médicament"),
+          drugName: drugName.trim() || t("imageDrug"),
         }),
       });
       if (!resp.ok) throw new Error("Failed");

@@ -114,9 +114,6 @@ export default function DutyPharmaciesScreen() {
                 <Text style={[styles.regionName, isRTL && styles.rtlText]} numberOfLines={2}>
                   {language === "ar" ? r.ar : r.fr}
                 </Text>
-                <Text style={[styles.regionNameSub, isRTL && styles.rtlText]} numberOfLines={1}>
-                  {language === "ar" ? r.fr : r.ar}
-                </Text>
                 <Ionicons
                   name={isRTL ? "chevron-back" : "chevron-forward"}
                   size={16}

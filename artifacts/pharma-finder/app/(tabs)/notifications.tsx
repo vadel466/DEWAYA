@@ -179,7 +179,7 @@ export default function NotificationsScreen() {
                 <View style={[styles.pendingBadge, isRTL && styles.rtlRow]}>
                   <ActivityIndicator size={10} color={Colors.primary} />
                   <Text style={[styles.pendingBadgeText, isRTL && styles.rtlText]}>
-                    {isRTL ? "في انتظار تأكيد المسؤول..." : "En attente de confirmation..."}
+                    {t("waitingConfirm")}
                   </Text>
                 </View>
               ) : (

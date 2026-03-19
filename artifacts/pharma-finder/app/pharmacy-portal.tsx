@@ -381,7 +381,7 @@ export default function PharmacyPortalScreen() {
 
   const TABS: { id: PortalTab; label: string; icon: any }[] = [
     { id: "requests", label: isRTL ? `الطلبات${pendingRequests.length > 0 ? ` (${pendingRequests.length})` : ""}` : `Demandes${pendingRequests.length > 0 ? ` (${pendingRequests.length})` : ""}`, icon: "pill" },
-    { id: "repeater", label: isRTL ? "ريبتير" : "Répéteur", icon: "repeat" },
+    { id: "repeater", label: isRTL ? "مخزوني" : "Mon stock", icon: "pill" },
     { id: "partners", label: isRTL ? `الشركاء${pendingOrders.length > 0 ? ` (${pendingOrders.length})` : ""}` : `Partenaires${pendingOrders.length > 0 ? ` (${pendingOrders.length})` : ""}`, icon: "domain" },
     { id: "ads", label: isRTL ? "إعلانات" : "Annonces", icon: "bullhorn" },
   ];

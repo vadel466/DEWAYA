@@ -762,7 +762,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    marginBottom: 10,
+    marginBottom: 5,
     paddingHorizontal: 4,
   },
   appDescText: {
@@ -993,7 +993,7 @@ const styles = StyleSheet.create({
     gap: 6,
     borderWidth: 1,
     borderColor: Colors.light.border,
-    marginBottom: 8,
+    marginBottom: 5,
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
   },
   regionInput: {
@@ -1022,8 +1022,8 @@ const styles = StyleSheet.create({
   searchCard: {
     backgroundColor: Colors.light.card,
     borderRadius: 16,
-    padding: 12,
-    marginBottom: 10,
+    padding: 10,
+    marginBottom: 6,
     borderWidth: 1,
     borderColor: Colors.light.border,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,

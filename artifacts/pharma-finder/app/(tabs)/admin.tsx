@@ -27,7 +27,6 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : "/api";
 
-const ADMIN_PIN = process.env.EXPO_PUBLIC_ADMIN_PIN ?? "DEWAYA26";
 
 type DrugRequest = {
   id: string; userId: string; drugName: string;
@@ -70,13 +69,10 @@ function todayStr(): string {
 
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
-  const { t, language, userId } = useApp();
+  const { t, language, userId, isAdmin, adminLogout } = useApp();
   const isRTL = language === "ar";
   const qc = useQueryClient();
 
-  const [authenticated, setAuthenticated] = useState(false);
-  const [pinInput, setPinInput] = useState("");
-  const [pinError, setPinError] = useState(false);
 
   const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal">("pending");
   const [selectedRequest, setSelectedRequest] = useState<DrugRequest | null>(null);
@@ -104,47 +100,34 @@ export default function AdminScreen() {
   const [selectedPortalResponse, setSelectedPortalResponse] = useState<PortalResponse | null>(null);
   const [showPortalModal, setShowPortalModal] = useState(false);
 
-  const handlePinSubmit = async () => {
-    if (pinInput.trim() === ADMIN_PIN) {
-      setAuthenticated(true);
-      setPinInput("");
-      setPinError(false);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } else {
-      setPinError(true);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setTimeout(() => setPinError(false), 3000);
-    }
-  };
-
   const { data: requests = [], isLoading: reqLoading, refetch: refetchReq, isRefetching: reqRefetching } = useQuery<DrugRequest[]>({
     queryKey: ["admin-requests"],
     queryFn: async () => { const r = await fetch(`${API_BASE}/requests`); if (!r.ok) throw new Error(); return r.json(); },
-    refetchInterval: 5000, enabled: authenticated,
+    refetchInterval: 5000, enabled: isAdmin,
   });
 
   const { data: pendingPayments = [], isLoading: payLoading, refetch: refetchPay, isRefetching: payRefetching } = useQuery<PendingPayment[]>({
     queryKey: ["admin-pending-payments"],
     queryFn: async () => { const r = await fetch(`${API_BASE}/notifications/admin/pending-payments`); if (!r.ok) throw new Error(); return r.json(); },
-    refetchInterval: 5000, enabled: authenticated,
+    refetchInterval: 5000, enabled: isAdmin,
   });
 
   const { data: pharmacies = [], isLoading: pharmaLoading, refetch: refetchPharma, isRefetching: pharmaRefetching } = useQuery<Pharmacy[]>({
     queryKey: ["admin-pharmacies"],
     queryFn: async () => { const r = await fetch(`${API_BASE}/pharmacies`); if (!r.ok) throw new Error(); return r.json(); },
-    enabled: authenticated && activeTab === "pharmacies",
+    enabled: isAdmin && activeTab === "pharmacies",
   });
 
   const { data: dutyList = [], isLoading: dutyLoading, refetch: refetchDuty, isRefetching: dutyRefetching } = useQuery<DutyPharmacy[]>({
     queryKey: ["admin-duty"],
     queryFn: async () => { const r = await fetch(`${API_BASE}/duty-pharmacies/all`); if (!r.ok) throw new Error(); return r.json(); },
-    enabled: authenticated && activeTab === "duty",
+    enabled: isAdmin && activeTab === "duty",
   });
 
   const { data: portalResponses = [], isLoading: portalLoading, refetch: refetchPortal, isRefetching: portalRefetching } = useQuery<PortalResponse[]>({
     queryKey: ["admin-portal-responses"],
     queryFn: async () => { const r = await fetch(`${API_BASE}/pharmacy-portal/responses`); if (!r.ok) throw new Error(); return r.json(); },
-    refetchInterval: 8000, enabled: authenticated && activeTab === "portal",
+    refetchInterval: 8000, enabled: isAdmin && activeTab === "portal",
   });
 
   const respondMutation = useMutation({
@@ -249,56 +232,29 @@ export default function AdminScreen() {
   const pendingRequests = requests.filter((r) => r.status === "pending");
   const respondedRequests = requests.filter((r) => r.status === "responded");
 
-  if (!authenticated) {
+  if (!isAdmin) {
     return (
-      <KeyboardAvoidingView
-        style={[styles.container, { paddingTop: Platform.OS === "web" ? 67 : insets.top, alignItems: "center", justifyContent: "center" }]}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <View style={[styles.container, { paddingTop: Platform.OS === "web" ? 67 : insets.top, alignItems: "center", justifyContent: "center" }]}>
         <View style={styles.pinGate}>
           <View style={styles.pinIconWrap}>
-            <Ionicons name="shield" size={44} color={Colors.primary} />
+            <Ionicons name="shield-outline" size={44} color={Colors.light.textTertiary} />
           </View>
           <Text style={[styles.pinTitle, isRTL && styles.rtlText]}>
             {isRTL ? "لوحة الإدارة" : "Panneau d'administration"}
           </Text>
           <Text style={[styles.pinSubtitle, isRTL && styles.rtlText]}>
-            {isRTL ? "أدخل رمز الدخول للمتابعة" : "Entrez le code d'accès pour continuer"}
+            {isRTL
+              ? "اضغط مطولاً على الشعار لمدة 5 ثوانٍ وأدخل رمز الدخول"
+              : "Appuyez longuement sur le logo pendant 5 secondes pour accéder"}
           </Text>
-          <View style={[styles.pinRow, pinError && styles.pinRowError, isRTL && styles.rtlRow]}>
-            <Ionicons name="key-outline" size={20} color={pinError ? Colors.danger : Colors.light.textSecondary} />
-            <TextInput
-              style={[styles.pinField, isRTL && styles.rtlText]}
-              placeholder={isRTL ? "رمز الدخول" : "Code d'accès"}
-              placeholderTextColor={Colors.light.textTertiary}
-              value={pinInput}
-              onChangeText={setPinInput}
-              secureTextEntry
-              autoCapitalize="none"
-              textAlign={isRTL ? "right" : "left"}
-              returnKeyType="go"
-              onSubmitEditing={handlePinSubmit}
-            />
-          </View>
-          {pinError && (
-            <Text style={styles.pinErrorText}>
-              {isRTL ? "رمز الدخول غير صحيح" : "Code d'accès incorrect"}
+          <View style={[styles.pinHintBox, isRTL && { flexDirection: "row-reverse" }]}>
+            <Ionicons name="finger-print" size={20} color={Colors.primary} />
+            <Text style={[styles.pinHint, isRTL && styles.rtlText]}>
+              {isRTL ? "الشعار ← ضغط 5 ثوانٍ ← رمز 2026" : "Logo ← appui 5s ← code 2026"}
             </Text>
-          )}
-          <TouchableOpacity
-            style={[styles.pinBtn, !pinInput.trim() && styles.pinBtnDisabled]}
-            onPress={handlePinSubmit}
-            disabled={!pinInput.trim()}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="enter" size={18} color="#fff" />
-            <Text style={styles.pinBtnText}>{isRTL ? "دخول" : "Connexion"}</Text>
-          </TouchableOpacity>
-          <Text style={[styles.pinHint, isRTL && styles.rtlText]}>
-            {isRTL ? "الرمز محفوظ بأمان — للمدير فقط" : "Code sécurisé — administrateur uniquement"}
-          </Text>
+          </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     );
   }
 
@@ -488,7 +444,7 @@ export default function AdminScreen() {
             <Text style={styles.statsText}>{pendingPayments.length}</Text>
             <Text style={styles.statsLabel}>{isRTL ? "دفع" : "Pmt"}</Text>
           </View>
-          <TouchableOpacity style={styles.lockBtn} onPress={() => setAuthenticated(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity style={styles.lockBtn} onPress={() => adminLogout()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="lock-closed-outline" size={18} color={Colors.light.textSecondary} />
           </TouchableOpacity>
         </View>
@@ -736,7 +692,8 @@ const styles = StyleSheet.create({
   pinBtn: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 15, borderRadius: 14, backgroundColor: Colors.primary, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
   pinBtnDisabled: { opacity: 0.5, shadowOpacity: 0 },
   pinBtnText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16 },
-  pinHint: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary, textAlign: "center" },
+  pinHint: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.primary, flex: 1 },
+  pinHintBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: Colors.primary + "10", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, width: "100%" },
 
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14 },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },

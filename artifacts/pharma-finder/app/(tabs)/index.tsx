@@ -11,6 +11,7 @@ import {
   Alert,
   Modal,
   FlatList,
+  Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -33,7 +34,7 @@ const AMBER_LIGHT = "#FEF9EE";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const { t, language, setLanguage, userId, lockedCount, region, setRegion } = useApp();
+  const { t, language, setLanguage, userId, lockedCount, region, setRegion, isAdmin, setIsAdmin } = useApp();
   const isRTL = language === "ar";
   const inputRef = useRef<TextInput>(null);
 
@@ -47,6 +48,59 @@ export default function HomeScreen() {
   const [regionQuery, setRegionQuery] = useState("");
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [showImgMenu, setShowImgMenu] = useState(false);
+
+  const [showAdminPinModal, setShowAdminPinModal] = useState(false);
+  const [adminPinInput, setAdminPinInput] = useState("");
+  const [adminPinError, setAdminPinError] = useState(false);
+  const [adminPinSuccess, setAdminPinSuccess] = useState(false);
+  const logoProgress = useRef(new Animated.Value(0)).current;
+  const logoAnimation = useRef<Animated.CompositeAnimation | null>(null);
+  const adminPinRef = useRef<TextInput>(null);
+
+  const ADMIN_PIN = "2026";
+
+  const handleLogoLongPress = () => {
+    logoAnimation.current?.stop();
+    Animated.timing(logoProgress, { toValue: 0, duration: 0, useNativeDriver: false }).start();
+    setShowAdminPinModal(true);
+    setAdminPinInput("");
+    setAdminPinError(false);
+    setAdminPinSuccess(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setTimeout(() => adminPinRef.current?.focus(), 200);
+  };
+
+  const handleLogoPressIn = () => {
+    logoAnimation.current?.stop();
+    Animated.timing(logoProgress, { toValue: 0, duration: 0, useNativeDriver: false }).start(() => {
+      logoAnimation.current = Animated.timing(logoProgress, { toValue: 1, duration: 5000, useNativeDriver: false });
+      logoAnimation.current.start();
+    });
+  };
+
+  const handleLogoPressOut = () => {
+    logoAnimation.current?.stop();
+    Animated.timing(logoProgress, { toValue: 0, duration: 300, useNativeDriver: false }).start();
+  };
+
+  const handleAdminPinSubmit = async () => {
+    if (adminPinInput.trim() === ADMIN_PIN) {
+      setAdminPinSuccess(true);
+      setAdminPinError(false);
+      await setIsAdmin(true);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setTimeout(() => {
+        setShowAdminPinModal(false);
+        setAdminPinInput("");
+        setAdminPinSuccess(false);
+        router.push("/(tabs)/admin");
+      }, 800);
+    } else {
+      setAdminPinError(true);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setTimeout(() => setAdminPinError(false), 2500);
+    }
+  };
 
   const openCamera = async () => {
     setShowImgMenu(false);
@@ -185,14 +239,33 @@ export default function HomeScreen() {
           <Text style={styles.langPillText}>{t("changeLanguage")}</Text>
         </TouchableOpacity>
 
-        <View style={[styles.identityRow, isRTL && styles.rowReverse]}>
-          {/* ── Pharmacy badge logo ── */}
-          <View style={styles.miniLogo}>
-            <MaterialCommunityIcons name="stethoscope" size={20} color="#fff" />
-            <View style={styles.miniLogoIcons}>
-              <MaterialCommunityIcons name="pill" size={9} color="rgba(255,255,255,0.88)" />
-              <MaterialCommunityIcons name="hospital-box" size={9} color="rgba(255,255,255,0.88)" />
+        <TouchableOpacity
+          style={[styles.identityRow, isRTL && styles.rowReverse]}
+          onPressIn={handleLogoPressIn}
+          onPressOut={handleLogoPressOut}
+          onLongPress={handleLogoLongPress}
+          delayLongPress={5000}
+          activeOpacity={0.85}
+        >
+          {/* ── Pharmacy badge logo with press progress ring ── */}
+          <View style={styles.miniLogoWrap}>
+            <Animated.View style={[
+              styles.miniLogoRing,
+              {
+                borderColor: logoProgress.interpolate({ inputRange: [0, 1], outputRange: [Colors.primary + "00", Colors.primary] }),
+                transform: [{ scale: logoProgress.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] }) }],
+              }
+            ]} />
+            <View style={styles.miniLogo}>
+              <MaterialCommunityIcons name="stethoscope" size={20} color="#fff" />
+              <View style={styles.miniLogoIcons}>
+                <MaterialCommunityIcons name="pill" size={9} color="rgba(255,255,255,0.88)" />
+                <MaterialCommunityIcons name="hospital-box" size={9} color="rgba(255,255,255,0.88)" />
+              </View>
             </View>
+            {isAdmin && (
+              <View style={styles.adminBadgeDot} />
+            )}
           </View>
 
           {/* ── Bilingual name ── */}
@@ -203,7 +276,7 @@ export default function HomeScreen() {
               <Text style={styles.headerFrName}>DEWAYA</Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.bellBtn, lockedCount > 0 && styles.bellBtnActive]}
@@ -479,6 +552,73 @@ export default function HomeScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* ─── ADMIN PIN MODAL ─── */}
+      <Modal visible={showAdminPinModal} transparent animationType="fade" onRequestClose={() => { setShowAdminPinModal(false); setAdminPinInput(""); }}>
+        <View style={styles.adminPinOverlay}>
+          <View style={styles.adminPinSheet}>
+            {adminPinSuccess ? (
+              <>
+                <View style={[styles.adminPinIconWrap, { backgroundColor: Colors.accent + "18" }]}>
+                  <Ionicons name="shield-checkmark" size={40} color={Colors.accent} />
+                </View>
+                <Text style={[styles.adminPinTitle, isRTL && styles.textRight]}>
+                  {isRTL ? "تم التحقق بنجاح" : "Accès accordé"}
+                </Text>
+                <Text style={[styles.adminPinSub, isRTL && styles.textRight]}>
+                  {isRTL ? "جارٍ الفتح..." : "Ouverture en cours..."}
+                </Text>
+              </>
+            ) : (
+              <>
+                <View style={styles.adminPinIconWrap}>
+                  <Ionicons name="shield" size={40} color={Colors.primary} />
+                </View>
+                <Text style={[styles.adminPinTitle, isRTL && styles.textRight]}>
+                  {isRTL ? "رمز الدخول" : "Code d'accès"}
+                </Text>
+                <Text style={[styles.adminPinSub, isRTL && styles.textRight]}>
+                  {isRTL ? "أدخل رمز الإدارة للمتابعة" : "Entrez le code administrateur"}
+                </Text>
+                <View style={[styles.adminPinRow, adminPinError && styles.adminPinRowError, isRTL && styles.rowReverse]}>
+                  <Ionicons name="key-outline" size={20} color={adminPinError ? Colors.danger : Colors.light.textSecondary} />
+                  <TextInput
+                    ref={adminPinRef}
+                    style={[styles.adminPinField, isRTL && styles.textRight]}
+                    placeholder={isRTL ? "••••" : "••••"}
+                    placeholderTextColor={Colors.light.textTertiary}
+                    value={adminPinInput}
+                    onChangeText={setAdminPinInput}
+                    secureTextEntry
+                    keyboardType="number-pad"
+                    textAlign="center"
+                    returnKeyType="go"
+                    onSubmitEditing={handleAdminPinSubmit}
+                    maxLength={10}
+                  />
+                </View>
+                {adminPinError && (
+                  <Text style={styles.adminPinErrorText}>
+                    {isRTL ? "رمز غير صحيح" : "Code incorrect"}
+                  </Text>
+                )}
+                <TouchableOpacity
+                  style={[styles.adminPinBtn, !adminPinInput.trim() && styles.adminPinBtnDisabled]}
+                  onPress={handleAdminPinSubmit}
+                  disabled={!adminPinInput.trim()}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="enter" size={18} color="#fff" />
+                  <Text style={styles.adminPinBtnText}>{isRTL ? "دخول" : "Connexion"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.adminPinCancel} onPress={() => { setShowAdminPinModal(false); setAdminPinInput(""); }} activeOpacity={0.7}>
+                  <Text style={styles.adminPinCancelText}>{t("cancel")}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -529,6 +669,130 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 3,
     marginTop: 1,
+  },
+  miniLogoWrap: {
+    position: "relative",
+    width: 50,
+    height: 50,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  miniLogoRing: {
+    position: "absolute",
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    borderWidth: 2.5,
+    borderColor: "transparent",
+  },
+  adminBadgeDot: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: Colors.accent,
+    borderWidth: 2,
+    borderColor: Colors.light.background,
+  },
+  adminPinOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  adminPinSheet: {
+    backgroundColor: Colors.light.background,
+    borderRadius: 20,
+    padding: 28,
+    width: "100%",
+    maxWidth: 340,
+    alignItems: "center",
+    gap: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 20,
+  },
+  adminPinIconWrap: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: Colors.primary + "14",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  adminPinTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 20,
+    color: Colors.light.text,
+    textAlign: "center",
+  },
+  adminPinSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  adminPinRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.light.cardBackground,
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+    width: "100%",
+  },
+  adminPinRowError: {
+    borderColor: Colors.danger,
+    backgroundColor: Colors.danger + "08",
+  },
+  adminPinField: {
+    flex: 1,
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 20,
+    color: Colors.light.text,
+    letterSpacing: 8,
+    textAlign: "center",
+  },
+  adminPinErrorText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 13,
+    color: Colors.danger,
+    textAlign: "center",
+  },
+  adminPinBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    width: "100%",
+    marginTop: 4,
+  },
+  adminPinBtnDisabled: { backgroundColor: Colors.light.textTertiary },
+  adminPinBtnText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 15,
+    color: "#fff",
+  },
+  adminPinCancel: {
+    paddingVertical: 10,
+  },
+  adminPinCancelText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 14,
+    color: Colors.light.textSecondary,
   },
   nameStack: {
     alignItems: "flex-start",

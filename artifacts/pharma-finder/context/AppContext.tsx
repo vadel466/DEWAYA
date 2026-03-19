@@ -14,6 +14,9 @@ type AppContextType = {
   lockedCount: number;
   region: Region | null;
   setRegion: (r: Region | null) => void;
+  isAdmin: boolean;
+  setIsAdmin: (v: boolean) => Promise<void>;
+  adminLogout: () => Promise<void>;
 };
 
 const translations: Record<Language, Record<string, string>> = {
@@ -208,6 +211,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [userId, setUserId] = useState<string>("");
   const [lockedCount, setLockedCount] = useState(0);
   const [region, setRegionSt] = useState<Region | null>(null);
+  const [isAdmin, setIsAdminSt] = useState(false);
 
   const knownIdsRef = useRef<Set<string>>(new Set());
   const knownUnlockedRef = useRef<Set<string>>(new Set());
@@ -225,6 +229,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await AsyncStorage.setItem("userId", uid);
       }
       setUserId(uid);
+
+      const adminSaved = await AsyncStorage.getItem("isAdmin");
+      if (adminSaved === "true") setIsAdminSt(true);
 
       await requestNotificationPermissions();
     })();
@@ -305,10 +312,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setRegion = (r: Region | null) => setRegionSt(r);
 
+  const setIsAdmin = async (v: boolean) => {
+    setIsAdminSt(v);
+    await AsyncStorage.setItem("isAdmin", v ? "true" : "false");
+  };
+
+  const adminLogout = async () => {
+    setIsAdminSt(false);
+    await AsyncStorage.setItem("isAdmin", "false");
+  };
+
   const t = (key: string) => translations[language][key] ?? key;
 
   return (
-    <AppContext.Provider value={{ language, setLanguage, userId, t, lockedCount, region, setRegion }}>
+    <AppContext.Provider value={{ language, setLanguage, userId, t, lockedCount, region, setRegion, isAdmin, setIsAdmin, adminLogout }}>
       {children}
     </AppContext.Provider>
   );

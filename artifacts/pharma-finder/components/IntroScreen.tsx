@@ -1,108 +1,131 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Dimensions, Image, StyleSheet, Text, View } from "react-native";
+import {
+  Animated,
+  Dimensions,
+  Image,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import Colors from "@/constants/colors";
 
-const { width, height } = Dimensions.get("window");
+const { width } = Dimensions.get("window");
 
 interface IntroScreenProps {
   onFinish: () => void;
   language?: "ar" | "fr";
 }
 
-export default function IntroScreen({ onFinish, language = "ar" }: IntroScreenProps) {
-  const bgScale = useRef(new Animated.Value(1.2)).current;
-  const logoScale = useRef(new Animated.Value(0)).current;
+export default function IntroScreen({
+  onFinish,
+  language = "ar",
+}: IntroScreenProps) {
+  const logoScale   = useRef(new Animated.Value(0.5)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
-  const titleY = useRef(new Animated.Value(20)).current;
+  const titleY      = useRef(new Animated.Value(14)).current;
   const taglineOpacity = useRef(new Animated.Value(0)).current;
   const exitOpacity = useRef(new Animated.Value(1)).current;
-  const pulse = useRef(new Animated.Value(1)).current;
+  const dot0 = useRef(new Animated.Value(0.3)).current;
+  const dot1 = useRef(new Animated.Value(0.3)).current;
+  const dot2 = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
-    const ND = false;
+    const makeDot = (val: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(val, { toValue: 1,   duration: 350, useNativeDriver: true }),
+          Animated.timing(val, { toValue: 0.3, duration: 350, useNativeDriver: true }),
+        ])
+      );
 
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.12, duration: 900, useNativeDriver: ND }),
-        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: ND }),
-      ])
-    );
+    const d0 = makeDot(dot0, 0);
+    const d1 = makeDot(dot1, 200);
+    const d2 = makeDot(dot2, 400);
+    d0.start(); d1.start(); d2.start();
 
-    const timer = setTimeout(() => onFinish(), 3400);
-
+    // Main sequence — all native driver
     Animated.sequence([
-      Animated.timing(bgScale, { toValue: 1, duration: 700, useNativeDriver: ND }),
+      // 1. Icon pops in immediately
       Animated.parallel([
-        Animated.spring(logoScale, { toValue: 1, tension: 60, friction: 7, useNativeDriver: ND }),
-        Animated.timing(logoOpacity, { toValue: 1, duration: 400, useNativeDriver: ND }),
+        Animated.spring(logoScale, {
+          toValue: 1,
+          tension: 80,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+        Animated.timing(logoOpacity, {
+          toValue: 1,
+          duration: 280,
+          useNativeDriver: true,
+        }),
       ]),
-      Animated.delay(100),
+      // 2. Title slides up
       Animated.parallel([
-        Animated.timing(titleOpacity, { toValue: 1, duration: 350, useNativeDriver: ND }),
-        Animated.timing(titleY, { toValue: 0, duration: 350, useNativeDriver: ND }),
+        Animated.timing(titleOpacity, { toValue: 1, duration: 280, useNativeDriver: true }),
+        Animated.timing(titleY, { toValue: 0, duration: 280, useNativeDriver: true }),
       ]),
-      Animated.timing(taglineOpacity, { toValue: 1, duration: 300, useNativeDriver: ND }),
-      Animated.delay(800),
-      Animated.timing(exitOpacity, { toValue: 0, duration: 400, useNativeDriver: ND }),
-    ]).start(() => { clearTimeout(timer); onFinish(); });
+      // 3. Tagline fades in
+      Animated.timing(taglineOpacity, { toValue: 1, duration: 240, useNativeDriver: true }),
+      // 4. Hold
+      Animated.delay(1000),
+      // 5. Exit fade
+      Animated.timing(exitOpacity, { toValue: 0, duration: 320, useNativeDriver: true }),
+    ]).start(() => {
+      d0.stop(); d1.stop(); d2.stop();
+      onFinish();
+    });
 
-    pulseLoop.start();
-    return () => { pulseLoop.stop(); clearTimeout(timer); };
+    return () => { d0.stop(); d1.stop(); d2.stop(); };
   }, []);
 
   return (
     <Animated.View style={[styles.container, { opacity: exitOpacity }]}>
-      <Animated.View style={[styles.bgCircle, styles.bgCircle1, { transform: [{ scale: bgScale }] }]} />
-      <Animated.View style={[styles.bgCircle, styles.bgCircle2, { transform: [{ scale: bgScale }] }]} />
+      {/* Decorative circles — static, no animation cost */}
+      <View style={[styles.bgCircle, styles.bgCircle1]} />
+      <View style={[styles.bgCircle, styles.bgCircle2]} />
 
+      {/* Logo */}
       <Animated.View
         style={[
           styles.logoWrapper,
-          { opacity: logoOpacity, transform: [{ scale: Animated.multiply(logoScale, pulse) }] },
+          { opacity: logoOpacity, transform: [{ scale: logoScale }] },
         ]}
       >
         <Image
           source={require("../assets/images/icon.png")}
           style={styles.logoImage}
           resizeMode="contain"
+          fadeDuration={0}
         />
       </Animated.View>
 
-      <Animated.View style={{ opacity: titleOpacity, transform: [{ translateY: titleY }], alignItems: "center" }}>
+      {/* Title */}
+      <Animated.View
+        style={{
+          opacity: titleOpacity,
+          transform: [{ translateY: titleY }],
+          alignItems: "center",
+        }}
+      >
         <Text style={styles.titleAr}>أدْواَيَ</Text>
         <Text style={styles.titleFr}>DEWAYA</Text>
       </Animated.View>
 
+      {/* Tagline */}
       <Animated.Text style={[styles.tagline, { opacity: taglineOpacity }]}>
         {language === "ar" ? "أقرب صيدلية لدوائك" : "La pharmacie la plus proche"}
       </Animated.Text>
 
+      {/* Loading dots */}
       <View style={styles.dots}>
-        {[0, 1, 2].map((i) => (
-          <DotsAnimated key={i} delay={i * 200} />
+        {([dot0, dot1, dot2] as Animated.Value[]).map((anim, i) => (
+          <Animated.View key={i} style={[styles.dot, { opacity: anim }]} />
         ))}
       </View>
     </Animated.View>
   );
-}
-
-function DotsAnimated({ delay }: { delay: number }) {
-  const opacity = useRef(new Animated.Value(0.3)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(opacity, { toValue: 1, duration: 400, useNativeDriver: false }),
-        Animated.timing(opacity, { toValue: 0.3, duration: 400, useNativeDriver: false }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, []);
-
-  return <Animated.View style={[styles.dot, { opacity }]} />;
 }
 
 const styles = StyleSheet.create({
@@ -140,10 +163,6 @@ const styles = StyleSheet.create({
     width: 190,
     height: 190,
     borderRadius: 95,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 20,
   },
   titleAr: {
     fontSize: 42,

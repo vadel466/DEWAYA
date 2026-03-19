@@ -20,7 +20,17 @@ import { AppProvider } from "@/context/AppContext";
 
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      retry: 2,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30_000),
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function RootLayoutNav() {
   return (
@@ -41,7 +51,7 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
-  const [showIntro, setShowIntro] = useState(Platform.OS !== "web");
+  const [showIntro, setShowIntro] = useState(true);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {

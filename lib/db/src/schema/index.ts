@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, real, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, real, integer, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -12,7 +12,12 @@ export const drugRequestsTable = pgTable("drug_requests", {
   pharmacyName: text("pharmacy_name"),
   pharmacyAddress: text("pharmacy_address"),
   pharmacyPhone: text("pharmacy_phone"),
-});
+}, (table) => [
+  index("drug_requests_user_id_idx").on(table.userId),
+  index("drug_requests_status_idx").on(table.status),
+  index("drug_requests_created_at_idx").on(table.createdAt),
+  index("drug_requests_user_status_idx").on(table.userId, table.status),
+]);
 
 export const insertDrugRequestSchema = createInsertSchema(drugRequestsTable).omit({ createdAt: true, respondedAt: true });
 export type InsertDrugRequest = z.infer<typeof insertDrugRequestSchema>;
@@ -30,7 +35,12 @@ export const notificationsTable = pgTable("notifications", {
   paymentPending: boolean("payment_pending").notNull().default(false),
   paymentRef: text("payment_ref"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("notifications_user_id_idx").on(table.userId),
+  index("notifications_request_id_idx").on(table.requestId),
+  index("notifications_payment_pending_idx").on(table.paymentPending),
+  index("notifications_user_read_idx").on(table.userId, table.isRead),
+]);
 
 export const insertNotificationSchema = createInsertSchema(notificationsTable).omit({ createdAt: true });
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
@@ -51,7 +61,11 @@ export const pharmaciesTable = pgTable("pharmacies", {
   b2bEnabled: boolean("b2b_enabled").notNull().default(false),
   subscriptionActive: boolean("subscription_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("pharmacies_region_idx").on(table.region),
+  index("pharmacies_is_active_idx").on(table.isActive),
+  index("pharmacies_region_active_idx").on(table.region, table.isActive),
+]);
 
 export const insertPharmacySchema = createInsertSchema(pharmaciesTable).omit({ createdAt: true });
 export type InsertPharmacy = z.infer<typeof insertPharmacySchema>;
@@ -68,7 +82,12 @@ export const dutyPharmaciesTable = pgTable("duty_pharmacies", {
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("duty_pharmacies_region_idx").on(table.region),
+  index("duty_pharmacies_date_idx").on(table.date),
+  index("duty_pharmacies_region_date_idx").on(table.region, table.date),
+  index("duty_pharmacies_is_active_idx").on(table.isActive),
+]);
 
 export const insertDutyPharmacySchema = createInsertSchema(dutyPharmaciesTable).omit({ createdAt: true });
 export type InsertDutyPharmacy = z.infer<typeof insertDutyPharmacySchema>;
@@ -84,7 +103,11 @@ export const pharmacyResponsesTable = pgTable("pharmacy_responses", {
   status: text("status").notNull().default("available"),
   adminStatus: text("admin_status").notNull().default("pending_admin"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("pharmacy_responses_request_id_idx").on(table.requestId),
+  index("pharmacy_responses_admin_status_idx").on(table.adminStatus),
+  index("pharmacy_responses_pharmacy_id_idx").on(table.pharmacyId),
+]);
 
 export const insertPharmacyResponseSchema = createInsertSchema(pharmacyResponsesTable).omit({ createdAt: true });
 export type InsertPharmacyResponse = z.infer<typeof insertPharmacyResponseSchema>;
@@ -98,7 +121,10 @@ export const dutyImagesTable = pgTable("duty_images", {
   caption: text("caption"),
   isActive: boolean("is_active").notNull().default(true),
   uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("duty_images_region_idx").on(table.region),
+  index("duty_images_is_active_idx").on(table.isActive),
+]);
 
 export const insertDutyImageSchema = createInsertSchema(dutyImagesTable).omit({ uploadedAt: true });
 export type InsertDutyImage = z.infer<typeof insertDutyImageSchema>;
@@ -116,7 +142,11 @@ export const drugPricesTable = pgTable("drug_prices", {
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("drug_prices_name_lower_idx").on(table.nameLower),
+  index("drug_prices_is_active_idx").on(table.isActive),
+  index("drug_prices_category_idx").on(table.category),
+]);
 
 export const insertDrugPriceSchema = createInsertSchema(drugPricesTable).omit({ createdAt: true, updatedAt: true });
 export type InsertDrugPrice = z.infer<typeof insertDrugPriceSchema>;
@@ -133,7 +163,11 @@ export const pharmacyInventoryTable = pgTable("pharmacy_inventory", {
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("pharmacy_inventory_drug_name_lower_idx").on(table.drugNameLower),
+  index("pharmacy_inventory_pharmacy_id_idx").on(table.pharmacyId),
+  index("pharmacy_inventory_is_active_idx").on(table.isActive),
+]);
 
 export const insertPharmacyInventorySchema = createInsertSchema(pharmacyInventoryTable).omit({ createdAt: true });
 export type InsertPharmacyInventory = z.infer<typeof insertPharmacyInventorySchema>;
@@ -148,7 +182,10 @@ export const b2bMessagesTable = pgTable("b2b_messages", {
   adminStatus: text("admin_status").notNull().default("pending"),
   adminNote: text("admin_note"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("b2b_messages_pharmacy_id_idx").on(table.pharmacyId),
+  index("b2b_messages_admin_status_idx").on(table.adminStatus),
+]);
 
 export const insertB2bMessageSchema = createInsertSchema(b2bMessagesTable).omit({ createdAt: true });
 export type InsertB2bMessage = z.infer<typeof insertB2bMessageSchema>;
@@ -172,7 +209,11 @@ export const doctorsTable = pgTable("doctors", {
   region: text("region"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("doctors_region_idx").on(table.region),
+  index("doctors_is_active_idx").on(table.isActive),
+  index("doctors_specialty_idx").on(table.specialty),
+]);
 
 export const insertDoctorSchema = createInsertSchema(doctorsTable).omit({ createdAt: true });
 export type InsertDoctor = z.infer<typeof insertDoctorSchema>;
@@ -188,7 +229,9 @@ export const companiesTable = pgTable("companies", {
   isActive: boolean("is_active").notNull().default(true),
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("companies_is_active_idx").on(table.isActive),
+]);
 
 export const insertCompanySchema = createInsertSchema(companiesTable).omit({ createdAt: true });
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
@@ -208,7 +251,11 @@ export const companyOrdersTable = pgTable("company_orders", {
   companyResponse: text("company_response"),
   respondedAt: timestamp("responded_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("company_orders_pharmacy_id_idx").on(table.pharmacyId),
+  index("company_orders_company_id_idx").on(table.companyId),
+  index("company_orders_status_idx").on(table.status),
+]);
 
 export const insertCompanyOrderSchema = createInsertSchema(companyOrdersTable).omit({ createdAt: true, respondedAt: true });
 export type InsertCompanyOrder = z.infer<typeof insertCompanyOrderSchema>;
@@ -226,7 +273,11 @@ export const companyInventoryTable = pgTable("company_inventory", {
   isAd: boolean("is_ad").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("company_inventory_drug_name_lower_idx").on(table.drugNameLower),
+  index("company_inventory_company_id_idx").on(table.companyId),
+  index("company_inventory_is_active_idx").on(table.isActive),
+]);
 
 export const insertCompanyInventorySchema = createInsertSchema(companyInventoryTable).omit({ createdAt: true });
 export type InsertCompanyInventory = z.infer<typeof insertCompanyInventorySchema>;

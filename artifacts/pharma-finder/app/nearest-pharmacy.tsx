@@ -18,6 +18,7 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
+import { PharmacyMap } from "@/components/PharmacyMap";
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
@@ -53,6 +54,7 @@ export default function NearestPharmacyScreen() {
   const [userLat, setUserLat] = useState<number | null>(null);
   const [userLon, setUserLon] = useState<number | null>(null);
   const [locating, setLocating] = useState(false);
+  const [showMap, setShowMap] = useState(false);
 
   const fetchPharmacies = useCallback(async (lat?: number, lon?: number, isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -195,17 +197,26 @@ export default function NearestPharmacyScreen() {
             <Text style={styles.headerSub}>{language === "ar" ? region.ar : region.fr}</Text>
           )}
         </View>
-        <TouchableOpacity
-          style={[styles.gpsBtn, locating && { opacity: 0.7 }]}
-          onPress={detectLocation}
-          disabled={locating}
-          activeOpacity={0.8}
-        >
-          {locating
-            ? <ActivityIndicator size="small" color={Colors.primary} />
-            : <Ionicons name="locate" size={20} color={Colors.primary} />
-          }
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.gpsBtn, showMap && { backgroundColor: Colors.primary + "20" }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowMap((v) => !v); }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name={showMap ? "list" : "map"} size={20} color={Colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.gpsBtn, locating && { opacity: 0.7 }]}
+            onPress={detectLocation}
+            disabled={locating}
+            activeOpacity={0.8}
+          >
+            {locating
+              ? <ActivityIndicator size="small" color={Colors.primary} />
+              : <Ionicons name="locate" size={20} color={Colors.primary} />
+            }
+          </TouchableOpacity>
+        </View>
       </View>
 
       {(userLat || locating) && (
@@ -224,6 +235,20 @@ export default function NearestPharmacyScreen() {
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>{t("loading")}</Text>
+        </View>
+      ) : showMap ? (
+        <View style={styles.mapContainer}>
+          <PharmacyMap
+            pharmacies={pharmacies}
+            userLat={userLat}
+            userLon={userLon}
+            language={language}
+          />
+          <Text style={[styles.mapHint, isRTL && styles.rtlText]}>
+            {isRTL
+              ? `${pharmacies.filter((p) => p.lat && p.lon).length} صيدلية على الخريطة`
+              : `${pharmacies.filter((p) => p.lat && p.lon).length} pharmacies sur la carte`}
+          </Text>
         </View>
       ) : (
         <FlatList
@@ -279,10 +304,22 @@ const styles = StyleSheet.create({
   headerTitleWrap: { flex: 1, alignItems: "center" },
   headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.light.text },
   headerSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, marginTop: 2 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   gpsBtn: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: Colors.primary + "12",
     alignItems: "center", justifyContent: "center",
+  },
+  mapContainer: {
+    flex: 1, margin: 16, borderRadius: 16, overflow: "hidden",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1, shadowRadius: 12, elevation: 5,
+  },
+  mapHint: {
+    paddingVertical: 10, paddingHorizontal: 16,
+    backgroundColor: Colors.light.card, fontSize: 13,
+    fontFamily: "Inter_500Medium", color: Colors.light.textSecondary,
+    textAlign: "center", borderTopWidth: 1, borderTopColor: Colors.light.border,
   },
 
   locationBanner: {

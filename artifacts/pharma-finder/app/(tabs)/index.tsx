@@ -510,9 +510,11 @@ export default function HomeScreen() {
           {/* جِدْ طبيبك */}
           <TouchableOpacity style={[styles.card, { backgroundColor: DOCTOR_LIGHT }]} onPress={goToFindDoctor} activeOpacity={0.82}>
             <View style={[styles.cardAccent, { backgroundColor: DOCTOR_BLUE }]} />
-            <View style={[styles.cardIconCircle, { backgroundColor: DOCTOR_BLUE + "18", width: 48, height: 48, borderRadius: 14 }]}>
-              <MaterialCommunityIcons name="stethoscope" size={26} color={DOCTOR_BLUE} />
-            </View>
+            <Image
+              source={require("@/assets/images/doctor-card.png")}
+              style={styles.doctorCardImg}
+              resizeMode="contain"
+            />
             <Text style={[styles.cardTitle, { color: DOCTOR_BLUE }, isRTL && styles.textRight]} numberOfLines={2}>
               {t("findDoctor")}
             </Text>
@@ -1133,6 +1135,14 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 13, fontFamily: "Inter_700Bold", marginBottom: 3, paddingLeft: 6 },
   cardDesc: { fontSize: 10, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, lineHeight: 14, paddingLeft: 6 },
+  doctorCardImg: {
+    position: "absolute",
+    right: -4,
+    top: -6,
+    width: 88,
+    height: 88,
+    opacity: 0.92,
+  },
 
   /* REGION PICKER */
   pickerContainer: { flex: 1, backgroundColor: Colors.light.background },

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, drugPricesTable } from "@workspace/db";
 import { eq, ilike, or, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import * as XLSX from "xlsx";
 
 const router = Router();
 
@@ -54,6 +55,60 @@ router.get("/", async (req, res) => {
     return res.json(rows);
   } catch (e) {
     return res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/parse-file", async (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: "Forbidden" });
+  const { fileData, fileType, fileName } = req.body;
+  if (!fileData) return res.status(400).json({ error: "fileData required" });
+
+  try {
+    const buffer = Buffer.from(fileData, "base64");
+
+    if (fileType?.includes("pdf")) {
+      const pdfParse = (await import("pdf-parse")).default;
+      const data = await pdfParse(buffer, { max: 0 });
+      const text: string = data.text;
+
+      const rows: { name: string; price: number; nameAr?: string; unit?: string; category?: string }[] = [];
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 2);
+
+      for (const line of lines) {
+        const priceMatch = line.match(/(\d[\d\s]*[.,]\d{1,2}|\d{2,})/g);
+        if (!priceMatch) continue;
+        const priceStr = priceMatch[priceMatch.length - 1].replace(/\s/g, "").replace(",", ".");
+        const price = parseFloat(priceStr);
+        if (isNaN(price) || price <= 0 || price > 999999) continue;
+        const name = line.replace(new RegExp(priceMatch[priceMatch.length - 1] + ".*$"), "").trim().replace(/^[\d\-\.\s]+/, "").trim();
+        if (name.length < 2) continue;
+        rows.push({ name, price });
+      }
+
+      return res.json({ rows, source: "pdf", count: rows.length, pages: data.numpages });
+    }
+
+    const wb = XLSX.read(buffer, { type: "buffer", cellDates: true });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const raw: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+
+    const isHeaderRow = (r: any[]) => !r[1] || isNaN(parseFloat(String(r[1]).replace(",", ".")));
+    const rows = raw
+      .filter((r, i) => !(i === 0 && isHeaderRow(r)) && r[0] && !isNaN(parseFloat(String(r[1]).replace(",", "."))))
+      .map(r => ({
+        name: String(r[0]).trim(),
+        price: parseFloat(String(r[1]).replace(",", ".")),
+        nameAr: r[2] ? String(r[2]).trim() : undefined,
+        unit: r[3] ? String(r[3]).trim() : undefined,
+        category: r[4] ? String(r[4]).trim() : undefined,
+        notes: r[5] ? String(r[5]).trim() : undefined,
+      }))
+      .filter(r => r.name && r.price > 0);
+
+    return res.json({ rows, source: "excel", count: rows.length, sheets: wb.SheetNames });
+  } catch (e: any) {
+    console.error("[parse-file]", e?.message);
+    return res.status(500).json({ error: "Erreur lors du traitement du fichier", detail: String(e?.message || "") });
   }
 });
 

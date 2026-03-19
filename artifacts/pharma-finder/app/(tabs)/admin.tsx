@@ -158,6 +158,8 @@ export default function AdminScreen() {
   const [showFileImportModal, setShowFileImportModal] = useState(false);
   const [excelRows, setExcelRows] = useState<{ name: string; price: number; nameAr?: string; unit?: string; category?: string; notes?: string }[]>([]);
   const [fileImportLoading, setFileImportLoading] = useState(false);
+  const [fileImportSource, setFileImportSource] = useState<"excel" | "pdf" | "csv">("excel");
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0, running: false, done: false });
 
   const [showDoctorModal, setShowDoctorModal] = useState(false);
   const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null);
@@ -507,59 +509,102 @@ export default function AdminScreen() {
   const pickAndParseExcel = async () => {
     try {
       setFileImportLoading(true);
+
       const { getDocumentAsync } = await import("expo-document-picker");
-      const result = await getDocumentAsync({
-        type: [
-          "application/vnd.ms-excel",
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          "text/csv",
-          "text/comma-separated-values",
-          "*/*",
-        ],
-        copyToCacheDirectory: true,
-      });
-      if (result.canceled || !result.assets?.[0]) { setFileImportLoading(false); return; }
+      const result = await getDocumentAsync({ type: ["*/*"], copyToCacheDirectory: true });
+      if (result.canceled || !result.assets?.[0]) return;
+
       const asset = result.assets[0];
-      const { readAsStringAsync, EncodingType } = (await import("expo-file-system")) as any;
-      const base64 = await readAsStringAsync(asset.uri, { encoding: EncodingType.Base64 });
-      const XLSX = await import("xlsx");
-      const wb = XLSX.read(base64, { type: "base64" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const raw: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-      const isHeader = (r: any[]) => !r[0] || isNaN(parseFloat(String(r[1]).replace(",", ".")));
-      const parsed = raw
-        .filter((r, i) => !(i === 0 && isHeader(r)) && r[0] && !isNaN(parseFloat(String(r[1]).replace(",", "."))))
-        .map(r => ({
-          name: String(r[0]).trim(),
-          price: parseFloat(String(r[1]).replace(",", ".")),
-          nameAr: r[2] ? String(r[2]).trim() : undefined,
-          unit: r[3] ? String(r[3]).trim() : undefined,
-          category: r[4] ? String(r[4]).trim() : undefined,
-          notes: r[5] ? String(r[5]).trim() : undefined,
-        }));
-      if (parsed.length === 0) {
-        Alert.alert(isRTL ? "لا توجد بيانات" : "Aucune donnée", isRTL ? "تحقق من تنسيق الملف:\nعمود A=اسم، B=سعر، C=عربي، D=وحدة، E=فئة" : "Vérifiez le format:\nCol A=Nom, B=Prix, C=NomAr, D=Unité, E=Catégorie");
-        setFileImportLoading(false); return;
+      const mimeType: string = asset.mimeType || "";
+      const name: string = asset.name || "";
+
+      let base64 = "";
+      if (Platform.OS === "web") {
+        const resp = await fetch(asset.uri);
+        const buf = await resp.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = "";
+        const CHUNK = 8192;
+        for (let i = 0; i < bytes.length; i += CHUNK) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+        }
+        base64 = btoa(binary);
+      } else {
+        const FS = (await import("expo-file-system")) as any;
+        base64 = await FS.readAsStringAsync(asset.uri, { encoding: FS.EncodingType.Base64 });
       }
-      setExcelRows(parsed);
+
+      const parseResp = await fetch(`${API_BASE}/drug-prices/parse-file`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+        body: JSON.stringify({ fileData: base64, fileType: mimeType || "application/octet-stream", fileName: name }),
+      });
+
+      if (!parseResp.ok) {
+        const err = await parseResp.json().catch(() => ({}));
+        Alert.alert(
+          isRTL ? "خطأ في تحليل الملف" : "Erreur d'analyse",
+          isRTL ? `تأكد من صيغة الملف (.xlsx / .xls / .pdf)\n${err.detail || ""}` : `Vérifiez le format du fichier (.xlsx / .xls / .pdf)\n${err.detail || ""}`
+        );
+        return;
+      }
+
+      const parsed = await parseResp.json();
+      if (!parsed.rows || parsed.rows.length === 0) {
+        Alert.alert(
+          isRTL ? "لا توجد بيانات" : "Aucune donnée",
+          isRTL
+            ? `لم يُعثر على صفوف صالحة.\n\nتنسيق Excel المطلوب:\nA=اسم الدواء | B=السعر | C=عربي | D=وحدة | E=فئة`
+            : `Aucune ligne valide trouvée.\n\nFormat Excel requis:\nA=Nom | B=Prix | C=NomAr | D=Unité | E=Catégorie`
+        );
+        return;
+      }
+
+      setFileImportSource(parsed.source === "pdf" ? "pdf" : "excel");
+      setExcelRows(parsed.rows);
       setShowFileImportModal(true);
-    } catch {
-      Alert.alert(isRTL ? "خطأ في قراءة الملف" : "Erreur de lecture", isRTL ? "تأكد أن الملف بصيغة Excel (.xlsx/.xls) أو CSV" : "Assurez-vous que le fichier est en format Excel (.xlsx/.xls) ou CSV");
+    } catch (e: any) {
+      console.error("[pickAndParseExcel]", e);
+      Alert.alert(
+        isRTL ? "خطأ في رفع الملف" : "Erreur de chargement",
+        isRTL ? "تعذّر قراءة الملف. تأكد من أن الملف صالح وحاول مرة أخرى." : "Impossible de lire le fichier. Vérifiez qu'il est valide et réessayez."
+      );
     } finally {
       setFileImportLoading(false);
     }
   };
 
+  const doBatchedImport = async (rows: object[]) => {
+    const BATCH = 500;
+    setImportProgress({ current: 0, total: rows.length, running: true, done: false });
+    let inserted = 0;
+    try {
+      for (let i = 0; i < rows.length; i += BATCH) {
+        const batch = rows.slice(i, i + BATCH);
+        const r = await fetch(`${API_BASE}/drug-prices/bulk`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+          body: JSON.stringify(batch),
+        });
+        if (!r.ok) throw new Error(`Batch ${Math.floor(i / BATCH) + 1} failed`);
+        const data = await r.json();
+        inserted += data.inserted ?? batch.length;
+        setImportProgress({ current: Math.min(i + BATCH, rows.length), total: rows.length, running: true, done: false });
+      }
+      setImportProgress(p => ({ ...p, running: false, done: true }));
+      qc.invalidateQueries({ queryKey: ["admin-drug-prices"] });
+      setExcelRows([]);
+      setShowFileImportModal(false);
+      Alert.alert(isRTL ? "تم الاستيراد ✓" : "Import réussi ✓", isRTL ? `تمت إضافة ${inserted} دواء إلى قاعدة البيانات` : `${inserted} médicaments ajoutés à la base de données`);
+    } catch (e: any) {
+      setImportProgress(p => ({ ...p, running: false }));
+      Alert.alert(isRTL ? "خطأ في الاستيراد" : "Erreur d'import", String(e?.message || ""));
+    }
+  };
+
   const confirmFileImport = () => {
     if (excelRows.length === 0) return;
-    Alert.alert(
-      isRTL ? "تأكيد الاستيراد" : "Confirmer l'import",
-      isRTL ? `سيتم إضافة ${excelRows.length} دواء إلى قاعدة البيانات` : `${excelRows.length} médicaments seront ajoutés à la base de données`,
-      [
-        { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
-        { text: isRTL ? "استيراد" : "Importer", onPress: () => bulkImportMutation.mutate(excelRows) },
-      ]
-    );
+    doBatchedImport(excelRows);
   };
 
   const handleClearAllPrices = () => {
@@ -1264,7 +1309,7 @@ export default function AdminScreen() {
           <TouchableOpacity style={styles.iconBtn} onPress={() => {
             setEditingCompany(item);
             setCoName(item.name); setCoNameAr(item.nameAr || "");
-            setCoCode(item.code); setCoContact(item.contact || ""); setCoNotes(item.notes || "");
+            setCoCode(item.code || ""); setCoContact(item.contact || ""); setCoNotes(item.notes || "");
             setShowCompanyModal(true);
           }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="create-outline" size={18} color={Colors.primary} />
@@ -2096,51 +2141,79 @@ export default function AdminScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* File (Excel/CSV) Import Preview Modal */}
-      <Modal visible={showFileImportModal} transparent animationType="slide" onRequestClose={() => { setShowFileImportModal(false); setExcelRows([]); }}>
+      {/* File (Excel/PDF) Import Preview Modal */}
+      <Modal visible={showFileImportModal} transparent animationType="slide" onRequestClose={() => { if (!importProgress.running) { setShowFileImportModal(false); setExcelRows([]); setImportProgress({ current: 0, total: 0, running: false, done: false }); } }}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { maxHeight: "80%" }]}>
+          <View style={[styles.modalCard, { maxHeight: "85%" }]}>
             <View style={styles.modalHandle} />
             <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>
-              {isRTL ? "معاينة الملف المستورد" : "Aperçu du fichier importé"}
+              {importProgress.running
+                ? (isRTL ? "جارٍ الاستيراد..." : "Importation en cours...")
+                : (isRTL ? "معاينة الملف" : "Aperçu du fichier")}
             </Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#059669" + "15", borderRadius: 10, padding: 12, marginBottom: 12 }}>
-              <MaterialCommunityIcons name="file-excel-box" size={28} color="#059669" />
-              <View style={{ flex: 1 }}>
-                <Text style={[{ fontFamily: "Inter_700Bold", fontSize: 15, color: "#059669" }, isRTL && styles.rtlText]}>
-                  {isRTL ? `${excelRows.length} دواء جاهز للاستيراد` : `${excelRows.length} médicaments prêts à importer`}
+
+            {importProgress.running ? (
+              <View style={{ padding: 20, alignItems: "center", gap: 16 }}>
+                <ActivityIndicator size="large" color="#059669" />
+                <Text style={[{ fontFamily: "Inter_700Bold", fontSize: 16, color: "#059669" }, isRTL && styles.rtlText]}>
+                  {isRTL
+                    ? `${importProgress.current} / ${importProgress.total} دواء`
+                    : `${importProgress.current} / ${importProgress.total} médicaments`}
                 </Text>
-                <Text style={[{ fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 }, isRTL && styles.rtlText]}>
-                  {isRTL ? "سيتم إضافتها إلى قاعدة بيانات الأسعار" : "Seront ajoutés à la base de données des prix"}
+                <View style={{ width: "100%", height: 8, backgroundColor: Colors.light.border, borderRadius: 4, overflow: "hidden" }}>
+                  <View style={{ width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%`, height: "100%", backgroundColor: "#059669", borderRadius: 4 }} />
+                </View>
+                <Text style={[{ fontFamily: "Inter_400Regular", fontSize: 13, color: Colors.light.textSecondary }, isRTL && styles.rtlText]}>
+                  {isRTL ? "يرجى الانتظار، لا تغلق النافذة" : "Veuillez patienter, ne fermez pas cette fenêtre"}
                 </Text>
               </View>
-            </View>
-            <ScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator={false}>
-              {excelRows.slice(0, 20).map((row, i) => (
-                <View key={i} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: Colors.light.border, gap: 8 }}>
-                  <Text style={{ width: 24, fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.light.textTertiary }}>{i + 1}</Text>
+            ) : (
+              <>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: fileImportSource === "pdf" ? "#E53E3E15" : "#05966915", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                  <MaterialCommunityIcons name={fileImportSource === "pdf" ? "file-pdf-box" : "file-excel-box"} size={32} color={fileImportSource === "pdf" ? "#E53E3E" : "#059669"} />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: Colors.light.text }} numberOfLines={1}>{row.name}</Text>
-                    {row.nameAr ? <Text style={{ fontFamily: "Inter_400Regular", fontSize: 11, color: Colors.light.textSecondary, textAlign: "right" }}>{row.nameAr}</Text> : null}
+                    <Text style={[{ fontFamily: "Inter_700Bold", fontSize: 15, color: fileImportSource === "pdf" ? "#E53E3E" : "#059669" }, isRTL && styles.rtlText]}>
+                      {isRTL ? `${excelRows.length} دواء جاهز للاستيراد` : `${excelRows.length} médicaments prêts`}
+                    </Text>
+                    <Text style={[{ fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 }, isRTL && styles.rtlText]}>
+                      {fileImportSource === "pdf"
+                        ? (isRTL ? "مستخرج من ملف PDF — راجع البيانات قبل الاستيراد" : "Extrait du PDF — vérifiez avant d'importer")
+                        : (isRTL ? "سيتم إضافتها إلى قاعدة بيانات الأسعار" : "Seront ajoutés à la base des prix")}
+                    </Text>
                   </View>
-                  <View style={{ backgroundColor: Colors.primary + "18", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                    <Text style={{ fontFamily: "Inter_700Bold", fontSize: 12, color: Colors.primary }}>{row.price} MRU</Text>
-                  </View>
-                  {row.unit ? <Text style={{ fontFamily: "Inter_400Regular", fontSize: 11, color: Colors.light.textSecondary }}>{row.unit}</Text> : null}
                 </View>
-              ))}
-              {excelRows.length > 20 && (
-                <Text style={{ fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.light.textTertiary, textAlign: "center", paddingVertical: 10 }}>
-                  {isRTL ? `... و ${excelRows.length - 20} دواء آخر` : `... et ${excelRows.length - 20} autres médicaments`}
-                </Text>
-              )}
-            </ScrollView>
-            <TouchableOpacity style={[styles.sendButton, { marginTop: 16 }]} onPress={confirmFileImport} disabled={bulkImportMutation.isPending} activeOpacity={0.85}>
-              {bulkImportMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><MaterialCommunityIcons name="database-import-outline" size={18} color="#fff" /><Text style={styles.sendButtonText}>{isRTL ? `استيراد ${excelRows.length} دواء` : `Importer ${excelRows.length} médicaments`}</Text></>}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelButton} onPress={() => { setShowFileImportModal(false); setExcelRows([]); }} activeOpacity={0.7}>
-              <Text style={styles.cancelText}>{isRTL ? "إلغاء" : "Annuler"}</Text>
-            </TouchableOpacity>
+                <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
+                  {excelRows.slice(0, 30).map((row, i) => (
+                    <View key={i} style={{ flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: Colors.light.border, gap: 8 }}>
+                      <Text style={{ width: 26, fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.light.textTertiary, textAlign: "center" }}>{i + 1}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: Colors.light.text }} numberOfLines={1}>{row.name}</Text>
+                        {row.nameAr ? <Text style={{ fontFamily: "Inter_400Regular", fontSize: 11, color: Colors.light.textSecondary, textAlign: "right" }}>{row.nameAr}</Text> : null}
+                        {row.category ? <Text style={{ fontFamily: "Inter_400Regular", fontSize: 10, color: Colors.light.textTertiary }}>{row.category}</Text> : null}
+                      </View>
+                      <View style={{ backgroundColor: Colors.primary + "18", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                        <Text style={{ fontFamily: "Inter_700Bold", fontSize: 12, color: Colors.primary }}>{row.price} MRU</Text>
+                      </View>
+                      {row.unit ? <Text style={{ fontFamily: "Inter_400Regular", fontSize: 11, color: Colors.light.textSecondary }}>{row.unit}</Text> : null}
+                    </View>
+                  ))}
+                  {excelRows.length > 30 && (
+                    <Text style={{ fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.light.textTertiary, textAlign: "center", paddingVertical: 10 }}>
+                      {isRTL ? `... و ${excelRows.length - 30} دواء آخر` : `... et ${excelRows.length - 30} autres médicaments`}
+                    </Text>
+                  )}
+                </ScrollView>
+                <TouchableOpacity style={[styles.sendButton, { marginTop: 14, backgroundColor: "#059669" }]} onPress={confirmFileImport} activeOpacity={0.85}>
+                  <MaterialCommunityIcons name="database-import-outline" size={18} color="#fff" />
+                  <Text style={styles.sendButtonText}>
+                    {isRTL ? `استيراد ${excelRows.length} دواء` : `Importer ${excelRows.length} médicaments`}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.cancelButton} onPress={() => { setShowFileImportModal(false); setExcelRows([]); setImportProgress({ current: 0, total: 0, running: false, done: false }); }} activeOpacity={0.7}>
+                  <Text style={styles.cancelText}>{isRTL ? "إلغاء" : "Annuler"}</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -2241,7 +2314,7 @@ export default function AdminScreen() {
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <View style={styles.modalOverlay}>
             <View style={[styles.modalSheet, { maxHeight: "85%" }]}>
-              <View style={[styles.modalHeader, isRTL && styles.rtlRow]}>
+              <View style={[{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 }, isRTL && styles.rtlRow]}>
                 <MaterialCommunityIcons name="view-grid-plus-outline" size={22} color="#7C3AED" />
                 <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>
                   {editingService ? (isRTL ? "تعديل الخدمة" : "Modifier le service") : (isRTL ? "إضافة خدمة" : "Ajouter un service")}
@@ -2250,7 +2323,7 @@ export default function AdminScreen() {
                   <Ionicons name="close" size={24} color={Colors.light.textSecondary} />
                 </TouchableOpacity>
               </View>
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalBody}>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20, gap: 2 }}>
                 <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "الاسم بالعربية *" : "Nom en arabe *"}</Text>
                 <TextInput style={[styles.input, isRTL && styles.rtlText]} value={svNameAr} onChangeText={setSvNameAr} placeholder="خدمة جديدة" placeholderTextColor={Colors.light.textTertiary} />
                 <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "الاسم بالفرنسية *" : "Nom en français *"}</Text>

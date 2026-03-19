@@ -24,7 +24,7 @@ const server = app.listen(resolvedPort, () => {
 server.on("error", (err: NodeJS.ErrnoException) => {
   console.error("[server error]", err);
   if (err.code === "EADDRINUSE") {
-    console.error(`Port ${resolvedPort} is already in use. Retrying in 3s…`);
-    setTimeout(() => server.listen(resolvedPort), 3000);
+    console.error(`Port ${resolvedPort} is already in use. Exiting.`);
+    process.exit(1);
   }
 });

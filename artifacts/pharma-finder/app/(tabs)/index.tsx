@@ -33,6 +33,8 @@ const AMBER = "#F59E0B";
 const AMBER_LIGHT = "#FEF9EE";
 const DOCTOR_BLUE = "#1A6FA8";
 const DOCTOR_LIGHT = "#EFF6FF";
+const SERVICES_PURPLE = "#7C3AED";
+const SERVICES_LIGHT = "#F5F3FF";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -505,6 +507,27 @@ export default function HomeScreen() {
             </Text>
             <View style={[styles.cardChevron, { backgroundColor: Colors.primary + "18" }]}>
               <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color={Colors.primary} />
+            </View>
+          </TouchableOpacity>
+
+          {/* خدمات أخرى */}
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: SERVICES_LIGHT }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/drug-price"); }}
+            activeOpacity={0.82}
+          >
+            <View style={[styles.cardAccent, { backgroundColor: SERVICES_PURPLE }]} />
+            <View style={[styles.cardIconCircle, { backgroundColor: SERVICES_PURPLE + "18" }]}>
+              <MaterialCommunityIcons name="view-grid-plus-outline" size={22} color={SERVICES_PURPLE} />
+            </View>
+            <Text style={[styles.cardTitle, { color: SERVICES_PURPLE }, isRTL && styles.textRight]} numberOfLines={2}>
+              {t("otherServices")}
+            </Text>
+            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
+              {t("otherServicesDesc")}
+            </Text>
+            <View style={[styles.cardChevron, { backgroundColor: SERVICES_PURPLE + "18" }]}>
+              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color={SERVICES_PURPLE} />
             </View>
           </TouchableOpacity>
 

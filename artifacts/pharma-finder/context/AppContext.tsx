@@ -38,6 +38,8 @@ const translations: Record<Language, Record<string, string>> = {
     dutyAndPriceDesc: "جداول المناوبة وقاعدة بيانات الأسعار",
     findDoctor: "ابحث عن طبيب",
     findDoctorDesc: "أطباء، مصحات، ومستشفيات",
+    otherServices: "خدمات أخرى",
+    otherServicesDesc: "سعر الدواء وخدمات إضافية",
 
     regionLabel: "اختر منطقتك",
     regionPlaceholder: "حدد منطقتك...",
@@ -128,6 +130,8 @@ const translations: Record<Language, Record<string, string>> = {
     dutyAndPriceDesc: "Tableaux de permanence et base de données des prix",
     findDoctor: "Trouver un médecin",
     findDoctorDesc: "Médecins, cliniques et hôpitaux",
+    otherServices: "Autres services",
+    otherServicesDesc: "Prix médicaments & plus",
 
     regionLabel: "Votre région",
     regionPlaceholder: "Sélectionnez votre région...",

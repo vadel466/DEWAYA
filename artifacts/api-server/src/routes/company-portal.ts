@@ -227,7 +227,7 @@ router.patch("/companies/:id", async (req, res) => {
 router.delete("/companies/:id", async (req, res) => {
   try {
     if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }
-    await db.update(companiesTable).set({ isActive: false }).where(eq(companiesTable.id, req.params.id));
+    await db.delete(companiesTable).where(eq(companiesTable.id, req.params.id));
     res.json({ success: true });
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Erreur serveur" });

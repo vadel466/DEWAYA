@@ -507,11 +507,12 @@ export default function AdminScreen() {
   const savePharmacyMutation = useMutation({
     mutationFn: async () => {
       const body = { name: pName, nameAr: pNameAr || undefined, address: pAddress, addressAr: pAddressAr || undefined, phone: pPhone, lat: pLat ? parseFloat(pLat) : undefined, lon: pLon ? parseFloat(pLon) : undefined, region: pRegion || undefined, portalPin: pPin || undefined };
+      const HEADERS = { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET };
       if (editingPharmacy) {
-        const r = await fetch(`${API_BASE}/pharmacies/${editingPharmacy.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const r = await fetch(`${API_BASE}/pharmacies/${editingPharmacy.id}`, { method: "PUT", headers: HEADERS, body: JSON.stringify(body) });
         if (!r.ok) throw new Error(); return r.json();
       } else {
-        const r = await fetch(`${API_BASE}/pharmacies`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const r = await fetch(`${API_BASE}/pharmacies`, { method: "POST", headers: HEADERS, body: JSON.stringify(body) });
         if (!r.ok) throw new Error(); return r.json();
       }
     },
@@ -520,8 +521,9 @@ export default function AdminScreen() {
   });
 
   const deletePharmacyMutation = useMutation({
-    mutationFn: async (id: string) => { const r = await fetch(`${API_BASE}/pharmacies/${id}`, { method: "DELETE" }); if (!r.ok) throw new Error(); },
+    mutationFn: async (id: string) => { const r = await fetch(`${API_BASE}/pharmacies/${id}`, { method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET } }); if (!r.ok) throw new Error(); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-pharmacies"] }); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); },
+    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل الحذف" : "Échec de la suppression"),
   });
 
   const uploadDutyImageMutation = useMutation({
@@ -1132,11 +1134,11 @@ export default function AdminScreen() {
             <Ionicons name="create-outline" size={18} color={Colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity style={[styles.iconBtn, { backgroundColor: Colors.danger + "10" }]}
-            onPress={() => confirmDelete(isRTL ? "إيقاف هذه الشركة؟" : "Suspendre cette société?", async () => {
+            onPress={() => confirmDelete(isRTL ? "حذف هذه الشركة نهائياً؟" : "Supprimer définitivement cette société?", async () => {
               await fetch(`${API_BASE}/company-portal/companies/${item.id}`, { method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET } });
               refetchCompanies();
             })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="ban-outline" size={18} color={Colors.danger} />
+            <Ionicons name="trash-outline" size={18} color={Colors.danger} />
           </TouchableOpacity>
         </View>
       </View>

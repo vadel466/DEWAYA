@@ -1,9 +1,14 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import { db } from "@workspace/db";
 import { pharmaciesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
+
+const ADMIN_SECRET = process.env.ADMIN_SECRET ?? "DEWAYA_ADMIN_2026";
+function isAdmin(req: Request): boolean {
+  return req.headers["x-admin-secret"] === ADMIN_SECRET;
+}
 
 function generateId(): string {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -84,6 +89,7 @@ router.get("/nearest", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
+    if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }
     const { name, nameAr, address, addressAr, phone, lat, lon, region, portalPin } = req.body;
     if (!name || !address || !phone) {
       res.status(400).json({ error: "name, address, and phone are required" });
@@ -103,6 +109,7 @@ router.post("/", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   try {
+    if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }
     const { id } = req.params;
     const { name, nameAr, address, addressAr, phone, lat, lon, region, portalPin, isActive } = req.body;
     const [pharmacy] = await db
@@ -123,6 +130,7 @@ router.put("/:id", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
+    if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }
     const { id } = req.params;
     await db.delete(pharmaciesTable).where(eq(pharmaciesTable.id, id));
     res.json({ success: true });

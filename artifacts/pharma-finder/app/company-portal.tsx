@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator,
   Linking, RefreshControl, Platform, TextInput, Alert, KeyboardAvoidingView,
-  ScrollView, Modal,
+  ScrollView, Modal, Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -20,7 +20,14 @@ const COMPANY_COLOR = "#7C3AED";
 const COMPANY_LIGHT = "#7C3AED12";
 
 type CompanyInfo = { id: string; name: string; nameAr: string | null; code: string; contact: string | null; subscriptionActive: boolean; isActive: boolean };
-type CompanyOrder = { id: string; pharmacyId: string; pharmacyName: string; companyId: string | null; companyName: string | null; drugName: string; quantity: string | null; message: string | null; type: string; status: string; companyResponse: string | null; respondedAt: string | null; createdAt: string };
+type CompanyOrder = {
+  id: string; pharmacyId: string; pharmacyName: string;
+  pharmacyPhone: string | null; pharmacyAddress: string | null; pharmacyRegion: string | null;
+  companyId: string | null; companyName: string | null;
+  drugName: string; quantity: string | null; message: string | null;
+  type: string; status: string; companyResponse: string | null; respondedAt: string | null; createdAt: string;
+  attachmentData: string | null; attachmentType: string | null; attachmentName: string | null;
+};
 type InventoryItem = { id: string; companyId: string; companyName: string; drugName: string; price: number | null; unit: string | null; notes: string | null; isAd: boolean; createdAt: string };
 
 type CompanyTab = "orders" | "inventory" | "announcements";
@@ -323,6 +330,8 @@ export default function CompanyPortalScreen() {
             }
             renderItem={({ item }) => {
               const isPending = item.status === "pending";
+              const hasImage = item.attachmentData && item.attachmentType?.startsWith("image/");
+              const hasFile = item.attachmentData && !item.attachmentType?.startsWith("image/");
               return (
                 <View style={[styles.orderCard, !isPending && styles.orderCardDone]}>
                   <View style={[styles.orderCardHeader, isRTL && styles.rtlRow]}>
@@ -340,11 +349,51 @@ export default function CompanyPortalScreen() {
                       </Text>
                     </View>
                   </View>
+
+                  <View style={[styles.pharmacyInfoRow, isRTL && styles.rtlRow]}>
+                    {item.pharmacyPhone && (
+                      <TouchableOpacity style={styles.pharmacyInfoItem} onPress={() => Linking.openURL(`tel:${item.pharmacyPhone}`)}>
+                        <Ionicons name="call-outline" size={12} color={COMPANY_COLOR} />
+                        <Text style={[styles.pharmacyInfoText, { color: COMPANY_COLOR }]}>{item.pharmacyPhone}</Text>
+                      </TouchableOpacity>
+                    )}
+                    {item.pharmacyAddress && (
+                      <View style={styles.pharmacyInfoItem}>
+                        <Ionicons name="location-outline" size={12} color={Colors.light.textSecondary} />
+                        <Text style={[styles.pharmacyInfoText, isRTL && styles.rtlText]} numberOfLines={1}>{item.pharmacyAddress}</Text>
+                      </View>
+                    )}
+                    {item.pharmacyRegion && (
+                      <View style={[styles.regionBadge]}>
+                        <Text style={styles.regionBadgeText}>{item.pharmacyRegion}</Text>
+                      </View>
+                    )}
+                  </View>
+
                   {item.message && (
                     <View style={[styles.orderMsg, isRTL && { alignItems: "flex-end" }]}>
                       <Text style={[styles.orderMsgText, isRTL && styles.rtlText]}>{item.message}</Text>
                     </View>
                   )}
+
+                  {hasImage && (
+                    <Image
+                      source={{ uri: `data:${item.attachmentType};base64,${item.attachmentData}` }}
+                      style={styles.orderAttachImage}
+                      resizeMode="cover"
+                    />
+                  )}
+                  {hasFile && (
+                    <View style={[styles.orderAttachFile, isRTL && styles.rtlRow]}>
+                      <MaterialCommunityIcons
+                        name={item.attachmentType === "application/pdf" ? "file-pdf-box" : "file-excel"}
+                        size={26}
+                        color={item.attachmentType === "application/pdf" ? Colors.danger : "#1D6F42"}
+                      />
+                      <Text style={styles.orderAttachFileName} numberOfLines={1}>{item.attachmentName || (isRTL ? "ملف مرفق" : "Fichier joint")}</Text>
+                    </View>
+                  )}
+
                   <View style={[styles.orderFooter, isRTL && styles.rtlRow]}>
                     <Text style={styles.orderTime}>{fmt(item.createdAt, language)}</Text>
                     {isPending ? (
@@ -582,6 +631,14 @@ const styles = StyleSheet.create({
   orderTypeBadgeText: { fontSize: 10, fontFamily: "Inter_700Bold" },
   orderMsg: { backgroundColor: Colors.light.inputBackground, borderRadius: 8, padding: 10, marginBottom: 8 },
   orderMsgText: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary },
+  pharmacyInfoRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8, paddingTop: 4 },
+  pharmacyInfoItem: { flexDirection: "row", alignItems: "center", gap: 4, maxWidth: "60%" },
+  pharmacyInfoText: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary },
+  regionBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, backgroundColor: Colors.primary + "15" },
+  regionBadgeText: { fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.primary },
+  orderAttachImage: { width: "100%", height: 160, borderRadius: 10, marginBottom: 8 },
+  orderAttachFile: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: Colors.light.inputBackground, borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: Colors.light.border },
+  orderAttachFileName: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.light.text },
   orderFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   orderTime: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary },
   respondBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: COMPANY_COLOR, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },

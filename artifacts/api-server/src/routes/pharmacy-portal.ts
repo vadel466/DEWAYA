@@ -340,16 +340,26 @@ router.patch("/pharmacy/:id/subscription", async (req, res) => {
 
 router.post("/company-order", async (req, res) => {
   try {
-    const { pharmacyId, pharmacyName, companyId, companyName, drugName, quantity, message, type } = req.body;
+    const {
+      pharmacyId, pharmacyName, pharmacyPhone, pharmacyAddress, pharmacyRegion,
+      companyId, companyName, drugName, quantity, message, type,
+      attachmentData, attachmentType, attachmentName,
+    } = req.body;
     if (!pharmacyId || !pharmacyName || !drugName) { res.status(400).json({ error: "Champs requis" }); return; }
     const authorized = isAdmin(req) || await validatePharmacyPin(req, pharmacyId);
     if (!authorized) { res.status(401).json({ error: "Non autorisé" }); return; }
     const id = generateId();
     const [order] = await db.insert(companyOrdersTable).values({
       id, pharmacyId, pharmacyName,
+      pharmacyPhone: pharmacyPhone || null,
+      pharmacyAddress: pharmacyAddress || null,
+      pharmacyRegion: pharmacyRegion || null,
       companyId: companyId || null, companyName: companyName || null,
       drugName: drugName.trim(), quantity: quantity || null,
       message: message || null, type: type || "order", status: "pending",
+      attachmentData: attachmentData || null,
+      attachmentType: attachmentType || null,
+      attachmentName: attachmentName || null,
     }).returning();
     res.status(201).json({ ...order, createdAt: order.createdAt.toISOString(), respondedAt: null });
   } catch (err) {

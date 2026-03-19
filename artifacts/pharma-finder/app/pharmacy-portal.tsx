@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator,
   Linking, RefreshControl, Platform, TextInput, Alert, KeyboardAvoidingView,
-  ScrollView, Animated, Vibration, Modal,
+  ScrollView, Animated, Vibration, Modal, Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { useBell } from "@/hooks/useBell";
@@ -20,7 +22,7 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
 const PARTNER_COLOR = "#7C3AED";
 
 type DrugRequest = { id: string; userId: string; drugName: string; status: string; createdAt: string };
-type PharmacyInfo = { id: string; name: string; nameAr: string | null; address: string; phone: string; region: string | null; b2bEnabled: boolean; subscriptionActive?: boolean };
+type PharmacyInfo = { id: string; name: string; nameAr: string | null; address: string; addressAr: string | null; phone: string; region: string | null; b2bEnabled: boolean; subscriptionActive?: boolean };
 type InventoryItem = { id: string; pharmacyId: string; drugName: string; notes: string | null; createdAt: string };
 type Company = { id: string; name: string; nameAr: string | null; contact: string | null; subscriptionActive: boolean };
 type CompanyOrder = { id: string; pharmacyId: string; pharmacyName: string; companyId: string | null; companyName: string | null; drugName: string; quantity: string | null; message: string | null; type: string; status: string; companyResponse: string | null; respondedAt: string | null; createdAt: string };
@@ -83,6 +85,7 @@ export default function PharmacyPortalScreen() {
   const [orderMsg, setOrderMsg] = useState("");
   const [orderType, setOrderType] = useState<"order" | "inquiry" | "promotion">("order");
   const [orderSending, setOrderSending] = useState(false);
+  const [attachment, setAttachment] = useState<{ data: string; type: string; name: string } | null>(null);
 
   const [announcements, setAnnouncements] = useState<CompanyAnnouncement[]>([]);
   const [adsLoading, setAdsLoading] = useState(false);
@@ -344,6 +347,74 @@ export default function PharmacyPortalScreen() {
     } catch {}
   };
 
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(isRTL ? "الصلاحية مرفوضة" : "Permission refusée", isRTL ? "يجب السماح بالوصول للصور" : "Accès à la galerie requis");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.7,
+        base64: true,
+      });
+      if (!result.canceled && result.assets[0].base64) {
+        const asset = result.assets[0];
+        const ext = asset.uri.split(".").pop()?.toLowerCase() || "jpg";
+        const mimeType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+        setAttachment({ data: asset.base64, type: mimeType, name: `photo.${ext}` });
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (e) {
+      Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل اختيار الصورة" : "Impossible de sélectionner l'image");
+    }
+  };
+
+  const pickCamera = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(isRTL ? "الصلاحية مرفوضة" : "Permission refusée", isRTL ? "يجب السماح بالوصول للكاميرا" : "Accès à la caméra requis");
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: false, quality: 0.7, base64: true,
+      });
+      if (!result.canceled && result.assets[0].base64) {
+        const asset = result.assets[0];
+        setAttachment({ data: asset.base64, type: "image/jpeg", name: "photo.jpg" });
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (e) {
+      Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل التصوير" : "Impossible de prendre la photo");
+    }
+  };
+
+  const pickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/pdf", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled && result.assets?.[0]) {
+        const asset = result.assets[0];
+        const response = await fetch(asset.uri);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(",")[1];
+          setAttachment({ data: base64, type: asset.mimeType || "application/octet-stream", name: asset.name });
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        };
+        reader.readAsDataURL(blob);
+      }
+    } catch (e) {
+      Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل اختيار الملف" : "Impossible de sélectionner le fichier");
+    }
+  };
+
   const handleSendOrder = async () => {
     if (!pharmacy || !orderDrug.trim()) return;
     setOrderSending(true);
@@ -352,15 +423,26 @@ export default function PharmacyPortalScreen() {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-pharmacy-pin": pin },
         body: JSON.stringify({
-          pharmacyId: pharmacy.id, pharmacyName: pharmacy.nameAr || pharmacy.name,
-          companyId: selectedCompany?.id || null, companyName: selectedCompany ? (selectedCompany.nameAr || selectedCompany.name) : null,
-          drugName: orderDrug.trim(), quantity: orderQty.trim() || null,
-          message: orderMsg.trim() || null, type: orderType,
+          pharmacyId: pharmacy.id,
+          pharmacyName: pharmacy.nameAr || pharmacy.name,
+          pharmacyPhone: pharmacy.phone,
+          pharmacyAddress: pharmacy.address,
+          pharmacyRegion: pharmacy.region,
+          companyId: selectedCompany?.id || null,
+          companyName: selectedCompany ? (selectedCompany.nameAr || selectedCompany.name) : null,
+          drugName: orderDrug.trim(),
+          quantity: orderQty.trim() || null,
+          message: orderMsg.trim() || null,
+          type: orderType,
+          attachmentData: attachment?.data || null,
+          attachmentType: attachment?.type || null,
+          attachmentName: attachment?.name || null,
         }),
       });
       if (resp.ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setOrderDrug(""); setOrderQty(""); setOrderMsg(""); setSelectedCompany(null); setOrderType("order");
+        setOrderDrug(""); setOrderQty(""); setOrderMsg(""); setSelectedCompany(null);
+        setOrderType("order"); setAttachment(null);
         setShowOrderModal(false);
         fetchCompanyOrders();
         Alert.alert(
@@ -820,10 +902,42 @@ export default function PharmacyPortalScreen() {
 
               <TextInput style={[styles.modalInput, isRTL && styles.rtlInput, { marginBottom: 8 }]} placeholder={isRTL ? "اسم الدواء / المنتج *" : "Médicament / Produit *"} placeholderTextColor={Colors.light.textTertiary} value={orderDrug} onChangeText={setOrderDrug} textAlign={isRTL ? "right" : "left"} />
               <TextInput style={[styles.modalInput, isRTL && styles.rtlInput, { marginBottom: 8 }]} placeholder={isRTL ? "الكمية المطلوبة (اختياري)" : "Quantité souhaitée (optionnel)"} placeholderTextColor={Colors.light.textTertiary} value={orderQty} onChangeText={setOrderQty} textAlign={isRTL ? "right" : "left"} keyboardType="numeric" />
-              <TextInput style={[styles.modalInput, styles.textArea, isRTL && styles.rtlInput, { marginBottom: 16 }]} placeholder={isRTL ? "ملاحظات للشركة..." : "Message à la société..."} placeholderTextColor={Colors.light.textTertiary} value={orderMsg} onChangeText={setOrderMsg} multiline numberOfLines={3} textAlign={isRTL ? "right" : "left"} />
+              <TextInput style={[styles.modalInput, styles.textArea, isRTL && styles.rtlInput, { marginBottom: 12 }]} placeholder={isRTL ? "ملاحظات للشركة..." : "Message à la société..."} placeholderTextColor={Colors.light.textTertiary} value={orderMsg} onChangeText={setOrderMsg} multiline numberOfLines={3} textAlign={isRTL ? "right" : "left"} />
+
+              <Text style={[styles.modalLabel, isRTL && styles.rtlText]}>{isRTL ? "إضافة مرفق (اختياري)" : "Ajouter une pièce jointe (optionnel)"}</Text>
+              <View style={[styles.attachBtnRow, isRTL && styles.rtlRow]}>
+                <TouchableOpacity style={styles.attachBtn} onPress={pickCamera} activeOpacity={0.8}>
+                  <Ionicons name="camera-outline" size={18} color={PARTNER_COLOR} />
+                  <Text style={styles.attachBtnText}>{isRTL ? "كاميرا" : "Caméra"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.attachBtn} onPress={pickImage} activeOpacity={0.8}>
+                  <Ionicons name="image-outline" size={18} color={PARTNER_COLOR} />
+                  <Text style={styles.attachBtnText}>{isRTL ? "صورة" : "Image"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.attachBtn} onPress={pickDocument} activeOpacity={0.8}>
+                  <MaterialCommunityIcons name="file-document-outline" size={18} color={PARTNER_COLOR} />
+                  <Text style={styles.attachBtnText}>{isRTL ? "ملف" : "Fichier"}</Text>
+                </TouchableOpacity>
+              </View>
+
+              {attachment && (
+                <View style={styles.attachPreview}>
+                  {attachment.type.startsWith("image/") ? (
+                    <Image source={{ uri: `data:${attachment.type};base64,${attachment.data}` }} style={styles.attachImage} resizeMode="cover" />
+                  ) : (
+                    <View style={styles.attachFileInfo}>
+                      <MaterialCommunityIcons name={attachment.type === "application/pdf" ? "file-pdf-box" : "file-excel"} size={32} color={attachment.type === "application/pdf" ? Colors.danger : "#1D6F42"} />
+                      <Text style={styles.attachFileName} numberOfLines={1}>{attachment.name}</Text>
+                    </View>
+                  )}
+                  <TouchableOpacity style={styles.attachRemoveBtn} onPress={() => setAttachment(null)}>
+                    <Ionicons name="close-circle" size={22} color={Colors.danger} />
+                  </TouchableOpacity>
+                </View>
+              )}
 
               <TouchableOpacity
-                style={[styles.loginBtn, { backgroundColor: PARTNER_COLOR }, (!orderDrug.trim() || !selectedCompany || orderSending) && styles.loginBtnDisabled]}
+                style={[styles.loginBtn, { backgroundColor: PARTNER_COLOR, marginTop: 12 }, (!orderDrug.trim() || !selectedCompany || orderSending) && styles.loginBtnDisabled]}
                 onPress={handleSendOrder}
                 disabled={!orderDrug.trim() || !selectedCompany || orderSending}
                 activeOpacity={0.85}
@@ -834,7 +948,7 @@ export default function PharmacyPortalScreen() {
                 }
               </TouchableOpacity>
               {!selectedCompany && <Text style={[styles.requireCompanyHint, isRTL && styles.rtlText]}>{isRTL ? "* يجب اختيار شركة للإرسال" : "* Sélectionnez une société pour envoyer"}</Text>}
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowOrderModal(false); setSelectedCompany(null); }}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowOrderModal(false); setSelectedCompany(null); setAttachment(null); }}>
                 <Text style={styles.cancelText}>{isRTL ? "إلغاء" : "Annuler"}</Text>
               </TouchableOpacity>
             </View>
@@ -977,4 +1091,13 @@ const styles = StyleSheet.create({
   noCompanyWarnText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.warning },
 
   requireCompanyHint: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary, textAlign: "center", marginTop: 4 },
+
+  attachBtnRow: { flexDirection: "row", gap: 8, marginBottom: 10 },
+  attachBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: PARTNER_COLOR + "40", backgroundColor: PARTNER_COLOR + "08" },
+  attachBtnText: { fontSize: 12, fontFamily: "Inter_500Medium", color: PARTNER_COLOR },
+  attachPreview: { position: "relative", marginBottom: 8, borderRadius: 10, overflow: "hidden", borderWidth: 1, borderColor: Colors.light.border },
+  attachImage: { width: "100%", height: 150, borderRadius: 10 },
+  attachFileInfo: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: Colors.light.inputBackground },
+  attachFileName: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.light.text },
+  attachRemoveBtn: { position: "absolute", top: 6, right: 6, backgroundColor: "#fff", borderRadius: 12 },
 });

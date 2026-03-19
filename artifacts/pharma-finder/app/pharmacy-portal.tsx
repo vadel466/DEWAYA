@@ -24,6 +24,7 @@ type InventoryItem = { id: string; pharmacyId: string; drugName: string; notes: 
 type Company = { id: string; name: string; nameAr: string | null; contact: string | null; subscriptionActive: boolean };
 type CompanyOrder = { id: string; pharmacyId: string; pharmacyName: string; companyId: string | null; companyName: string | null; drugName: string; quantity: string | null; message: string | null; type: string; status: string; companyResponse: string | null; respondedAt: string | null; createdAt: string };
 type CompanyAnnouncement = { id: string; companyId: string; companyName: string; drugName: string; price: number | null; unit: string | null; notes: string | null; isAd: boolean; createdAt: string };
+type MyResponseStatus = { id: string; requestId: string; adminStatus: string; createdAt: string; drugName: string | null };
 
 function formatTime(dateStr: string, lang: string): string {
   return new Date(dateStr).toLocaleString(lang === "ar" ? "ar-SA" : "fr-FR", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" });
@@ -49,6 +50,8 @@ export default function PharmacyPortalScreen() {
   const [respondedIds, setRespondedIds] = useState<Set<string>>(new Set());
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [myResponsesStatus, setMyResponsesStatus] = useState<MyResponseStatus[]>([]);
+  const myResponsesPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [activeTab, setActiveTab] = useState<PortalTab>("requests");
   const [hasNewRequests, setHasNewRequests] = useState(false);
@@ -109,6 +112,7 @@ export default function PharmacyPortalScreen() {
   useEffect(() => {
     if (!pharmacy) return;
     fetchRequests();
+    fetchMyResponsesStatus();
     pollIntervalRef.current = setInterval(async () => {
       try {
         const resp = await fetch(`${API_BASE}/pharmacy-portal/requests`);
@@ -119,7 +123,12 @@ export default function PharmacyPortalScreen() {
         prevPendingCountRef.current = cnt;
       } catch {}
     }, 8000);
-    return () => { if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); stopBellAlert(); };
+    myResponsesPollRef.current = setInterval(() => fetchMyResponsesStatus(), 12000);
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      if (myResponsesPollRef.current) clearInterval(myResponsesPollRef.current);
+      stopBellAlert();
+    };
   }, [pharmacy]);
 
   const handleCodeSubmit = async () => {
@@ -175,6 +184,24 @@ export default function PharmacyPortalScreen() {
       }
     } catch {} finally { setLoading(false); setRefreshing(false); }
   };
+
+  const fetchMyResponsesStatus = useCallback(async () => {
+    if (!pharmacy) return;
+    try {
+      const resp = await fetch(`${API_BASE}/pharmacy-portal/my-responses/${pharmacy.id}`);
+      if (resp.ok) {
+        const data: MyResponseStatus[] = await resp.json();
+        setMyResponsesStatus(data);
+        // Sync confirmed/ignored IDs into local responded set so requests stay hidden
+        const confirmedOrIgnored = new Set(data.filter(r => r.adminStatus === "confirmed" || r.adminStatus === "ignored").map(r => r.requestId));
+        setRespondedIds(prev => {
+          const next = new Set(prev);
+          confirmedOrIgnored.forEach(id => next.add(id));
+          return next;
+        });
+      }
+    } catch {}
+  }, [pharmacy]);
 
   const fetchInventory = async () => {
     if (!pharmacy) return;
@@ -303,7 +330,7 @@ export default function PharmacyPortalScreen() {
   };
 
   const doLogout = () => {
-    setPharmacy(null); setPin(""); setRespondedIds(new Set()); setDismissedIds(new Set()); stopBellAlert();
+    setPharmacy(null); setPin(""); setRespondedIds(new Set()); setDismissedIds(new Set()); setMyResponsesStatus([]); stopBellAlert();
     prevPendingCountRef.current = -1; setStep("code"); setPharmacyList([]);
     setRequests([]); setInventory([]); setCompanyOrders([]); setAnnouncements([]); setActiveTab("requests");
   };
@@ -316,7 +343,6 @@ export default function PharmacyPortalScreen() {
   );
 
   const pendingRequests = requests.filter(r => r.status === "pending" && !respondedIds.has(r.id) && !dismissedIds.has(r.id));
-  const myResponded = requests.filter(r => respondedIds.has(r.id));
   const pendingOrders = companyOrders.filter(o => o.status === "pending");
 
   const TABS: { id: PortalTab; label: string; icon: any }[] = [
@@ -484,12 +510,30 @@ export default function PharmacyPortalScreen() {
             contentContainerStyle={[styles.list, pendingRequests.length === 0 && styles.emptyList, { paddingBottom: insets.bottom + 20 }]}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchRequests(true)} tintColor={Colors.primary} />}
-            ListHeaderComponent={myResponded.length > 0 ? (
-              <View style={styles.respondedBanner}>
-                <Ionicons name="time-outline" size={16} color={Colors.warning} />
-                <Text style={styles.respondedBannerText}>
-                  {isRTL ? `${myResponded.length} رد في انتظار موافقة الإدارة` : `${myResponded.length} réponse(s) en attente de validation`}
+            ListHeaderComponent={myResponsesStatus.length > 0 ? (
+              <View style={{ marginBottom: 10 }}>
+                <Text style={[{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary, marginBottom: 6, paddingHorizontal: 2 }, isRTL && { textAlign: "right" }]}>
+                  {isRTL ? "حالة ردودي الأخيرة:" : "État de mes réponses:"}
                 </Text>
+                {myResponsesStatus.slice(0, 5).map(r => {
+                  const statusColor = r.adminStatus === "confirmed" ? Colors.accent : r.adminStatus === "ignored" ? "#888" : Colors.warning;
+                  const statusIcon = r.adminStatus === "confirmed" ? "checkmark-circle" : r.adminStatus === "ignored" ? "close-circle" : "time-outline";
+                  const statusLabel = r.adminStatus === "confirmed"
+                    ? (isRTL ? "✅ تم التأكيد — أُبلغ المريض" : "✅ Confirmé — Patient notifié")
+                    : r.adminStatus === "ignored"
+                    ? (isRTL ? "✖ لم يُختر ردّكم" : "✖ Non retenu")
+                    : (isRTL ? "⏳ قيد مراجعة الإدارة" : "⏳ En attente de validation");
+                  return (
+                    <View key={r.id} style={[{ flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", gap: 8, backgroundColor: statusColor + "10", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginBottom: 4, borderWidth: 1, borderColor: statusColor + "25" }]}>
+                      <Ionicons name={statusIcon as any} size={15} color={statusColor} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: statusColor, textAlign: isRTL ? "right" : "left" }}>{statusLabel}</Text>
+                        {r.drugName && <Text style={{ fontSize: 11, color: Colors.light.textSecondary, textAlign: isRTL ? "right" : "left" }}>{r.drugName}</Text>}
+                      </View>
+                      <Text style={{ fontSize: 10, color: Colors.light.textTertiary }}>{formatTime(r.createdAt, language)}</Text>
+                    </View>
+                  );
+                })}
               </View>
             ) : null}
             renderItem={({ item }) => {

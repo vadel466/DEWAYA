@@ -17,7 +17,7 @@ const ADMIN_SECRET = process.env.ADMIN_SECRET || "DEWAYA_ADMIN_2026";
 const PORTAL_CODE = "DV2026";
 
 function generateId(): string {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+  return crypto.randomUUID();
 }
 
 function isAdmin(req: any): boolean {
@@ -158,6 +158,29 @@ router.post("/responses/:id/ignore", async (req, res) => {
     const { id } = req.params;
     await db.update(pharmacyResponsesTable).set({ adminStatus: "ignored" }).where(eq(pharmacyResponsesTable.id, id));
     res.json({ success: true });
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+router.get("/my-responses/:pharmacyId", async (req, res) => {
+  try {
+    const { pharmacyId } = req.params;
+    if (!pharmacyId) { res.status(400).json({ error: "pharmacyId requis" }); return; }
+    const rows = await db
+      .select({
+        id: pharmacyResponsesTable.id,
+        requestId: pharmacyResponsesTable.requestId,
+        adminStatus: pharmacyResponsesTable.adminStatus,
+        createdAt: pharmacyResponsesTable.createdAt,
+        drugName: drugRequestsTable.drugName,
+      })
+      .from(pharmacyResponsesTable)
+      .leftJoin(drugRequestsTable, eq(pharmacyResponsesTable.requestId, drugRequestsTable.id))
+      .where(eq(pharmacyResponsesTable.pharmacyId, pharmacyId))
+      .orderBy(desc(pharmacyResponsesTable.createdAt))
+      .limit(30);
+    res.json(rows.map(r => ({ ...r, createdAt: r.createdAt.toISOString() })));
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Erreur serveur" });
   }

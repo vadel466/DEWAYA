@@ -13,7 +13,7 @@ const ADMIN_SECRET = process.env.ADMIN_SECRET || "DEWAYA_ADMIN_2026";
 const MASTER_COMPANY_CODE = "DAHA2024";
 
 function generateId(): string {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+  return crypto.randomUUID();
 }
 
 function isAdmin(req: any): boolean {
@@ -72,6 +72,7 @@ router.get("/orders/:companyId", async (req, res) => {
 
 router.get("/orders-all", async (req, res) => {
   try {
+    if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }
     const orders = await db.select().from(companyOrdersTable).orderBy(desc(companyOrdersTable.createdAt));
     res.json(orders.map(serializeOrder));
   } catch (err) {
@@ -157,6 +158,7 @@ router.get("/announcements", async (req, res) => {
 
 router.get("/companies", async (req, res) => {
   try {
+    if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }
     const companies = await db.select().from(companiesTable).orderBy(desc(companiesTable.createdAt));
     res.json(companies.map(serializeCompany));
   } catch (err) {

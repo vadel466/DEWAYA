@@ -201,7 +201,8 @@ export default function AdminScreen() {
     queryFn: async () => { const r = await fetch(`${API_BASE}/pharmacy-portal/responses`, { headers: { "x-admin-secret": ADMIN_SECRET } }); if (!r.ok) throw new Error(); return r.json(); },
     refetchInterval: 8000, enabled: isAdmin && (activeTab === "portal" || activeTab === "b2b"),
   });
-  const portalResponses = allPortalResponses.filter(r => r.adminStatus === "pending_admin");
+  const portalResponses = allPortalResponses;
+  const pendingPortalCount = allPortalResponses.filter(r => r.adminStatus === "pending_admin").length;
 
   const { data: b2bMessages = [], isLoading: b2bLoading, refetch: refetchB2b, isRefetching: b2bRefetching } = useQuery<B2bMessage[]>({
     queryKey: ["admin-b2b"],
@@ -678,7 +679,7 @@ export default function AdminScreen() {
   const TABS = [
     { id: "pending", label: isRTL ? `طلبات (${pendingRequests.length})` : `Attente (${pendingRequests.length})` },
     { id: "payments", label: isRTL ? `دفع${pendingPayments.length > 0 ? ` (${pendingPayments.length})` : ""}` : `Pmt${pendingPayments.length > 0 ? ` (${pendingPayments.length})` : ""}` },
-    { id: "portal", label: isRTL ? `ردود${portalResponses.length > 0 ? ` (${portalResponses.length})` : ""}` : `Portail${portalResponses.length > 0 ? ` (${portalResponses.length})` : ""}` },
+    { id: "portal", label: isRTL ? `ردود${pendingPortalCount > 0 ? ` ⚡${pendingPortalCount}` : (portalResponses.length > 0 ? ` (${portalResponses.length})` : "")}` : `Portail${pendingPortalCount > 0 ? ` ⚡${pendingPortalCount}` : (portalResponses.length > 0 ? ` (${portalResponses.length})` : "")}` },
     { id: "pharmacies", label: isRTL ? "صيدليات" : "Pharma" },
     { id: "duty", label: isRTL ? "مداومة" : "Garde" },
     { id: "prices", label: isRTL ? "أسعار" : "Prix" },
@@ -780,60 +781,91 @@ export default function AdminScreen() {
     const isConfirming = confirmingResponseId === item.id;
     const isIgnoring = ignoringResponseId === item.id;
     const isBusy = isConfirming || isIgnoring;
+    const isPending = item.adminStatus === "pending_admin";
+    const isConfirmed = item.adminStatus === "confirmed";
+    const isIgnored = item.adminStatus === "ignored";
     return (
-      <View style={styles.portalCard}>
+      <View style={[
+        styles.portalCard,
+        isConfirmed && { borderColor: Colors.accent + "40", backgroundColor: Colors.accent + "05" },
+        isIgnored && { borderColor: "#88888830", backgroundColor: "#88888808" },
+      ]}>
         <View style={[styles.cardRow, isRTL && styles.rtlRow]}>
-          <View style={[styles.requestIcon, { backgroundColor: Colors.primary + "15" }]}>
-            <MaterialCommunityIcons name="hospital-building" size={22} color={Colors.primary} />
+          <View style={[styles.requestIcon, {
+            backgroundColor: isConfirmed ? Colors.accent + "15" : isIgnored ? "#88888812" : Colors.primary + "15"
+          }]}>
+            <MaterialCommunityIcons
+              name={isConfirmed ? "hospital-building" : isIgnored ? "hospital-building" : "hospital-building"}
+              size={22}
+              color={isConfirmed ? Colors.accent : isIgnored ? "#888" : Colors.primary}
+            />
           </View>
           <View style={[styles.requestInfo, isRTL && styles.rtlInfo]}>
             {item.drugName && (
               <View style={[styles.drugNameBadge, isRTL && styles.rtlRow]}>
-                <MaterialCommunityIcons name="pill" size={13} color={Colors.accent} />
-                <Text style={styles.drugNameBadgeText}>{item.drugName}</Text>
+                <MaterialCommunityIcons name="pill" size={13} color={isIgnored ? "#888" : Colors.accent} />
+                <Text style={[styles.drugNameBadgeText, isIgnored && { color: "#888" }]}>{item.drugName}</Text>
               </View>
             )}
-            <Text style={[styles.drugName, isRTL && styles.rtlText]}>{item.pharmacyName}</Text>
+            <Text style={[styles.drugName, isRTL && styles.rtlText, isIgnored && { color: "#999" }]}>{item.pharmacyName}</Text>
             <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{item.pharmacyAddress}</Text>
             <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{item.pharmacyPhone} • {formatTime(item.createdAt, language)}</Text>
           </View>
+          {/* Status badge for non-pending */}
+          {isConfirmed && (
+            <View style={{ backgroundColor: Colors.accent + "18", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, alignSelf: "flex-start" }}>
+              <Text style={{ fontSize: 11, color: Colors.accent, fontFamily: "Inter_600SemiBold" }}>{isRTL ? "✅ مؤكد" : "✅ Confirmé"}</Text>
+            </View>
+          )}
+          {isIgnored && (
+            <View style={{ backgroundColor: "#88888818", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, alignSelf: "flex-start" }}>
+              <Text style={{ fontSize: 11, color: "#888", fontFamily: "Inter_600SemiBold" }}>{isRTL ? "✖ متجاهل" : "✖ Ignoré"}</Text>
+            </View>
+          )}
+          {isPending && (
+            <View style={{ backgroundColor: Colors.warning + "18", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, alignSelf: "flex-start" }}>
+              <Text style={{ fontSize: 11, color: Colors.warning, fontFamily: "Inter_600SemiBold" }}>{isRTL ? "⏳ معلق" : "⏳ Attente"}</Text>
+            </View>
+          )}
         </View>
-        <View style={[styles.mediationBtns, isRTL && styles.rtlRow]}>
-          <TouchableOpacity
-            style={[styles.confirmBtn, isBusy && { opacity: 0.6 }]}
-            onPress={() => Alert.alert(
-              isRTL ? "✅ تأكيد الإرسال؟" : "✅ Confirmer l'envoi?",
-              isRTL
-                ? `إرسال رد "${item.pharmacyName}" للمستخدم؟ سيصله إشعار بتفاصيل الدواء.`
-                : `Envoyer la réponse de "${item.pharmacyName}" au patient? Il recevra une notification.`,
-              [
-                { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
-                { text: isRTL ? "تأكيد ✓" : "Confirmer ✓", onPress: () => confirmResponseMutation.mutate(item.id) },
-              ]
-            )}
-            disabled={isBusy}
-            activeOpacity={0.8}
-          >
-            {isConfirming ? <ActivityIndicator size={14} color="#fff" /> : <Ionicons name="checkmark-circle" size={15} color="#fff" />}
-            <Text style={styles.confirmBtnText}>{isRTL ? "تأكيد ✓" : "Confirmer"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.ignoreBtn, isBusy && { opacity: 0.6 }]}
-            onPress={() => Alert.alert(
-              isRTL ? "تجاهل الرد؟" : "Ignorer cette réponse?",
-              isRTL ? "سيُتجاهل رد الصيدلية ويستمر الطلب في انتظار رد آخر" : "La réponse de la pharmacie sera ignorée. La demande restera ouverte.",
-              [
-                { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
-                { text: isRTL ? "تجاهل" : "Ignorer", style: "destructive", onPress: () => ignoreResponseMutation.mutate(item.id) },
-              ]
-            )}
-            disabled={isBusy}
-            activeOpacity={0.8}
-          >
-            {isIgnoring ? <ActivityIndicator size={14} color={Colors.danger} /> : <Ionicons name="close-circle" size={15} color={Colors.danger} />}
-            <Text style={styles.ignoreBtnText}>{isRTL ? "تجاهل" : "Ignorer"}</Text>
-          </TouchableOpacity>
-        </View>
+        {isPending && (
+          <View style={[styles.mediationBtns, isRTL && styles.rtlRow]}>
+            <TouchableOpacity
+              style={[styles.confirmBtn, isBusy && { opacity: 0.6 }]}
+              onPress={() => Alert.alert(
+                isRTL ? "✅ تأكيد الإرسال؟" : "✅ Confirmer l'envoi?",
+                isRTL
+                  ? `إرسال رد "${item.pharmacyName}" للمستخدم؟ سيصله إشعار بتفاصيل الدواء.`
+                  : `Envoyer la réponse de "${item.pharmacyName}" au patient? Il recevra une notification.`,
+                [
+                  { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+                  { text: isRTL ? "تأكيد ✓" : "Confirmer ✓", onPress: () => confirmResponseMutation.mutate(item.id) },
+                ]
+              )}
+              disabled={isBusy}
+              activeOpacity={0.8}
+            >
+              {isConfirming ? <ActivityIndicator size={14} color="#fff" /> : <Ionicons name="checkmark-circle" size={15} color="#fff" />}
+              <Text style={styles.confirmBtnText}>{isRTL ? "تأكيد — أرسل للمريض" : "Confirmer — Notifier patient"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.ignoreBtn, isBusy && { opacity: 0.6 }]}
+              onPress={() => Alert.alert(
+                isRTL ? "تجاهل الرد؟" : "Ignorer cette réponse?",
+                isRTL ? "سيُتجاهل رد الصيدلية ويستمر الطلب في انتظار رد آخر" : "La réponse de la pharmacie sera ignorée. La demande restera ouverte.",
+                [
+                  { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+                  { text: isRTL ? "تجاهل" : "Ignorer", style: "destructive", onPress: () => ignoreResponseMutation.mutate(item.id) },
+                ]
+              )}
+              disabled={isBusy}
+              activeOpacity={0.8}
+            >
+              {isIgnoring ? <ActivityIndicator size={14} color={Colors.danger} /> : <Ionicons name="close-circle" size={15} color={Colors.danger} />}
+              <Text style={styles.ignoreBtnText}>{isRTL ? "تجاهل — لا تُرسل" : "Ignorer — Ne pas envoyer"}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
   };

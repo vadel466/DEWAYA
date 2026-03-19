@@ -42,9 +42,11 @@ export function useBell(mode: "alert" | "both" = "both") {
     return () => {
       mounted = false;
       alertRef.current?.unloadAsync();
+      alertRef.current = null;
       softRef.current?.unloadAsync();
+      softRef.current = null;
     };
-  }, []);
+  }, [mode]);
 
   const playAlertBell = useCallback(async () => {
     if (!alertRef.current) return;

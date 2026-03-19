@@ -19,7 +19,6 @@ const COMPANY_COLOR = "#7C3AED";
 const COMPANY_LIGHT = "#7C3AED12";
 
 type CompanyInfo = { id: string; name: string; nameAr: string | null; code: string; contact: string | null; subscriptionActive: boolean; isActive: boolean };
-type CompanyListItem = { id: string; name: string; nameAr: string | null; contact: string | null; subscriptionActive: boolean };
 type CompanyOrder = { id: string; pharmacyId: string; pharmacyName: string; companyId: string | null; companyName: string | null; drugName: string; quantity: string | null; message: string | null; type: string; status: string; companyResponse: string | null; respondedAt: string | null; createdAt: string };
 type InventoryItem = { id: string; companyId: string; companyName: string; drugName: string; price: number | null; unit: string | null; notes: string | null; isAd: boolean; createdAt: string };
 
@@ -34,11 +33,9 @@ export default function CompanyPortalScreen() {
   const { language } = useApp();
   const isRTL = language === "ar";
 
-  const [step, setStep] = useState<"code" | "pick" | "dashboard">("code");
+  const [step, setStep] = useState<"code" | "dashboard">("code");
   const [code, setCode] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
-  const [companyList, setCompanyList] = useState<CompanyListItem[]>([]);
-  const [companySearch, setCompanySearch] = useState("");
   const [company, setCompany] = useState<CompanyInfo | null>(null);
 
   const [activeTab, setActiveTab] = useState<CompanyTab>("orders");
@@ -73,44 +70,27 @@ export default function CompanyPortalScreen() {
         body: JSON.stringify({ code: code.trim() }),
       });
       if (!resp.ok) {
-        Alert.alert(isRTL ? "رمز غير صحيح" : "Code incorrect");
+        const err = await resp.json().catch(() => ({}));
+        Alert.alert(isRTL ? "رمز غير صحيح" : "Code incorrect", err.error || "");
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         return;
       }
       const data = await resp.json();
-      if (data.companyList) {
-        setCompanyList(data.companyList);
-        setStep("pick");
-      } else {
-        setCompany(data);
-        setStep("dashboard");
-      }
+      setCompany(data);
+      setStep("dashboard");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
       Alert.alert(isRTL ? "خطأ في الاتصال" : "Erreur de connexion");
     } finally { setAuthLoading(false); }
   };
 
-  const handlePickCompany = async (item: CompanyListItem) => {
-    setAuthLoading(true);
-    try {
-      const resp = await fetch(`${API_BASE}/company-portal/auth`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: code.trim(), companyId: item.id }),
-      });
-      if (!resp.ok) { Alert.alert(isRTL ? "خطأ" : "Erreur"); return; }
-      const data = await resp.json();
-      setCompany(data);
-      setStep("dashboard");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {} finally { setAuthLoading(false); }
-  };
-
   const fetchOrders = useCallback(async (isRefresh = false) => {
     if (!company) return;
     if (isRefresh) setOrdersRefreshing(true); else setOrdersLoading(true);
     try {
-      const resp = await fetch(`${API_BASE}/company-portal/orders/${company.id}`);
+      const resp = await fetch(`${API_BASE}/company-portal/orders/${company.id}`, {
+        headers: { "x-company-code": company.code },
+      });
       if (resp.ok) setOrders(await resp.json());
     } catch {} finally { setOrdersLoading(false); setOrdersRefreshing(false); }
   }, [company]);
@@ -119,7 +99,9 @@ export default function CompanyPortalScreen() {
     if (!company) return;
     setInvLoading(true);
     try {
-      const resp = await fetch(`${API_BASE}/company-portal/inventory/${company.id}`);
+      const resp = await fetch(`${API_BASE}/company-portal/inventory/${company.id}`, {
+        headers: { "x-company-code": company.code },
+      });
       if (resp.ok) setInventory(await resp.json());
     } catch {} finally { setInvLoading(false); }
   }, [company]);
@@ -144,12 +126,13 @@ export default function CompanyPortalScreen() {
   }, [activeTab, company]);
 
   const handleRespond = async () => {
-    if (!selectedOrder || !responseText.trim()) return;
+    if (!selectedOrder || !responseText.trim() || !company) return;
     setRespondingId(selectedOrder.id);
     try {
       const resp = await fetch(`${API_BASE}/company-portal/orders/${selectedOrder.id}/respond`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ response: responseText.trim() }),
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-company-code": company.code },
+        body: JSON.stringify({ response: responseText.trim(), companyId: company.id }),
       });
       if (resp.ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -164,7 +147,8 @@ export default function CompanyPortalScreen() {
     setInvSaving(true);
     try {
       const resp = await fetch(`${API_BASE}/company-portal/inventory`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-company-code": company.code },
         body: JSON.stringify({
           companyId: company.id, companyName: company.nameAr || company.name,
           drugName: invDrug.trim(), price: invPrice.trim() || null, unit: invUnit.trim() || null,
@@ -182,23 +166,22 @@ export default function CompanyPortalScreen() {
   };
 
   const handleRemoveInventory = async (id: string) => {
+    if (!company) return;
     try {
-      await fetch(`${API_BASE}/company-portal/inventory/${id}`, { method: "DELETE" });
+      await fetch(`${API_BASE}/company-portal/inventory/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", "x-company-code": company.code },
+        body: JSON.stringify({ companyId: company.id }),
+      });
       setInventory(prev => prev.filter(i => i.id !== id));
       setAnnouncements(prev => prev.filter(i => i.id !== id));
     } catch {}
   };
 
   const doLogout = () => {
-    setCompany(null); setCode(""); setStep("code"); setCompanyList([]);
+    setCompany(null); setCode(""); setStep("code");
     setOrders([]); setInventory([]); setAnnouncements([]); setActiveTab("orders");
   };
-
-  const filteredCompanies = companyList.filter(c =>
-    !companySearch.trim() ||
-    c.name.toLowerCase().includes(companySearch.toLowerCase()) ||
-    (c.nameAr && c.nameAr.includes(companySearch))
-  );
 
   const pendingOrders = orders.filter(o => o.status === "pending");
   const respondedOrders = orders.filter(o => o.status === "responded");
@@ -232,7 +215,7 @@ export default function CompanyPortalScreen() {
           <View style={[styles.codeHintBox, { backgroundColor: COMPANY_LIGHT, borderColor: COMPANY_COLOR + "30" }]}>
             <Ionicons name="information-circle" size={18} color={COMPANY_COLOR} />
             <Text style={[styles.codeHintText, isRTL && styles.rtlText, { color: COMPANY_COLOR }]}>
-              {isRTL ? "رمز الدخول الموحد: DAHA2024" : "Code d'accès unifié: DAHA2024"}
+              {isRTL ? "رمز الدخول خاص بشركتكم — تواصلوا مع إدارة DEWAYA للحصول عليه" : "Le code est propre à votre société — contactez l'administration DEWAYA"}
             </Text>
           </View>
 
@@ -266,56 +249,6 @@ export default function CompanyPortalScreen() {
     );
   }
 
-  if (step === "pick") {
-    return (
-      <View style={[styles.container, { paddingTop: Platform.OS === "web" ? 67 : insets.top }]}>
-        <View style={[styles.header, isRTL && styles.rtlRow]}>
-          <TouchableOpacity onPress={() => setStep("code")} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Ionicons name={isRTL ? "chevron-forward" : "chevron-back"} size={24} color={Colors.light.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{isRTL ? "اختر شركتك" : "Choisissez votre société"}</Text>
-          <View style={{ width: 24 }} />
-        </View>
-        <View style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />
-          <TextInput
-            style={[styles.searchInput, isRTL && styles.rtlText]}
-            placeholder={isRTL ? "ابحث عن شركتك..." : "Rechercher votre société..."}
-            placeholderTextColor={Colors.light.textTertiary}
-            value={companySearch} onChangeText={setCompanySearch}
-          />
-        </View>
-        <FlatList
-          data={filteredCompanies}
-          keyExtractor={i => i.id}
-          contentContainerStyle={{ padding: 16, gap: 10 }}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.pickCard} onPress={() => handlePickCompany(item)} activeOpacity={0.82}>
-              <View style={[styles.pickIcon, { backgroundColor: COMPANY_LIGHT }]}>
-                <MaterialCommunityIcons name="domain" size={22} color={COMPANY_COLOR} />
-              </View>
-              <View style={[styles.pickInfo, isRTL && { alignItems: "flex-end" }]}>
-                <Text style={[styles.pickName, isRTL && styles.rtlText]}>
-                  {isRTL && item.nameAr ? item.nameAr : item.name}
-                </Text>
-                {item.contact && <Text style={[styles.pickSub, isRTL && styles.rtlText]}>{item.contact}</Text>}
-                {!item.subscriptionActive && (
-                  <View style={styles.suspendedBadge}><Text style={styles.suspendedBadgeText}>{isRTL ? "اشتراك غير فعّال" : "Abonnement inactif"}</Text></View>
-                )}
-              </View>
-              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={18} color={Colors.light.textTertiary} />
-            </TouchableOpacity>
-          )}
-          ListEmptyComponent={
-            <View style={styles.centered}>
-              <MaterialCommunityIcons name="domain-off" size={48} color={Colors.light.textTertiary} />
-              <Text style={[styles.emptyTitle, isRTL && styles.rtlText]}>{isRTL ? "لا توجد شركات مسجلة" : "Aucune société enregistrée"}</Text>
-            </View>
-          }
-        />
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { paddingTop: Platform.OS === "web" ? 67 : insets.top }]}>

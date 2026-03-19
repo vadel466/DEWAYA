@@ -6,11 +6,10 @@ import {
   companyInventoryTable,
   pharmaciesTable,
 } from "@workspace/db";
-import { eq, like, and, desc } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "DEWAYA_ADMIN_2026";
-const MASTER_COMPANY_CODE = "DAHA2024";
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -34,25 +33,31 @@ function serializeInventory(i: any) {
   return { ...i, createdAt: i.createdAt instanceof Date ? i.createdAt.toISOString() : i.createdAt };
 }
 
+// Validate that x-company-code header matches the company's code in DB
+async function validateCompanyCode(req: any, companyId: string): Promise<boolean> {
+  const headerCode = req.headers["x-company-code"] as string | undefined;
+  if (!headerCode) return false;
+  const [company] = await db.select({ code: companiesTable.code, isActive: companiesTable.isActive })
+    .from(companiesTable).where(eq(companiesTable.id, companyId));
+  return !!(company && company.isActive && company.code === headerCode.trim());
+}
+
+// Each company authenticates with its own unique code (set by admin in the companies table).
+// No shared/master portal code exists — this prevents any company from accessing another.
 router.post("/auth", async (req, res) => {
   try {
-    const { code, companyId } = req.body;
-    if (!code) { res.status(400).json({ error: "Code requis" }); return; }
-
-    if (code === MASTER_COMPANY_CODE) {
-      if (companyId) {
-        const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, companyId));
-        if (!company || !company.isActive) { res.status(404).json({ error: "Société introuvable" }); return; }
-        res.json(serializeCompany(company));
-        return;
-      }
-      const companies = await db.select().from(companiesTable).where(eq(companiesTable.isActive, true));
-      res.json({ companyList: companies.map(c => ({ id: c.id, name: c.name, nameAr: c.nameAr, contact: c.contact, subscriptionActive: c.subscriptionActive })) });
-      return;
+    const { code } = req.body;
+    if (!code || typeof code !== "string" || code.trim().length === 0) {
+      res.status(400).json({ error: "Code requis" }); return;
     }
 
-    const [company] = await db.select().from(companiesTable).where(and(eq(companiesTable.code, code), eq(companiesTable.isActive, true)));
-    if (!company) { res.status(401).json({ error: "Code incorrect" }); return; }
+    const [company] = await db.select().from(companiesTable)
+      .where(and(eq(companiesTable.code, code.trim()), eq(companiesTable.isActive, true)));
+
+    if (!company) {
+      res.status(401).json({ error: "Code incorrect" }); return;
+    }
+
     res.json(serializeCompany(company));
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Erreur serveur" });
@@ -61,6 +66,8 @@ router.post("/auth", async (req, res) => {
 
 router.get("/orders/:companyId", async (req, res) => {
   try {
+    const authorized = isAdmin(req) || await validateCompanyCode(req, req.params.companyId);
+    if (!authorized) { res.status(401).json({ error: "Non autorisé" }); return; }
     const orders = await db.select().from(companyOrdersTable)
       .where(eq(companyOrdersTable.companyId, req.params.companyId))
       .orderBy(desc(companyOrdersTable.createdAt));
@@ -82,8 +89,13 @@ router.get("/orders-all", async (req, res) => {
 
 router.post("/orders/:id/respond", async (req, res) => {
   try {
-    const { response } = req.body;
+    const { response, companyId } = req.body;
     if (!response) { res.status(400).json({ error: "Réponse requise" }); return; }
+    if (!companyId) { res.status(400).json({ error: "companyId requis" }); return; }
+
+    const authorized = isAdmin(req) || await validateCompanyCode(req, companyId);
+    if (!authorized) { res.status(401).json({ error: "Non autorisé" }); return; }
+
     const [order] = await db.update(companyOrdersTable)
       .set({ companyResponse: response, status: "responded", respondedAt: new Date() })
       .where(eq(companyOrdersTable.id, req.params.id))
@@ -99,6 +111,10 @@ router.post("/inventory", async (req, res) => {
   try {
     const { companyId, companyName, drugName, price, unit, notes, isAd } = req.body;
     if (!companyId || !companyName || !drugName) { res.status(400).json({ error: "Champs requis" }); return; }
+
+    const authorized = isAdmin(req) || await validateCompanyCode(req, companyId);
+    if (!authorized) { res.status(401).json({ error: "Non autorisé" }); return; }
+
     const id = generateId();
     const [item] = await db.insert(companyInventoryTable).values({
       id, companyId, companyName,
@@ -114,6 +130,8 @@ router.post("/inventory", async (req, res) => {
 
 router.get("/inventory/:companyId", async (req, res) => {
   try {
+    const authorized = isAdmin(req) || await validateCompanyCode(req, req.params.companyId);
+    if (!authorized) { res.status(401).json({ error: "Non autorisé" }); return; }
     const items = await db.select().from(companyInventoryTable)
       .where(and(eq(companyInventoryTable.companyId, req.params.companyId), eq(companyInventoryTable.isActive, true)))
       .orderBy(desc(companyInventoryTable.createdAt));
@@ -125,6 +143,10 @@ router.get("/inventory/:companyId", async (req, res) => {
 
 router.delete("/inventory/:id", async (req, res) => {
   try {
+    const { companyId } = req.body;
+    if (!companyId) { res.status(400).json({ error: "companyId requis" }); return; }
+    const authorized = isAdmin(req) || await validateCompanyCode(req, companyId);
+    if (!authorized) { res.status(401).json({ error: "Non autorisé" }); return; }
     await db.update(companyInventoryTable).set({ isActive: false }).where(eq(companyInventoryTable.id, req.params.id));
     res.json({ success: true });
   } catch (err) {
@@ -135,10 +157,12 @@ router.delete("/inventory/:id", async (req, res) => {
 router.get("/inventory-search", async (req, res) => {
   try {
     const q = (req.query.q as string || "").toLowerCase().trim();
-    if (!q) { res.json([]); return; }
+    if (!q || q.length < 2) { res.json([]); return; }
+    const { like } = await import("drizzle-orm");
     const items = await db.select().from(companyInventoryTable)
       .where(and(eq(companyInventoryTable.isActive, true), like(companyInventoryTable.drugNameLower, `%${q}%`)))
-      .orderBy(desc(companyInventoryTable.createdAt));
+      .orderBy(desc(companyInventoryTable.createdAt))
+      .limit(30);
     res.json(items.map(serializeInventory));
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Erreur serveur" });
@@ -149,7 +173,8 @@ router.get("/announcements", async (req, res) => {
   try {
     const items = await db.select().from(companyInventoryTable)
       .where(and(eq(companyInventoryTable.isActive, true), eq(companyInventoryTable.isAd, true)))
-      .orderBy(desc(companyInventoryTable.createdAt));
+      .orderBy(desc(companyInventoryTable.createdAt))
+      .limit(50);
     res.json(items.map(serializeInventory));
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Erreur serveur" });

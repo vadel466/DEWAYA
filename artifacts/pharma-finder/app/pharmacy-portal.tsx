@@ -273,7 +273,8 @@ export default function PharmacyPortalScreen() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const resp = await fetch(`${API_BASE}/pharmacy-portal/respond`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-pharmacy-pin": pin },
         body: JSON.stringify({ requestId: request.id, pharmacyId: pharmacy.id, pharmacyName: pharmacy.nameAr || pharmacy.name, pharmacyAddress: pharmacy.address, pharmacyPhone: pharmacy.phone }),
       });
       if (resp.ok) {
@@ -308,7 +309,8 @@ export default function PharmacyPortalScreen() {
     setRepeaterSaving(true);
     try {
       const resp = await fetch(`${API_BASE}/pharmacy-portal/inventory`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-pharmacy-pin": pin },
         body: JSON.stringify({ pharmacyId: pharmacy.id, pharmacyName: pharmacy.nameAr || pharmacy.name, pharmacyAddress: pharmacy.address, pharmacyPhone: pharmacy.phone, drugName: repeaterDrug.trim(), notes: repeaterNotes.trim() || null }),
       });
       if (resp.ok) {
@@ -321,8 +323,13 @@ export default function PharmacyPortalScreen() {
   };
 
   const handleRemoveInventory = async (id: string) => {
+    if (!pharmacy) return;
     try {
-      await fetch(`${API_BASE}/pharmacy-portal/inventory/${id}`, { method: "DELETE" });
+      await fetch(`${API_BASE}/pharmacy-portal/inventory/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", "x-pharmacy-pin": pin },
+        body: JSON.stringify({ pharmacyId: pharmacy.id }),
+      });
       setInventory(prev => prev.filter(i => i.id !== id));
     } catch {}
   };
@@ -332,7 +339,8 @@ export default function PharmacyPortalScreen() {
     setOrderSending(true);
     try {
       const resp = await fetch(`${API_BASE}/pharmacy-portal/company-order`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-pharmacy-pin": pin },
         body: JSON.stringify({
           pharmacyId: pharmacy.id, pharmacyName: pharmacy.nameAr || pharmacy.name,
           companyId: selectedCompany?.id || null, companyName: selectedCompany ? (selectedCompany.nameAr || selectedCompany.name) : null,

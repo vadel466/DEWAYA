@@ -63,7 +63,7 @@ type B2bMessage = {
 };
 type Company = {
   id: string; name: string; nameAr: string | null;
-  code: string; contact: string | null;
+  code: string | null; contact: string | null;
   subscriptionActive: boolean; isActive: boolean;
   notes: string | null; createdAt: string;
 };
@@ -998,9 +998,16 @@ export default function AdminScreen() {
           <Text style={[styles.drugName, isRTL && styles.rtlText]}>{isRTL && item.nameAr ? item.nameAr : item.name}</Text>
           {item.nameAr && !isRTL && <Text style={styles.requestTime}>{item.nameAr}</Text>}
           <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
-            <View style={[styles.tag, { backgroundColor: "#7C3AED18" }]}>
-              <Text style={[styles.tagText, { color: "#7C3AED" }]}>{isRTL ? `الرمز: ${item.code}` : `Code: ${item.code}`}</Text>
-            </View>
+            {item.code
+              ? <View style={[styles.tag, { backgroundColor: "#7C3AED18" }]}>
+                  <Ionicons name="key" size={10} color="#7C3AED" />
+                  <Text style={[styles.tagText, { color: "#7C3AED" }]}>{item.code}</Text>
+                </View>
+              : <View style={[styles.tag, { backgroundColor: Colors.warning + "18", borderWidth: 1, borderColor: Colors.warning + "40" }]}>
+                  <Ionicons name="warning-outline" size={10} color={Colors.warning} />
+                  <Text style={[styles.tagText, { color: Colors.warning }]}>{isRTL ? "بدون رمز" : "Sans code"}</Text>
+                </View>
+            }
             <View style={[styles.tag, { backgroundColor: item.subscriptionActive ? Colors.accent + "18" : Colors.warning + "18" }]}>
               <Text style={[styles.tagText, { color: item.subscriptionActive ? Colors.accent : Colors.warning }]}>
                 {item.subscriptionActive ? (isRTL ? "اشتراك فعّال" : "Abonnement actif") : (isRTL ? "اشتراك متوقف" : "Abonnement inactif")}

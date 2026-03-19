@@ -22,6 +22,15 @@ function isAdmin(req: any): boolean {
   return req.headers["x-admin-secret"] === ADMIN_SECRET;
 }
 
+// Validate that x-pharmacy-pin header matches the pharmacy's portalPin in DB
+async function validatePharmacyPin(req: any, pharmacyId: string): Promise<boolean> {
+  const headerPin = req.headers["x-pharmacy-pin"] as string | undefined;
+  if (!headerPin) return false;
+  const [pharmacy] = await db.select({ portalPin: pharmaciesTable.portalPin, isActive: pharmaciesTable.isActive })
+    .from(pharmaciesTable).where(eq(pharmaciesTable.id, pharmacyId));
+  return !!(pharmacy && pharmacy.isActive && pharmacy.portalPin && pharmacy.portalPin === headerPin.trim());
+}
+
 // Each pharmacy authenticates with its own unique portalPin (set by admin).
 // No shared/master portal code exists — this prevents any pharmacy from accessing another.
 router.post("/auth", async (req, res) => {
@@ -74,6 +83,10 @@ router.post("/respond", async (req, res) => {
     const { requestId, pharmacyId, pharmacyName, pharmacyAddress, pharmacyPhone } = req.body;
     if (!requestId || !pharmacyName || !pharmacyAddress || !pharmacyPhone) {
       res.status(400).json({ error: "Champs obligatoires manquants" }); return;
+    }
+    if (pharmacyId) {
+      const authorized = isAdmin(req) || await validatePharmacyPin(req, pharmacyId);
+      if (!authorized) { res.status(401).json({ error: "Non autorisé" }); return; }
     }
     // Check if THIS specific pharmacy already has a pending_admin response for this request
     const conditions: any[] = [
@@ -203,6 +216,8 @@ router.post("/inventory", async (req, res) => {
   try {
     const { pharmacyId, pharmacyName, pharmacyAddress, pharmacyPhone, drugName, notes } = req.body;
     if (!pharmacyId || !pharmacyName || !drugName) { res.status(400).json({ error: "Champs requis" }); return; }
+    const authorized = isAdmin(req) || await validatePharmacyPin(req, pharmacyId);
+    if (!authorized) { res.status(401).json({ error: "Non autorisé" }); return; }
     const id = generateId();
     const [item] = await db.insert(pharmacyInventoryTable).values({
       id, pharmacyId, pharmacyName, pharmacyAddress: pharmacyAddress || "", pharmacyPhone: pharmacyPhone || "",
@@ -227,8 +242,11 @@ router.get("/inventory/:pharmacyId", async (req, res) => {
 
 router.delete("/inventory/:id", async (req, res) => {
   try {
-    const { id } = req.params;
-    await db.update(pharmacyInventoryTable).set({ isActive: false }).where(eq(pharmacyInventoryTable.id, id));
+    const { pharmacyId } = req.body;
+    if (!pharmacyId) { res.status(400).json({ error: "pharmacyId requis" }); return; }
+    const authorized = isAdmin(req) || await validatePharmacyPin(req, pharmacyId);
+    if (!authorized) { res.status(401).json({ error: "Non autorisé" }); return; }
+    await db.update(pharmacyInventoryTable).set({ isActive: false }).where(eq(pharmacyInventoryTable.id, req.params.id));
     res.json({ success: true });
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Erreur serveur" });
@@ -251,6 +269,8 @@ router.post("/b2b", async (req, res) => {
   try {
     const { pharmacyId, pharmacyName, message, type } = req.body;
     if (!pharmacyId || !pharmacyName || !message) { res.status(400).json({ error: "Champs requis" }); return; }
+    const authorized = isAdmin(req) || await validatePharmacyPin(req, pharmacyId);
+    if (!authorized) { res.status(401).json({ error: "Non autorisé" }); return; }
     const id = generateId();
     const [msg] = await db.insert(b2bMessagesTable).values({ id, pharmacyId, pharmacyName, message, type: type || "order", adminStatus: "pending" }).returning();
     res.status(201).json({ ...msg, createdAt: msg.createdAt.toISOString() });
@@ -324,6 +344,8 @@ router.post("/company-order", async (req, res) => {
   try {
     const { pharmacyId, pharmacyName, companyId, companyName, drugName, quantity, message, type } = req.body;
     if (!pharmacyId || !pharmacyName || !drugName) { res.status(400).json({ error: "Champs requis" }); return; }
+    const authorized = isAdmin(req) || await validatePharmacyPin(req, pharmacyId);
+    if (!authorized) { res.status(401).json({ error: "Non autorisé" }); return; }
     const id = generateId();
     const [order] = await db.insert(companyOrdersTable).values({
       id, pharmacyId, pharmacyName,

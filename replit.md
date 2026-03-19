@@ -42,8 +42,8 @@ A bilingual **Arabic/French** (RTL-aware) mobile app for finding pharmacies in M
 **Auth & Security:**
 - Admin panel: 5-second long-press on logo → PIN modal → `2026`
 - Admin API secret header: `x-admin-secret: DEWAYA_ADMIN_2026`
-- Pharmacy portal code: `DV2026` (universal → pharmacy picker → dashboard)
-- Company portal code: `DAHA2024` (universal → company picker → dashboard)
+- Pharmacy portal: **per-pharmacy** unique `portalPin` (set by admin). Sent as `x-pharmacy-pin` header on mutations. No shared/master code.
+- Company portal: **per-company** unique `code` (set by admin). Sent as `x-company-code` header on mutations. No shared/master code.
 
 **Features:**
 - Search for medicine by name or box photo (camera + gallery)
@@ -53,12 +53,12 @@ A bilingual **Arabic/French** (RTL-aware) mobile app for finding pharmacies in M
 - Reference codes: `DW-XXXXXX` format
 - **Nearest pharmacy** — GPS location + haversine distance sort
 - **Duty pharmacies** — Date-selectable list by region with images
-- **Pharmacy portal (DV2026)**: 4 tabs:
+- **Pharmacy portal** (per-pharmacy PIN): 4 tabs:
   - Requests: incoming drug requests + bell alert polling
   - Répéteur: inventory/stock announcements
   - Partenaires: direct company orders (DIRECT — no admin mediation)
   - Annonces: company announcements/ads feed
-- **Company portal (DAHA2024)**: 3 tabs:
+- **Company portal** (per-company code): 3 tabs:
   - Orders: incoming pharmacy orders + respond
   - My Stock: manage inventory items
   - My Announcements: publish ads visible to pharmacies

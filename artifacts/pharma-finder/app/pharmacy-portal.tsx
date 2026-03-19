@@ -52,6 +52,7 @@ export default function PharmacyPortalScreen() {
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [myResponsesStatus, setMyResponsesStatus] = useState<MyResponseStatus[]>([]);
   const myResponsesPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevMyResponsesRef = useRef<Map<string, string>>(new Map());
 
   const [activeTab, setActiveTab] = useState<PortalTab>("requests");
   const [hasNewRequests, setHasNewRequests] = useState(false);
@@ -192,8 +193,43 @@ export default function PharmacyPortalScreen() {
       if (resp.ok) {
         const data: MyResponseStatus[] = await resp.json();
         setMyResponsesStatus(data);
+
+        // Detect status changes and notify pharmacy in real time
+        const prevMap = prevMyResponsesRef.current;
+        const newlyConfirmed: MyResponseStatus[] = [];
+        const newlyIgnored: MyResponseStatus[] = [];
+        data.forEach(r => {
+          const prev = prevMap.get(r.id);
+          if (prev === "pending_admin" && r.adminStatus === "confirmed") newlyConfirmed.push(r);
+          if (prev === "pending_admin" && r.adminStatus === "ignored") newlyIgnored.push(r);
+        });
+        // Update previous map
+        data.forEach(r => prevMap.set(r.id, r.adminStatus));
+
+        if (newlyConfirmed.length > 0) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          const drugList = newlyConfirmed.map(r => r.drugName || "—").join("، ");
+          Alert.alert(
+            isRTL ? "✅ رد مقبول!" : "✅ Réponse acceptée!",
+            isRTL
+              ? `تم تأكيد ردّكم على طلب: ${drugList}\nأُبلغ المريض بتفاصيل صيدليتكم.`
+              : `Votre réponse pour: ${drugList}\nLe patient a été notifié.`,
+          );
+        } else if (newlyIgnored.length > 0) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          const drugList = newlyIgnored.map(r => r.drugName || "—").join("، ");
+          Alert.alert(
+            isRTL ? "ℹ️ لم يُختر ردّكم" : "ℹ️ Réponse non retenue",
+            isRTL
+              ? `طلب: ${drugList}\nتم اختيار صيدلية أخرى. يمكنكم الرد على طلبات جديدة.`
+              : `Demande: ${drugList}\nUne autre pharmacie a été choisie. Vous pouvez répondre aux nouvelles demandes.`,
+          );
+        }
+
         // Sync confirmed/ignored IDs into local responded set so requests stay hidden
-        const confirmedOrIgnored = new Set(data.filter(r => r.adminStatus === "confirmed" || r.adminStatus === "ignored").map(r => r.requestId));
+        const confirmedOrIgnored = new Set(
+          data.filter(r => r.adminStatus === "confirmed" || r.adminStatus === "ignored").map(r => r.requestId)
+        );
         setRespondedIds(prev => {
           const next = new Set(prev);
           confirmedOrIgnored.forEach(id => next.add(id));
@@ -201,7 +237,7 @@ export default function PharmacyPortalScreen() {
         });
       }
     } catch {}
-  }, [pharmacy]);
+  }, [pharmacy, isRTL]);
 
   const fetchInventory = async () => {
     if (!pharmacy) return;

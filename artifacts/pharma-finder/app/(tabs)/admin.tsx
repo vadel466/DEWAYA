@@ -137,6 +137,8 @@ export default function AdminScreen() {
   const [showPortalModal, setShowPortalModal] = useState(false);
   const [confirmingResponseId, setConfirmingResponseId] = useState<string | null>(null);
   const [ignoringResponseId, setIgnoringResponseId] = useState<string | null>(null);
+  const [pendingConfirmId, setPendingConfirmId] = useState<string | null>(null);
+  const [pendingIgnoreId, setPendingIgnoreId] = useState<string | null>(null);
 
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [editingPrice, setEditingPrice] = useState<DrugPrice | null>(null);
@@ -543,19 +545,33 @@ export default function AdminScreen() {
     mutationFn: async (id: string) => {
       setConfirmingResponseId(id);
       const r = await fetch(`${API_BASE}/pharmacy-portal/responses/${id}/confirm`, {
-        method: "POST", headers: { "x-admin-secret": ADMIN_SECRET },
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
       });
-      if (!r.ok) throw new Error(); return r.json();
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err?.error || "failed");
+      }
+      return r.json();
     },
     onSuccess: () => {
       setConfirmingResponseId(null);
+      setPendingConfirmId(null);
       qc.invalidateQueries({ queryKey: ["admin-portal-responses"] });
       qc.invalidateQueries({ queryKey: ["admin-requests"] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        isRTL ? "✅ تم الإرسال" : "✅ Envoyé",
+        isRTL ? "تم تأكيد الرد وإرسال إشعار للمريض" : "Réponse confirmée et patient notifié",
+      );
     },
-    onError: () => {
+    onError: (err: any) => {
       setConfirmingResponseId(null);
-      Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل التأكيد، حاول مجدداً" : "Échec de la confirmation, réessayez");
+      setPendingConfirmId(null);
+      Alert.alert(
+        isRTL ? "خطأ" : "Erreur",
+        isRTL ? `فشل التأكيد: ${err?.message || "حاول مجدداً"}` : `Échec: ${err?.message || "réessayez"}`,
+      );
     },
   });
 
@@ -563,16 +579,30 @@ export default function AdminScreen() {
     mutationFn: async (id: string) => {
       setIgnoringResponseId(id);
       const r = await fetch(`${API_BASE}/pharmacy-portal/responses/${id}/ignore`, {
-        method: "POST", headers: { "x-admin-secret": ADMIN_SECRET },
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
       });
-      if (!r.ok) throw new Error(); return r.json();
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err?.error || "failed");
+      }
+      return r.json();
     },
     onSuccess: () => {
       setIgnoringResponseId(null);
+      setPendingIgnoreId(null);
       qc.invalidateQueries({ queryKey: ["admin-portal-responses"] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        isRTL ? "تم التجاهل" : "Ignoré",
+        isRTL ? "تم تجاهل الرد — الطلب لا يزال مفتوحاً" : "Réponse ignorée — La demande reste ouverte",
+      );
     },
-    onError: () => setIgnoringResponseId(null),
+    onError: () => {
+      setIgnoringResponseId(null);
+      setPendingIgnoreId(null);
+      Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل التجاهل، حاول مجدداً" : "Échec, réessayez");
+    },
   });
 
   const approveB2bMutation = useMutation({
@@ -829,42 +859,81 @@ export default function AdminScreen() {
           )}
         </View>
         {isPending && (
-          <View style={[styles.mediationBtns, isRTL && styles.rtlRow]}>
-            <TouchableOpacity
-              style={[styles.confirmBtn, isBusy && { opacity: 0.6 }]}
-              onPress={() => Alert.alert(
-                isRTL ? "✅ تأكيد الإرسال؟" : "✅ Confirmer l'envoi?",
-                isRTL
-                  ? `إرسال رد "${item.pharmacyName}" للمستخدم؟ سيصله إشعار بتفاصيل الدواء.`
-                  : `Envoyer la réponse de "${item.pharmacyName}" au patient? Il recevra une notification.`,
-                [
-                  { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
-                  { text: isRTL ? "تأكيد ✓" : "Confirmer ✓", onPress: () => confirmResponseMutation.mutate(item.id) },
-                ]
-              )}
-              disabled={isBusy}
-              activeOpacity={0.8}
-            >
-              {isConfirming ? <ActivityIndicator size={14} color="#fff" /> : <Ionicons name="checkmark-circle" size={15} color="#fff" />}
-              <Text style={styles.confirmBtnText}>{isRTL ? "تأكيد — أرسل للمريض" : "Confirmer — Notifier patient"}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.ignoreBtn, isBusy && { opacity: 0.6 }]}
-              onPress={() => Alert.alert(
-                isRTL ? "تجاهل الرد؟" : "Ignorer cette réponse?",
-                isRTL ? "سيُتجاهل رد الصيدلية ويستمر الطلب في انتظار رد آخر" : "La réponse de la pharmacie sera ignorée. La demande restera ouverte.",
-                [
-                  { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
-                  { text: isRTL ? "تجاهل" : "Ignorer", style: "destructive", onPress: () => ignoreResponseMutation.mutate(item.id) },
-                ]
-              )}
-              disabled={isBusy}
-              activeOpacity={0.8}
-            >
-              {isIgnoring ? <ActivityIndicator size={14} color={Colors.danger} /> : <Ionicons name="close-circle" size={15} color={Colors.danger} />}
-              <Text style={styles.ignoreBtnText}>{isRTL ? "تجاهل — لا تُرسل" : "Ignorer — Ne pas envoyer"}</Text>
-            </TouchableOpacity>
-          </View>
+          pendingConfirmId === item.id ? (
+            /* Inline confirm dialog */
+            <View style={[styles.inlineConfirmBox, { borderColor: Colors.accent + "40", backgroundColor: Colors.accent + "08" }]}>
+              <Text style={[styles.inlineConfirmText, isRTL && styles.rtlText]}>
+                {isRTL ? `✅ إرسال رد "${item.pharmacyName}" للمريض؟` : `✅ Envoyer la réponse de "${item.pharmacyName}" au patient?`}
+              </Text>
+              <View style={[styles.inlineConfirmBtns, isRTL && styles.rtlRow]}>
+                <TouchableOpacity
+                  style={[styles.confirmBtn, { flex: 1 }, isConfirming && { opacity: 0.6 }]}
+                  onPress={() => confirmResponseMutation.mutate(item.id)}
+                  disabled={isConfirming}
+                  activeOpacity={0.85}
+                >
+                  {isConfirming ? <ActivityIndicator size={14} color="#fff" /> : <Ionicons name="checkmark-circle" size={15} color="#fff" />}
+                  <Text style={styles.confirmBtnText}>{isRTL ? "نعم، أرسل ✓" : "Oui, envoyer ✓"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.cancelInlineBtn}
+                  onPress={() => setPendingConfirmId(null)}
+                  disabled={isConfirming}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.cancelInlineBtnText}>{isRTL ? "إلغاء" : "Annuler"}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : pendingIgnoreId === item.id ? (
+            /* Inline ignore dialog */
+            <View style={[styles.inlineConfirmBox, { borderColor: Colors.danger + "40", backgroundColor: Colors.danger + "08" }]}>
+              <Text style={[styles.inlineConfirmText, isRTL && styles.rtlText]}>
+                {isRTL ? "تجاهل الرد؟ الطلب سيبقى مفتوحاً للصيدليات الأخرى" : "Ignorer? La demande restera ouverte aux autres pharmacies"}
+              </Text>
+              <View style={[styles.inlineConfirmBtns, isRTL && styles.rtlRow]}>
+                <TouchableOpacity
+                  style={[styles.ignoreBtn, { flex: 1 }, isIgnoring && { opacity: 0.6 }]}
+                  onPress={() => ignoreResponseMutation.mutate(item.id)}
+                  disabled={isIgnoring}
+                  activeOpacity={0.8}
+                >
+                  {isIgnoring ? <ActivityIndicator size={14} color={Colors.danger} /> : <Ionicons name="close-circle" size={15} color={Colors.danger} />}
+                  <Text style={styles.ignoreBtnText}>{isRTL ? "نعم، تجاهل" : "Oui, ignorer"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.cancelInlineBtn}
+                  onPress={() => setPendingIgnoreId(null)}
+                  disabled={isIgnoring}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.cancelInlineBtnText}>{isRTL ? "إلغاء" : "Annuler"}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            /* Normal action buttons */
+            <View style={[styles.mediationBtns, isRTL && styles.rtlRow]}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { flex: 1 }, isBusy && { opacity: 0.6 }]}
+                onPress={() => { setPendingConfirmId(item.id); setPendingIgnoreId(null); }}
+                disabled={isBusy}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="checkmark-circle" size={15} color="#fff" />
+                <Text style={styles.confirmBtnText}>{isRTL ? "تأكيد ✓" : "Confirmer ✓"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.ignoreBtn, isBusy && { opacity: 0.6 }]}
+                onPress={() => { setPendingIgnoreId(item.id); setPendingConfirmId(null); }}
+                disabled={isBusy}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close-circle" size={15} color={Colors.danger} />
+                <Text style={styles.ignoreBtnText}>{isRTL ? "تجاهل" : "Ignorer"}</Text>
+              </TouchableOpacity>
+            </View>
+          )
         )}
       </View>
     );
@@ -1901,6 +1970,11 @@ const styles = StyleSheet.create({
   confirmBtnText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 13 },
   ignoreBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: Colors.danger + "12", borderRadius: 10, paddingVertical: 9, borderWidth: 1, borderColor: Colors.danger + "30" },
   ignoreBtnText: { color: Colors.danger, fontFamily: "Inter_600SemiBold", fontSize: 13 },
+  inlineConfirmBox: { marginTop: 10, borderRadius: 10, borderWidth: 1, padding: 12, gap: 10 },
+  inlineConfirmText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.light.text, lineHeight: 19 },
+  inlineConfirmBtns: { flexDirection: "row", gap: 8 },
+  cancelInlineBtn: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10, backgroundColor: Colors.light.inputBackground, borderWidth: 1, borderColor: Colors.light.border, alignItems: "center", justifyContent: "center" },
+  cancelInlineBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary },
 
   b2bToggleBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: Colors.light.inputBackground, borderWidth: 1, borderColor: Colors.light.border, marginBottom: 4 },
   b2bToggleBtnOn: { backgroundColor: "#7C3AED18", borderColor: "#7C3AED50" },

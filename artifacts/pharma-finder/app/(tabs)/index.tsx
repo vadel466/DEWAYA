@@ -487,23 +487,6 @@ export default function HomeScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* أبحث عن دواء */}
-          <TouchableOpacity
-            style={[styles.card, { backgroundColor: Colors.accentLight }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); inputRef.current?.focus(); }}
-            activeOpacity={0.82}
-          >
-            <View style={[styles.cardAccent, { backgroundColor: Colors.accent }]} />
-            <View style={[styles.cardIconCircle, { backgroundColor: Colors.accent + "20" }]}>
-              <MaterialCommunityIcons name="pill" size={22} color={Colors.accent} />
-            </View>
-            <Text style={[styles.cardTitle, { color: Colors.accent }, isRTL && styles.textRight]} numberOfLines={2}>
-              {t("searchDrug")}
-            </Text>
-            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
-              {t("searchDrugDesc")}
-            </Text>
-          </TouchableOpacity>
         </View>
 
         <View style={styles.gridRow}>

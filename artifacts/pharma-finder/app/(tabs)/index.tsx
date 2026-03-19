@@ -41,6 +41,7 @@ export default function HomeScreen() {
   const [drugName, setDrugName] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
@@ -157,6 +158,7 @@ export default function HomeScreen() {
       await resp.json();
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setSubmitted(true);
+      setShowSuccessModal(true);
     } catch {
       setError(t("error"));
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -167,6 +169,7 @@ export default function HomeScreen() {
 
   const handleNewSearch = () => {
     setSubmitted(false);
+    setShowSuccessModal(false);
     setDrugName("");
     setCapturedImage(null);
     setError(null);
@@ -624,6 +627,48 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ─── SUCCESS MODAL ─── */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleNewSearch}
+        statusBarTranslucent
+      >
+        <View style={styles.successOverlay}>
+          <View style={styles.successModal}>
+            {/* Icon with ✓ badge */}
+            <View style={styles.successIconWrap}>
+              <Image
+                source={require("@/assets/images/icon.png")}
+                style={styles.successAppIcon}
+                resizeMode="cover"
+              />
+              <View style={styles.successCheckBadge}>
+                <Text style={styles.successCheckText}>✓</Text>
+              </View>
+            </View>
+
+            <Text style={[styles.successModalTitle, isRTL && styles.textRight]}>
+              {t("requestSent")}
+            </Text>
+            <Text style={[styles.successModalSub, isRTL && styles.textRight]}>
+              {t("requestSentSubtitle")}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.successConfirmBtn}
+              onPress={handleNewSearch}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.successConfirmText}>
+                {isRTL ? "تأكيد" : "Confirmer"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1072,5 +1117,84 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Inter_400Regular",
     color: Colors.light.textTertiary,
+  },
+
+  successOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  successModal: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    paddingVertical: 36,
+    paddingHorizontal: 28,
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 340,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 16,
+  },
+  successIconWrap: {
+    width: 88,
+    height: 88,
+    marginBottom: 20,
+    position: "relative",
+  },
+  successAppIcon: {
+    width: 88,
+    height: 88,
+    borderRadius: 20,
+  },
+  successCheckBadge: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.30)",
+    borderRadius: 20,
+  },
+  successCheckText: {
+    fontSize: 38,
+    color: "#fff",
+    fontFamily: "Inter_700Bold",
+    lineHeight: 44,
+  },
+  successModalTitle: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    color: Colors.light.text,
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  successModalSub: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: Colors.light.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  successConfirmBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
+  successConfirmText: {
+    color: "#fff",
+    fontFamily: "Inter_700Bold",
+    fontSize: 16,
   },
 });

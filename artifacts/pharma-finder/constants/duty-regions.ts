@@ -13,7 +13,7 @@ export const DUTY_REGIONS: DutyRegion[] = [
   { id: "rosso",      ar: "روصو",                 fr: "Rosso"            },
   { id: "laayoune",   ar: "لعيون",                fr: "Laâyoune"         },
   { id: "kiffa",      ar: "كيفه",                 fr: "Kiffa"            },
-  { id: "selibaby",   ar: "سيلبابي",              fr: "Sélibaby"         },
-  { id: "keleini",    ar: "كيليني",               fr: "Kéléiné"          },
+  { id: "selibaby",   ar: "سيليبابي",             fr: "Sélibaby"         },
+  { id: "keleini",    ar: "كيهيدي",               fr: "Kéhédi"           },
   { id: "aleg",       ar: "ألاكْ",                fr: "Aleg"             },
 ];

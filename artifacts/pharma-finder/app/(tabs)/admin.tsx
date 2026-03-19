@@ -48,12 +48,17 @@ type Pharmacy = {
   id: string; name: string; nameAr: string | null;
   address: string; addressAr: string | null;
   phone: string; lat: number | null; lon: number | null;
-  region: string | null; portalPin: string | null; isActive: boolean;
+  region: string | null; portalPin: string | null; isActive: boolean; b2bEnabled?: boolean;
 };
 type PortalResponse = {
-  id: string; requestId: string; pharmacyName: string;
+  id: string; requestId: string; pharmacyId: string | null; pharmacyName: string;
   pharmacyAddress: string; pharmacyPhone: string;
-  status: string; createdAt: string;
+  status: string; adminStatus: string; createdAt: string;
+};
+type B2bMessage = {
+  id: string; pharmacyId: string; pharmacyName: string;
+  message: string; type: string; adminStatus: string;
+  adminNote: string | null; createdAt: string;
 };
 type DrugPrice = {
   id: string; name: string; nameAr: string | null;
@@ -85,7 +90,7 @@ export default function AdminScreen() {
   const qc = useQueryClient();
 
 
-  const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal" | "prices" | "doctors">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal" | "prices" | "doctors" | "b2b">("pending");
   const [hasNewRequests, setHasNewRequests] = useState(false);
   const prevPendingCountRef = useRef<number>(-1);
   const vibrationActiveRef = useRef(false);
@@ -168,10 +173,17 @@ export default function AdminScreen() {
     enabled: isAdmin && !!selectedAdminDutyRegion && showDutyImagesModal,
   });
 
-  const { data: portalResponses = [], isLoading: portalLoading, refetch: refetchPortal, isRefetching: portalRefetching } = useQuery<PortalResponse[]>({
+  const { data: allPortalResponses = [], isLoading: portalLoading, refetch: refetchPortal, isRefetching: portalRefetching } = useQuery<PortalResponse[]>({
     queryKey: ["admin-portal-responses"],
-    queryFn: async () => { const r = await fetch(`${API_BASE}/pharmacy-portal/responses`); if (!r.ok) throw new Error(); return r.json(); },
-    refetchInterval: 8000, enabled: isAdmin && activeTab === "portal",
+    queryFn: async () => { const r = await fetch(`${API_BASE}/pharmacy-portal/responses`, { headers: { "x-admin-secret": ADMIN_SECRET } }); if (!r.ok) throw new Error(); return r.json(); },
+    refetchInterval: 8000, enabled: isAdmin && (activeTab === "portal" || activeTab === "b2b"),
+  });
+  const portalResponses = allPortalResponses.filter(r => r.adminStatus === "pending_admin");
+
+  const { data: b2bMessages = [], isLoading: b2bLoading, refetch: refetchB2b, isRefetching: b2bRefetching } = useQuery<B2bMessage[]>({
+    queryKey: ["admin-b2b"],
+    queryFn: async () => { const r = await fetch(`${API_BASE}/pharmacy-portal/b2b`, { headers: { "x-admin-secret": ADMIN_SECRET } }); if (!r.ok) throw new Error(); return r.json(); },
+    refetchInterval: 15000, enabled: isAdmin && activeTab === "b2b",
   });
 
   const { data: allDrugPrices = [], isLoading: priceLoading, refetch: refetchPrices, isRefetching: priceRefetching } = useQuery<DrugPrice[]>({
@@ -487,21 +499,66 @@ export default function AdminScreen() {
     }
   };
 
-  const usePortalResponseMutation = useMutation({
-    mutationFn: async ({ portalRes, requestId }: { portalRes: PortalResponse; requestId: string }) => {
-      const r = await fetch(`${API_BASE}/requests/${requestId}/respond`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pharmacyName: portalRes.pharmacyName, pharmacyAddress: portalRes.pharmacyAddress, pharmacyPhone: portalRes.pharmacyPhone }),
+  const confirmResponseMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`${API_BASE}/pharmacy-portal/responses/${id}/confirm`, {
+        method: "POST", headers: { "x-admin-secret": ADMIN_SECRET },
       });
       if (!r.ok) throw new Error(); return r.json();
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin-requests"] });
       qc.invalidateQueries({ queryKey: ["admin-portal-responses"] });
-      setShowPortalModal(false);
+      qc.invalidateQueries({ queryKey: ["admin-requests"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل التأكيد" : "Échec de la confirmation"),
+  });
+
+  const ignoreResponseMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`${API_BASE}/pharmacy-portal/responses/${id}/ignore`, {
+        method: "POST", headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      if (!r.ok) throw new Error(); return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-portal-responses"] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
   });
+
+  const approveB2bMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`${API_BASE}/pharmacy-portal/b2b/${id}/approve`, {
+        method: "POST", headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      if (!r.ok) throw new Error();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-b2b"] }); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); },
+  });
+
+  const rejectB2bMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`${API_BASE}/pharmacy-portal/b2b/${id}/reject`, {
+        method: "POST", headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      if (!r.ok) throw new Error();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-b2b"] }); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); },
+  });
+
+  const toggleB2bMutation = useMutation({
+    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
+      const r = await fetch(`${API_BASE}/pharmacy-portal/pharmacy/${id}/b2b`, {
+        method: "PATCH", headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!r.ok) throw new Error();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-pharmacies"] }); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); },
+  });
+
+  const usePortalResponseMutation = { isPending: false };
 
   const resetPharmacyForm = () => { setPName(""); setPNameAr(""); setPAddress(""); setPAddressAr(""); setPPhone(""); setPLat(""); setPLon(""); setPRegion(""); setPPin(""); setEditingPharmacy(null); };
 
@@ -579,6 +636,7 @@ export default function AdminScreen() {
     { id: "duty", label: isRTL ? "مداومة" : "Garde" },
     { id: "prices", label: isRTL ? "أسعار" : "Prix" },
     { id: "doctors", label: isRTL ? "أطباء" : "Médecins" },
+    { id: "b2b", label: `B2B${b2bMessages.filter(m => m.adminStatus === "pending").length > 0 ? ` (${b2bMessages.filter(m => m.adminStatus === "pending").length})` : ""}` },
   ];
 
   const isLoading =
@@ -587,6 +645,7 @@ export default function AdminScreen() {
     activeTab === "portal" ? portalLoading :
     activeTab === "prices" ? priceLoading :
     activeTab === "doctors" ? doctorLoading :
+    activeTab === "b2b" ? b2bLoading :
     reqLoading;
 
   const isRefetching =
@@ -595,6 +654,7 @@ export default function AdminScreen() {
     activeTab === "portal" ? portalRefetching :
     activeTab === "prices" ? priceRefetching :
     activeTab === "doctors" ? doctorRefetching :
+    activeTab === "b2b" ? b2bRefetching :
     reqRefetching;
 
   const onRefresh = () => {
@@ -603,6 +663,7 @@ export default function AdminScreen() {
     else if (activeTab === "portal") refetchPortal();
     else if (activeTab === "prices") refetchPrices();
     else if (activeTab === "doctors") refetchDoctors();
+    else if (activeTab === "b2b") refetchB2b();
     else refetchReq();
   };
 
@@ -673,19 +734,66 @@ export default function AdminScreen() {
         <View style={[styles.requestInfo, isRTL && styles.rtlInfo]}>
           <Text style={[styles.drugName, isRTL && styles.rtlText]}>{item.pharmacyName}</Text>
           <Text style={[styles.userId, isRTL && styles.rtlText]}>
-            {isRTL ? "طلب رقم:" : "Demande #"} {item.requestId.substring(0, 12)}
+            {isRTL ? "طلب:" : "Demande:"} {item.requestId.substring(0, 10)}...
           </Text>
-          <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{formatTime(item.createdAt, language)}</Text>
+          <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{item.pharmacyPhone} • {formatTime(item.createdAt, language)}</Text>
         </View>
+      </View>
+      <View style={[styles.mediationBtns, isRTL && styles.rtlRow]}>
         <TouchableOpacity
-          style={styles.useResponseBtn}
-          onPress={() => { setSelectedPortalResponse(item); setShowPortalModal(true); }}
+          style={[styles.confirmBtn, confirmResponseMutation.isPending && { opacity: 0.6 }]}
+          onPress={() => Alert.alert(isRTL ? "تأكيد الإرسال؟" : "Confirmer l'envoi?", isRTL ? `إرسال رد ${item.pharmacyName} للمستخدم؟` : `Envoyer la réponse de ${item.pharmacyName}?`, [{ text: isRTL ? "إلغاء" : "Annuler", style: "cancel" }, { text: isRTL ? "تأكيد" : "Confirmer", onPress: () => confirmResponseMutation.mutate(item.id) }])}
+          disabled={confirmResponseMutation.isPending}
           activeOpacity={0.8}
         >
-          <Ionicons name="send" size={15} color="#fff" />
-          <Text style={styles.useResponseBtnText}>{isRTL ? "إرسال" : "Envoyer"}</Text>
+          <Ionicons name="checkmark-circle" size={15} color="#fff" />
+          <Text style={styles.confirmBtnText}>{isRTL ? "تأكيد ✓" : "Confirmer"}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.ignoreBtn, ignoreResponseMutation.isPending && { opacity: 0.6 }]}
+          onPress={() => ignoreResponseMutation.mutate(item.id)}
+          disabled={ignoreResponseMutation.isPending}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="close-circle" size={15} color={Colors.danger} />
+          <Text style={styles.ignoreBtnText}>{isRTL ? "تجاهل" : "Ignorer"}</Text>
         </TouchableOpacity>
       </View>
+    </View>
+  );
+
+  const renderB2b = ({ item }: { item: B2bMessage }) => (
+    <View style={[styles.portalCard, { borderColor: "#7C3AED20" }]}>
+      <View style={[styles.cardRow, isRTL && styles.rtlRow]}>
+        <View style={[styles.requestIcon, { backgroundColor: "#7C3AED12" }]}>
+          <MaterialCommunityIcons name={item.type === "order" ? "cart-outline" : "help-circle-outline"} size={22} color="#7C3AED" />
+        </View>
+        <View style={[styles.requestInfo, isRTL && styles.rtlInfo]}>
+          <Text style={[styles.drugName, isRTL && styles.rtlText]}>{item.pharmacyName}</Text>
+          <View style={[{ flexDirection: "row", gap: 6 }, isRTL && { flexDirection: "row-reverse" }]}>
+            <View style={[styles.tag, { backgroundColor: "#7C3AED14" }]}><Text style={[styles.tagText, { color: "#7C3AED" }]}>{item.type === "order" ? (isRTL ? "طلبية" : "Commande") : (isRTL ? "استفسار" : "Demande")}</Text></View>
+            <View style={[styles.tag, { backgroundColor: item.adminStatus === "approved" ? Colors.accent + "14" : item.adminStatus === "rejected" ? Colors.danger + "14" : Colors.warning + "14" }]}>
+              <Text style={[styles.tagText, { color: item.adminStatus === "approved" ? Colors.accent : item.adminStatus === "rejected" ? Colors.danger : Colors.warning }]}>
+                {item.adminStatus === "approved" ? (isRTL ? "موافق" : "Approuvé") : item.adminStatus === "rejected" ? (isRTL ? "مرفوض" : "Rejeté") : (isRTL ? "معلق" : "En attente")}
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.requestTime, isRTL && styles.rtlText]} numberOfLines={2}>{item.message}</Text>
+          <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{formatTime(item.createdAt, language)}</Text>
+        </View>
+      </View>
+      {item.adminStatus === "pending" && (
+        <View style={[styles.mediationBtns, isRTL && styles.rtlRow]}>
+          <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: "#7C3AED" }]} onPress={() => approveB2bMutation.mutate(item.id)} disabled={approveB2bMutation.isPending} activeOpacity={0.8}>
+            <Ionicons name="checkmark-circle" size={15} color="#fff" />
+            <Text style={styles.confirmBtnText}>{isRTL ? "موافقة" : "Approuver"}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.ignoreBtn} onPress={() => rejectB2bMutation.mutate(item.id)} disabled={rejectB2bMutation.isPending} activeOpacity={0.8}>
+            <Ionicons name="close-circle" size={15} color={Colors.danger} />
+            <Text style={styles.ignoreBtnText}>{isRTL ? "رفض" : "Rejeter"}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 
@@ -706,6 +814,14 @@ export default function AdminScreen() {
           </View>
         </View>
         <View style={styles.actionIcons}>
+          <TouchableOpacity
+            style={[styles.b2bToggleBtn, item.b2bEnabled && styles.b2bToggleBtnOn]}
+            onPress={() => toggleB2bMutation.mutate({ id: item.id, enabled: !item.b2bEnabled })}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.b2bToggleText, item.b2bEnabled && styles.b2bToggleTextOn]}>B2B</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.iconBtn} onPress={() => openEditPharmacy(item)} activeOpacity={0.8}>
             <Ionicons name="create-outline" size={18} color={Colors.primary} />
           </TouchableOpacity>
@@ -821,6 +937,7 @@ export default function AdminScreen() {
     activeTab === "pharmacies" ? pharmacies :
     activeTab === "prices" ? filteredDrugPrices :
     activeTab === "doctors" ? filteredDoctors :
+    activeTab === "b2b" ? b2bMessages :
     portalResponses;
 
   return (
@@ -915,6 +1032,7 @@ export default function AdminScreen() {
             activeTab === "portal" ? renderPortalResponse :
             activeTab === "prices" ? renderDrugPrice :
             activeTab === "doctors" ? renderDoctor :
+            activeTab === "b2b" ? renderB2b :
             renderRequest) as any
           }
           contentContainerStyle={[styles.list, currentData.length === 0 && styles.emptyList, { paddingBottom: Platform.OS === "web" ? 34 : 0 }]}
@@ -995,6 +1113,7 @@ export default function AdminScreen() {
                  activeTab === "portal" ? (isRTL ? "لا توجد ردود من الصيدليات" : "Aucune réponse de pharmacie") :
                  activeTab === "prices" ? (isRTL ? "لا توجد أسعار مسجلة" : "Aucun médicament enregistré") :
                  activeTab === "doctors" ? (isRTL ? "لا يوجد أطباء مسجلون" : "Aucun médecin enregistré") :
+                 activeTab === "b2b" ? (isRTL ? "لا توجد رسائل B2B" : "Aucun message B2B") :
                  t("noPendingRequests")}
               </Text>
             </View>
@@ -1039,41 +1158,6 @@ export default function AdminScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Portal response → use for drug request modal */}
-      <Modal visible={showPortalModal} transparent animationType="slide" onRequestClose={() => setShowPortalModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { maxHeight: "55%" }]}>
-            <View style={styles.modalHandle} />
-            <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>
-              {isRTL ? "إرسال رد الصيدلية للمستخدم" : "Envoyer la réponse à l'utilisateur"}
-            </Text>
-            {selectedPortalResponse && (
-              <View style={styles.requestSummary}>
-                <MaterialCommunityIcons name="hospital-building" size={18} color={Colors.primary} />
-                <View>
-                  <Text style={[styles.requestSummaryText, isRTL && styles.rtlText]}>{selectedPortalResponse.pharmacyName}</Text>
-                  <Text style={[styles.userId, isRTL && styles.rtlText]}>{selectedPortalResponse.pharmacyAddress}</Text>
-                </View>
-              </View>
-            )}
-            <Text style={[styles.label, isRTL && styles.rtlText, { marginHorizontal: 20, marginTop: 10 }]}>
-              {isRTL ? "هذا الرد سيُرسَل للمستخدم الذي طلب الدواء" : "Cette réponse sera envoyée à l'utilisateur qui a demandé le médicament"}
-            </Text>
-            <TouchableOpacity
-              style={[styles.sendButton, { margin: 20 }, (usePortalResponseMutation.isPending) && { opacity: 0.7 }]}
-              onPress={() => { if (selectedPortalResponse) usePortalResponseMutation.mutate({ portalRes: selectedPortalResponse, requestId: selectedPortalResponse.requestId }); }}
-              disabled={usePortalResponseMutation.isPending}
-              activeOpacity={0.85}
-            >
-              {usePortalResponseMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="send" size={18} color="#fff" /><Text style={styles.sendButtonText}>{isRTL ? "إرسال للمستخدم" : "Envoyer à l'utilisateur"}</Text></>}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelButton} onPress={() => setShowPortalModal(false)} activeOpacity={0.7}>
-              <Text style={styles.cancelText}>{t("cancel")}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
       </Modal>
 
       {/* Pharmacy add/edit modal */}
@@ -1552,4 +1636,15 @@ const styles = StyleSheet.create({
 
   tabBtnAlert: { backgroundColor: Colors.warning + "18", borderColor: Colors.warning },
   bellDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: Colors.warning, marginLeft: 2 },
+
+  mediationBtns: { flexDirection: "row", gap: 10, marginTop: 10 },
+  confirmBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: Colors.accent, borderRadius: 10, paddingVertical: 9, shadowColor: Colors.accent, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 5, elevation: 3 },
+  confirmBtnText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 13 },
+  ignoreBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: Colors.danger + "12", borderRadius: 10, paddingVertical: 9, borderWidth: 1, borderColor: Colors.danger + "30" },
+  ignoreBtnText: { color: Colors.danger, fontFamily: "Inter_600SemiBold", fontSize: 13 },
+
+  b2bToggleBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: Colors.light.inputBackground, borderWidth: 1, borderColor: Colors.light.border, marginBottom: 4 },
+  b2bToggleBtnOn: { backgroundColor: "#7C3AED18", borderColor: "#7C3AED50" },
+  b2bToggleText: { fontSize: 10, fontFamily: "Inter_700Bold", color: Colors.light.textTertiary },
+  b2bToggleTextOn: { color: "#7C3AED" },
 });

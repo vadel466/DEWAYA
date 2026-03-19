@@ -10,19 +10,12 @@ import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 
 function NativeTabLayout() {
-  const { t, lockedCount } = useApp();
+  const { t } = useApp();
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
         <Icon sf={{ default: "magnifyingglass", selected: "magnifyingglass" }} />
         <Label>{t("home")}</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="notifications">
-        <Icon
-          sf={{ default: "bell", selected: "bell.fill" }}
-          badgeValue={lockedCount > 0 ? String(lockedCount) : undefined}
-        />
-        <Label>{t("notifications")}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="admin">
         <Icon sf={{ default: "shield", selected: "shield.fill" }} />
@@ -33,7 +26,7 @@ function NativeTabLayout() {
 }
 
 function ClassicTabLayout() {
-  const { t, lockedCount } = useApp();
+  const { t } = useApp();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
@@ -73,23 +66,7 @@ function ClassicTabLayout() {
       />
       <Tabs.Screen
         name="notifications"
-        options={{
-          title: t("notifications"),
-          tabBarBadge: lockedCount > 0 ? lockedCount : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: "#EF4444",
-            color: "#fff",
-            fontSize: 10,
-            minWidth: 18,
-            height: 18,
-          },
-          tabBarIcon: ({ color, size }) =>
-            isIOS ? (
-              <SymbolView name="bell.fill" tintColor={color} size={size} />
-            ) : (
-              <Ionicons name="notifications" size={size} color={color} />
-            ),
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="admin"

@@ -48,6 +48,7 @@ export const pharmaciesTable = pgTable("pharmacies", {
   region: text("region"),
   portalPin: text("portal_pin"),
   isActive: boolean("is_active").notNull().default(true),
+  b2bEnabled: boolean("b2b_enabled").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -75,10 +76,12 @@ export type DutyPharmacy = typeof dutyPharmaciesTable.$inferSelect;
 export const pharmacyResponsesTable = pgTable("pharmacy_responses", {
   id: text("id").primaryKey(),
   requestId: text("request_id").notNull(),
+  pharmacyId: text("pharmacy_id"),
   pharmacyName: text("pharmacy_name").notNull(),
   pharmacyAddress: text("pharmacy_address").notNull(),
   pharmacyPhone: text("pharmacy_phone").notNull(),
   status: text("status").notNull().default("available"),
+  adminStatus: text("admin_status").notNull().default("pending_admin"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -117,6 +120,38 @@ export const drugPricesTable = pgTable("drug_prices", {
 export const insertDrugPriceSchema = createInsertSchema(drugPricesTable).omit({ createdAt: true, updatedAt: true });
 export type InsertDrugPrice = z.infer<typeof insertDrugPriceSchema>;
 export type DrugPrice = typeof drugPricesTable.$inferSelect;
+
+export const pharmacyInventoryTable = pgTable("pharmacy_inventory", {
+  id: text("id").primaryKey(),
+  pharmacyId: text("pharmacy_id").notNull(),
+  pharmacyName: text("pharmacy_name").notNull(),
+  pharmacyAddress: text("pharmacy_address").notNull(),
+  pharmacyPhone: text("pharmacy_phone").notNull(),
+  drugName: text("drug_name").notNull(),
+  drugNameLower: text("drug_name_lower").notNull(),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertPharmacyInventorySchema = createInsertSchema(pharmacyInventoryTable).omit({ createdAt: true });
+export type InsertPharmacyInventory = z.infer<typeof insertPharmacyInventorySchema>;
+export type PharmacyInventory = typeof pharmacyInventoryTable.$inferSelect;
+
+export const b2bMessagesTable = pgTable("b2b_messages", {
+  id: text("id").primaryKey(),
+  pharmacyId: text("pharmacy_id").notNull(),
+  pharmacyName: text("pharmacy_name").notNull(),
+  message: text("message").notNull(),
+  type: text("type").notNull().default("order"),
+  adminStatus: text("admin_status").notNull().default("pending"),
+  adminNote: text("admin_note"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertB2bMessageSchema = createInsertSchema(b2bMessagesTable).omit({ createdAt: true });
+export type InsertB2bMessage = z.infer<typeof insertB2bMessageSchema>;
+export type B2bMessage = typeof b2bMessagesTable.$inferSelect;
 
 export const doctorsTable = pgTable("doctors", {
   id: text("id").primaryKey(),

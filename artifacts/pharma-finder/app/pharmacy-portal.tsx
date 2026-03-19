@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import {
   Alert,
   KeyboardAvoidingView,
   ScrollView,
+  Animated,
+  Vibration,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -64,6 +66,63 @@ export default function PharmacyPortalScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [respondedIds, setRespondedIds] = useState<Set<string>>(new Set());
   const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [hasNewRequests, setHasNewRequests] = useState(false);
+  const prevPendingCountRef = useRef<number>(-1);
+  const vibrationActiveRef = useRef(false);
+  const bellShake = useRef(new Animated.Value(0)).current;
+  const bellLoop = useRef<Animated.CompositeAnimation | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const bellRotate = bellShake.interpolate({ inputRange: [-1, 0, 1], outputRange: ["-18deg", "0deg", "18deg"] });
+
+  const stopBellAlert = useCallback(() => {
+    bellLoop.current?.stop();
+    bellShake.setValue(0);
+    if (vibrationActiveRef.current) { Vibration.cancel(); vibrationActiveRef.current = false; }
+    setHasNewRequests(false);
+  }, [bellShake]);
+
+  const startBellAlert = useCallback(() => {
+    setHasNewRequests(true);
+    bellLoop.current?.stop();
+    bellLoop.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bellShake, { toValue: 1, duration: 80, useNativeDriver: true }),
+        Animated.timing(bellShake, { toValue: -1, duration: 80, useNativeDriver: true }),
+        Animated.timing(bellShake, { toValue: 1, duration: 80, useNativeDriver: true }),
+        Animated.timing(bellShake, { toValue: -1, duration: 80, useNativeDriver: true }),
+        Animated.timing(bellShake, { toValue: 0, duration: 80, useNativeDriver: true }),
+        Animated.delay(800),
+      ])
+    );
+    bellLoop.current.start();
+    if (!vibrationActiveRef.current) {
+      vibrationActiveRef.current = true;
+      Vibration.vibrate([0, 400, 200, 400, 200, 400, 1500], true);
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+  }, [bellShake]);
+
+  useEffect(() => {
+    if (!pharmacy) return;
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/pharmacy-portal/requests`);
+        if (!resp.ok) return;
+        const data: DrugRequest[] = await resp.json();
+        const pendingCount = data.filter((r) => r.status === "pending").length;
+        if (prevPendingCountRef.current >= 0 && pendingCount > prevPendingCountRef.current) {
+          startBellAlert();
+          setRequests(data);
+        }
+        prevPendingCountRef.current = pendingCount;
+      } catch {}
+    }, 8000);
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      stopBellAlert();
+    };
+  }, [pharmacy]);
 
   const handleAuth = async () => {
     if (!pin.trim()) return;
@@ -98,7 +157,13 @@ export default function PharmacyPortalScreen() {
     else setLoading(true);
     try {
       const resp = await fetch(`${API_BASE}/pharmacy-portal/requests`);
-      if (resp.ok) setRequests(await resp.json());
+      if (resp.ok) {
+        const data: DrugRequest[] = await resp.json();
+        setRequests(data);
+        if (prevPendingCountRef.current < 0) {
+          prevPendingCountRef.current = data.filter((r) => r.status === "pending").length;
+        }
+      }
     } catch {
     } finally {
       setLoading(false);
@@ -226,13 +291,23 @@ export default function PharmacyPortalScreen() {
             {isRTL ? "بوابة الصيدلية" : "Portail Pharmacie"}
           </Text>
         </View>
-        <TouchableOpacity
-          style={styles.logoutBtn}
-          onPress={() => { setPharmacy(null); setPin(""); setRespondedIds(new Set()); }}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="log-out-outline" size={22} color={Colors.danger} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {hasNewRequests && (
+            <TouchableOpacity onPress={stopBellAlert} style={styles.bellAlertBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Animated.View style={{ transform: [{ rotate: bellRotate }] }}>
+                <Ionicons name="notifications" size={22} color={Colors.warning} />
+              </Animated.View>
+              <View style={styles.bellAlertDot} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.logoutBtn}
+            onPress={() => { setPharmacy(null); setPin(""); setRespondedIds(new Set()); stopBellAlert(); prevPendingCountRef.current = -1; }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="log-out-outline" size={22} color={Colors.danger} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={[styles.pharmacyBanner, isRTL && styles.rtlRow]}>
@@ -425,4 +500,11 @@ const styles = StyleSheet.create({
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 60, gap: 12, paddingHorizontal: 32 },
   emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary, textAlign: "center" },
   emptySub: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary, textAlign: "center", lineHeight: 19 },
+
+  bellAlertBtn: { position: "relative", padding: 4 },
+  bellAlertDot: {
+    position: "absolute", top: 2, right: 2,
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: Colors.warning, borderWidth: 1, borderColor: "#fff",
+  },
 });

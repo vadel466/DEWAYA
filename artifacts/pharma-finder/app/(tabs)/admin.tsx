@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import {
   ScrollView,
   Alert,
   Image,
+  Animated,
+  Vibration,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -75,6 +77,11 @@ export default function AdminScreen() {
 
 
   const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal" | "prices">("pending");
+  const [hasNewRequests, setHasNewRequests] = useState(false);
+  const prevPendingCountRef = useRef<number>(-1);
+  const vibrationActiveRef = useRef(false);
+  const bellShake = useRef(new Animated.Value(0)).current;
+  const bellLoop = useRef<Animated.CompositeAnimation | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<DrugRequest | null>(null);
   const [showRespondModal, setShowRespondModal] = useState(false);
   const [pharmacyNameR, setPharmacyNameR] = useState("");
@@ -158,6 +165,42 @@ export default function AdminScreen() {
   const filteredDrugPrices = prSearch.trim()
     ? allDrugPrices.filter(p => p.name.toLowerCase().includes(prSearch.toLowerCase()) || (p.nameAr && p.nameAr.includes(prSearch)))
     : allDrugPrices;
+
+  type DailyStats = { today: number; total: number; pending: number; responded: number; todayPending: number };
+  const { data: dailyStats } = useQuery<DailyStats>({
+    queryKey: ["admin-daily-stats"],
+    queryFn: async () => { const r = await fetch(`${API_BASE}/requests/stats`); if (!r.ok) throw new Error(); return r.json(); },
+    refetchInterval: 30000,
+    enabled: isAdmin,
+  });
+
+  const stopBellAlert = useCallback(() => {
+    bellLoop.current?.stop();
+    bellShake.setValue(0);
+    if (vibrationActiveRef.current) { Vibration.cancel(); vibrationActiveRef.current = false; }
+    setHasNewRequests(false);
+  }, [bellShake]);
+
+  const startBellAlert = useCallback(() => {
+    setHasNewRequests(true);
+    bellLoop.current?.stop();
+    bellLoop.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bellShake, { toValue: 1, duration: 80, useNativeDriver: true }),
+        Animated.timing(bellShake, { toValue: -1, duration: 80, useNativeDriver: true }),
+        Animated.timing(bellShake, { toValue: 1, duration: 80, useNativeDriver: true }),
+        Animated.timing(bellShake, { toValue: -1, duration: 80, useNativeDriver: true }),
+        Animated.timing(bellShake, { toValue: 0, duration: 80, useNativeDriver: true }),
+        Animated.delay(800),
+      ])
+    );
+    bellLoop.current.start();
+    if (!vibrationActiveRef.current) {
+      vibrationActiveRef.current = true;
+      Vibration.vibrate([0, 400, 200, 400, 200, 400, 1500], true);
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+  }, [bellShake]);
 
   const savePriceMutation = useMutation({
     mutationFn: async (body: object) => {
@@ -388,6 +431,27 @@ export default function AdminScreen() {
     );
   }
 
+  useEffect(() => {
+    if (!isAdmin) return;
+    const newCount = pendingRequests.length;
+    if (prevPendingCountRef.current >= 0 && newCount > prevPendingCountRef.current && activeTab !== "pending") {
+      startBellAlert();
+    }
+    prevPendingCountRef.current = newCount;
+  }, [pendingRequests.length, isAdmin]);
+
+  useEffect(() => {
+    if (activeTab === "pending" && hasNewRequests) {
+      stopBellAlert();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    return () => { stopBellAlert(); };
+  }, []);
+
+  const bellRotate = bellShake.interpolate({ inputRange: [-1, 0, 1], outputRange: ["-18deg", "0deg", "18deg"] });
+
   const TABS = [
     { id: "pending", label: isRTL ? `طلبات (${pendingRequests.length})` : `Attente (${pendingRequests.length})` },
     { id: "payments", label: isRTL ? `دفع${pendingPayments.length > 0 ? ` (${pendingPayments.length})` : ""}` : `Pmt${pendingPayments.length > 0 ? ` (${pendingPayments.length})` : ""}` },
@@ -617,17 +681,66 @@ export default function AdminScreen() {
         </View>
       </View>
 
+      {/* Daily stats bar */}
+      {dailyStats && (
+        <View style={[styles.dailyStatsBar, isRTL && styles.rtlRow]}>
+          <View style={styles.dailyStatItem}>
+            <Ionicons name="calendar-outline" size={13} color={Colors.primary} />
+            <Text style={styles.dailyStatValue}>{dailyStats.today}</Text>
+            <Text style={styles.dailyStatLabel}>{isRTL ? "اليوم" : "Auj."}</Text>
+          </View>
+          <View style={styles.dailyStatDivider} />
+          <View style={styles.dailyStatItem}>
+            <Ionicons name="time-outline" size={13} color={Colors.warning} />
+            <Text style={[styles.dailyStatValue, { color: Colors.warning }]}>{dailyStats.pending}</Text>
+            <Text style={styles.dailyStatLabel}>{isRTL ? "معلّق" : "Attente"}</Text>
+          </View>
+          <View style={styles.dailyStatDivider} />
+          <View style={styles.dailyStatItem}>
+            <Ionicons name="checkmark-circle-outline" size={13} color={Colors.accent} />
+            <Text style={[styles.dailyStatValue, { color: Colors.accent }]}>{dailyStats.responded}</Text>
+            <Text style={styles.dailyStatLabel}>{isRTL ? "مجاب" : "Répondus"}</Text>
+          </View>
+          <View style={styles.dailyStatDivider} />
+          <View style={styles.dailyStatItem}>
+            <Ionicons name="bar-chart-outline" size={13} color={Colors.light.textSecondary} />
+            <Text style={styles.dailyStatValue}>{dailyStats.total}</Text>
+            <Text style={styles.dailyStatLabel}>{isRTL ? "إجمالي" : "Total"}</Text>
+          </View>
+        </View>
+      )}
+
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
-        {TABS.map((tab) => (
-          <TouchableOpacity
-            key={tab.id}
-            style={[styles.tabBtn, activeTab === tab.id && styles.tabBtnActive]}
-            onPress={() => setActiveTab(tab.id as typeof activeTab)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.tabText, activeTab === tab.id && styles.tabTextActive]}>{tab.label}</Text>
-          </TouchableOpacity>
-        ))}
+        {TABS.map((tab) => {
+          const isPending = tab.id === "pending";
+          const isActive = activeTab === tab.id;
+          return (
+            <TouchableOpacity
+              key={tab.id}
+              style={[styles.tabBtn, isActive && styles.tabBtnActive, isPending && hasNewRequests && !isActive && styles.tabBtnAlert]}
+              onPress={() => setActiveTab(tab.id as typeof activeTab)}
+              activeOpacity={0.7}
+            >
+              {isPending ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Animated.View style={{ transform: [{ rotate: bellRotate }] }}>
+                    <Ionicons
+                      name={hasNewRequests ? "notifications" : "notifications-outline"}
+                      size={15}
+                      color={isActive ? "#fff" : (hasNewRequests ? Colors.warning : Colors.light.textSecondary)}
+                    />
+                  </Animated.View>
+                  <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab.label}</Text>
+                  {hasNewRequests && !isActive && (
+                    <View style={styles.bellDot} />
+                  )}
+                </View>
+              ) : (
+                <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab.label}</Text>
+              )}
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       {activeTab === "duty" ? renderDutyAdminRegions() : isLoading ? (
@@ -1165,4 +1278,19 @@ const styles = StyleSheet.create({
   },
   previewImg: { width: "100%", height: 180, borderRadius: 10 },
   emptySub: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary, textAlign: "center", lineHeight: 19 },
+
+  dailyStatsBar: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-evenly",
+    backgroundColor: Colors.light.card, marginHorizontal: 16, marginBottom: 8,
+    borderRadius: 14, paddingVertical: 10, paddingHorizontal: 8,
+    borderWidth: 1, borderColor: Colors.light.border,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+  },
+  dailyStatItem: { alignItems: "center", gap: 2, flex: 1 },
+  dailyStatValue: { fontSize: 17, fontFamily: "Inter_700Bold", color: Colors.light.text },
+  dailyStatLabel: { fontSize: 10, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary },
+  dailyStatDivider: { width: 1, height: 30, backgroundColor: Colors.light.border },
+
+  tabBtnAlert: { backgroundColor: Colors.warning + "18", borderColor: Colors.warning },
+  bellDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: Colors.warning, marginLeft: 2 },
 });

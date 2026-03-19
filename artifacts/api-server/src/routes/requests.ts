@@ -9,6 +9,25 @@ function generateId(): string {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
 }
 
+router.get("/stats", async (_req, res) => {
+  try {
+    const all = await db.select().from(drugRequestsTable);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayItems = all.filter((r) => new Date(r.createdAt) >= today);
+    res.json({
+      today: todayItems.length,
+      total: all.length,
+      pending: all.filter((r) => r.status === "pending").length,
+      responded: all.filter((r) => r.status === "responded").length,
+      todayPending: todayItems.filter((r) => r.status === "pending").length,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.get("/", async (_req, res) => {
   try {
     const requests = await db

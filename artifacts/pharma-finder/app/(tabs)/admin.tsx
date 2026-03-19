@@ -17,6 +17,7 @@ import {
   Animated,
   Vibration,
 } from "react-native";
+import { useBell } from "@/hooks/useBell";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -102,6 +103,7 @@ export default function AdminScreen() {
   const { t, language, userId, isAdmin, adminLogout } = useApp();
   const isRTL = language === "ar";
   const qc = useQueryClient();
+  const { playAlertBell } = useBell();
 
 
   const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal" | "prices" | "doctors" | "b2b" | "companies">("pending");
@@ -293,7 +295,8 @@ export default function AdminScreen() {
       Vibration.vibrate([0, 400, 200, 400, 200, 400, 1500], true);
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-  }, [bellShake]);
+    playAlertBell();
+  }, [bellShake, playAlertBell]);
 
   const savePriceMutation = useMutation({
     mutationFn: async (body: object) => {

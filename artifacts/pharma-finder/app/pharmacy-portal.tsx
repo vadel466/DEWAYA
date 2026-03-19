@@ -10,6 +10,7 @@ import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
+import { useBell } from "@/hooks/useBell";
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
@@ -35,6 +36,7 @@ export default function PharmacyPortalScreen() {
   const insets = useSafeAreaInsets();
   const { language } = useApp();
   const isRTL = language === "ar";
+  const { playAlertBell } = useBell();
 
   const [step, setStep] = useState<"code" | "dashboard">("code");
   const [pin, setPin] = useState("");
@@ -105,7 +107,8 @@ export default function PharmacyPortalScreen() {
     bellLoop.current.start();
     if (!vibrationActiveRef.current) { vibrationActiveRef.current = true; Vibration.vibrate([0, 400, 200, 400, 200, 400, 1500], true); }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-  }, [bellShake]);
+    playAlertBell();
+  }, [bellShake, playAlertBell]);
 
   useEffect(() => {
     if (!pharmacy) return;

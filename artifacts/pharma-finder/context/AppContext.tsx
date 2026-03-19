@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from "r
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Vibration, Platform, AppState } from "react-native";
 import * as Notifications from "expo-notifications";
+import { Audio } from "expo-av";
 import type { Region } from "@/constants/regions";
 
 type Language = "ar" | "fr";
@@ -225,6 +226,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const knownUnlockedRef = useRef<Set<string>>(new Set());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const appStateRef = useRef(AppState.currentState);
+  const softSoundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, shouldDuckAndroid: true });
+        const { sound } = await Audio.Sound.createAsync(
+          require("../assets/sounds/bell-soft.mp3"),
+          { volume: 0.55 }
+        );
+        if (mounted) softSoundRef.current = sound;
+        else sound.unloadAsync();
+      } catch {}
+    })();
+    return () => {
+      mounted = false;
+      softSoundRef.current?.unloadAsync();
+    };
+  }, []);
+
+  const playSoftBell = async () => {
+    if (!softSoundRef.current) return;
+    try {
+      await softSoundRef.current.setPositionAsync(0);
+      await softSoundRef.current.playAsync();
+    } catch {}
+  };
 
   useEffect(() => {
     (async () => {
@@ -271,6 +300,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               if (Platform.OS !== "web") {
                 Vibration.vibrate([0, 400, 200, 400, 200, 400]);
               }
+              playSoftBell();
               await fireLocalNotification(
                 translations[language].notifAlertTitle,
                 translations[language].notifAlertBody,
@@ -288,6 +318,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             if (Platform.OS !== "web") {
               Vibration.vibrate([0, 300, 100, 300]);
             }
+            playSoftBell();
             await fireLocalNotification(
               translations[language].notifUnlockedTitle,
               translations[language].notifUnlockedBody,

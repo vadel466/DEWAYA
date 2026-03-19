@@ -5,10 +5,10 @@ generated = []
 id = "L1Ge_AAPgrdOpRE5MPFyQ"
 uri = "file://artifacts/pharma-finder/assets/images/icon.png"
 type = "image"
-title = "شعار برتقالي بارز"
+title = "النسخة 1 — V واضحة مع تداخل أنيق"
 
 [[outputs]]
 id = "u7AKXTzFh5WvC9C2UnFtP"
 uri = "file://artifacts/pharma-finder/assets/images/icon_v2.png"
 type = "image"
-title = "شعار أصفر مضيء"
+title = "النسخة 2 — V واضحة مع تداخل أنيق"

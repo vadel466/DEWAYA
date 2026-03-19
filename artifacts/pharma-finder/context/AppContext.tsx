@@ -33,6 +33,10 @@ const translations: Record<Language, Record<string, string>> = {
     drugPriceDesc: "تعرف على سعر دوائك",
     dutyPharmacies: "صيدليات المداومة",
     dutyPharmaciesDesc: "الصيدليات المفتوحة في منطقتك",
+    dutyAndPrice: "صيدليات المداومة وسعر الدواء",
+    dutyAndPriceDesc: "جداول المداومة وقاعدة بيانات الأسعار",
+    findDoctor: "جِدْ طبيبك",
+    findDoctorDesc: "أطباء، مصحات، ومستشفيات",
 
     regionLabel: "اختر منطقتك",
     regionPlaceholder: "حدد منطقتك...",
@@ -106,6 +110,10 @@ const translations: Record<Language, Record<string, string>> = {
     drugPriceDesc: "Connaître le prix de votre médicament",
     dutyPharmacies: "Pharmacies de garde",
     dutyPharmaciesDesc: "Pharmacies ouvertes dans votre zone",
+    dutyAndPrice: "Garde & Prix médicaments",
+    dutyAndPriceDesc: "Tableaux de garde et base de données des prix",
+    findDoctor: "Trouvez votre médecin",
+    findDoctorDesc: "Médecins, cliniques, hôpitaux",
 
     regionLabel: "Votre région",
     regionPlaceholder: "Sélectionnez votre région...",

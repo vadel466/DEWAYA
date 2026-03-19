@@ -117,3 +117,27 @@ export const drugPricesTable = pgTable("drug_prices", {
 export const insertDrugPriceSchema = createInsertSchema(drugPricesTable).omit({ createdAt: true, updatedAt: true });
 export type InsertDrugPrice = z.infer<typeof insertDrugPriceSchema>;
 export type DrugPrice = typeof drugPricesTable.$inferSelect;
+
+export const doctorsTable = pgTable("doctors", {
+  id: text("id").primaryKey(),
+  doctorName: text("doctor_name").notNull(),
+  doctorNameAr: text("doctor_name_ar"),
+  specialty: text("specialty"),
+  specialtyAr: text("specialty_ar"),
+  clinicName: text("clinic_name").notNull(),
+  clinicNameAr: text("clinic_name_ar"),
+  address: text("address").notNull(),
+  addressAr: text("address_ar"),
+  phone: text("phone").notNull(),
+  scheduleText: text("schedule_text"),
+  scheduleAr: text("schedule_ar"),
+  imageData: text("image_data"),
+  imageMimeType: text("image_mime_type"),
+  region: text("region"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertDoctorSchema = createInsertSchema(doctorsTable).omit({ createdAt: true });
+export type InsertDoctor = z.infer<typeof insertDoctorSchema>;
+export type Doctor = typeof doctorsTable.$inferSelect;

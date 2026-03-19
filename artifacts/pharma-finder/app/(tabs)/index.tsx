@@ -215,14 +215,14 @@ export default function HomeScreen() {
     router.push("/nearest-pharmacy");
   };
 
-  const goToDuty = () => {
+  const goToDutyAndPrice = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push("/duty-pharmacies");
+    router.push("/duty-and-price");
   };
 
-  const goToDrugPrice = () => {
+  const goToFindDoctor = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push("/drug-price");
+    router.push("/find-doctor");
   };
 
   const filteredRegions = regionQuery.trim()
@@ -446,31 +446,31 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.gridRow}>
-          {/* سعر الدواء */}
-          <TouchableOpacity style={[styles.card, { backgroundColor: AMBER_LIGHT }]} onPress={goToDrugPrice} activeOpacity={0.82}>
-            <View style={[styles.cardAccent, { backgroundColor: AMBER }]} />
-            <View style={[styles.cardIconCircle, { backgroundColor: AMBER + "22" }]}>
-              <MaterialCommunityIcons name="tag-outline" size={22} color={AMBER} />
+          {/* جِدْ طبيبك */}
+          <TouchableOpacity style={[styles.card, { backgroundColor: "#EDFAF4" }]} onPress={goToFindDoctor} activeOpacity={0.82}>
+            <View style={[styles.cardAccent, { backgroundColor: Colors.accent }]} />
+            <View style={[styles.cardIconCircle, { backgroundColor: Colors.accent + "22" }]}>
+              <MaterialCommunityIcons name="doctor" size={22} color={Colors.accent} />
             </View>
-            <Text style={[styles.cardTitle, { color: AMBER }, isRTL && styles.textRight]} numberOfLines={2}>
-              {t("drugPrice")}
+            <Text style={[styles.cardTitle, { color: Colors.accent }, isRTL && styles.textRight]} numberOfLines={2}>
+              {t("findDoctor")}
             </Text>
             <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
-              {t("drugPriceDesc")}
+              {t("findDoctorDesc")}
             </Text>
           </TouchableOpacity>
 
-          {/* صيدليات المداومة */}
-          <TouchableOpacity style={[styles.card, { backgroundColor: DUTY_RED_LIGHT }]} onPress={goToDuty} activeOpacity={0.82}>
+          {/* صيدليات المداومة وسعر الدواء */}
+          <TouchableOpacity style={[styles.card, { backgroundColor: DUTY_RED_LIGHT }]} onPress={goToDutyAndPrice} activeOpacity={0.82}>
             <View style={[styles.cardAccent, { backgroundColor: DUTY_RED }]} />
             <View style={[styles.cardIconCircle, { backgroundColor: DUTY_RED + "18" }]}>
               <MaterialCommunityIcons name="hospital-building" size={22} color={DUTY_RED} />
             </View>
             <Text style={[styles.cardTitle, { color: DUTY_RED }, isRTL && styles.textRight]} numberOfLines={2}>
-              {t("dutyPharmacies")}
+              {t("dutyAndPrice")}
             </Text>
             <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
-              {t("dutyPharmaciesDesc")}
+              {t("dutyAndPriceDesc")}
             </Text>
           </TouchableOpacity>
         </View>

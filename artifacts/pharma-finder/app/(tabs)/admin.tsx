@@ -60,6 +60,15 @@ type DrugPrice = {
   price: number; unit: string | null; category: string | null;
   notes: string | null; isActive: boolean; createdAt: string;
 };
+type Doctor = {
+  id: string; doctorName: string; doctorNameAr: string | null;
+  specialty: string | null; specialtyAr: string | null;
+  clinicName: string; clinicNameAr: string | null;
+  address: string; addressAr: string | null;
+  phone: string; scheduleText: string | null; scheduleAr: string | null;
+  imageData: string | null; imageMimeType: string | null;
+  region: string | null; isActive: boolean; createdAt: string;
+};
 
 function formatTime(dateStr: string, lang = "ar") {
   return new Date(dateStr).toLocaleString(lang === "ar" ? "ar-SA" : "fr-FR", {
@@ -76,7 +85,7 @@ export default function AdminScreen() {
   const qc = useQueryClient();
 
 
-  const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal" | "prices">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal" | "prices" | "doctors">("pending");
   const [hasNewRequests, setHasNewRequests] = useState(false);
   const prevPendingCountRef = useRef<number>(-1);
   const vibrationActiveRef = useRef(false);
@@ -119,6 +128,18 @@ export default function AdminScreen() {
   const [dpNotes, setDpNotes] = useState("");
   const [showImportModal, setShowImportModal] = useState(false);
   const [csvText, setCsvText] = useState("");
+
+  const [showDoctorModal, setShowDoctorModal] = useState(false);
+  const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null);
+  const [drSearch, setDrSearch] = useState("");
+  const [drName, setDrName] = useState(""); const [drNameAr, setDrNameAr] = useState("");
+  const [drSpecialty, setDrSpecialty] = useState(""); const [drSpecialtyAr, setDrSpecialtyAr] = useState("");
+  const [drClinic, setDrClinic] = useState(""); const [drClinicAr, setDrClinicAr] = useState("");
+  const [drAddress, setDrAddress] = useState(""); const [drAddressAr, setDrAddressAr] = useState("");
+  const [drPhone, setDrPhone] = useState(""); const [drSchedule, setDrSchedule] = useState("");
+  const [drScheduleAr, setDrScheduleAr] = useState(""); const [drRegion, setDrRegion] = useState("");
+  const [drImageBase64, setDrImageBase64] = useState(""); const [drImageMime, setDrImageMime] = useState("image/jpeg");
+  const [pickingDrImage, setPickingDrImage] = useState(false);
 
   const { data: requests = [], isLoading: reqLoading, refetch: refetchReq, isRefetching: reqRefetching } = useQuery<DrugRequest[]>({
     queryKey: ["admin-requests"],
@@ -165,6 +186,24 @@ export default function AdminScreen() {
   const filteredDrugPrices = prSearch.trim()
     ? allDrugPrices.filter(p => p.name.toLowerCase().includes(prSearch.toLowerCase()) || (p.nameAr && p.nameAr.includes(prSearch)))
     : allDrugPrices;
+
+  const { data: allDoctors = [], isLoading: doctorLoading, refetch: refetchDoctors, isRefetching: doctorRefetching } = useQuery<Doctor[]>({
+    queryKey: ["admin-doctors"],
+    queryFn: async () => {
+      const r = await fetch(`${API_BASE}/doctors/admin`, { headers: { "x-admin-secret": ADMIN_SECRET } });
+      if (!r.ok) throw new Error(); return r.json();
+    },
+    enabled: isAdmin && activeTab === "doctors",
+  });
+
+  const filteredDoctors = drSearch.trim()
+    ? allDoctors.filter(d =>
+        d.doctorName.toLowerCase().includes(drSearch.toLowerCase()) ||
+        (d.doctorNameAr && d.doctorNameAr.includes(drSearch)) ||
+        d.clinicName.toLowerCase().includes(drSearch.toLowerCase()) ||
+        (d.specialty && d.specialty.toLowerCase().includes(drSearch.toLowerCase()))
+      )
+    : allDoctors;
 
   type DailyStats = { today: number; total: number; pending: number; responded: number; todayPending: number };
   const { data: dailyStats } = useQuery<DailyStats>({
@@ -245,6 +284,86 @@ export default function AdminScreen() {
     },
     onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل الاستيراد" : "Échec de l'import"),
   });
+
+  const saveDoctorMutation = useMutation({
+    mutationFn: async (body: object) => {
+      const url = editingDoctor ? `${API_BASE}/doctors/${editingDoctor.id}` : `${API_BASE}/doctors`;
+      const r = await fetch(url, {
+        method: editingDoctor ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(); return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-doctors"] });
+      setShowDoctorModal(false); setEditingDoctor(null);
+      resetDoctorForm();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل الحفظ" : "Échec de la sauvegarde"),
+  });
+
+  const deleteDoctorMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`${API_BASE}/doctors/${id}`, {
+        method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      if (!r.ok) throw new Error();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-doctors"] }); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); },
+  });
+
+  const resetDoctorForm = () => {
+    setDrName(""); setDrNameAr(""); setDrSpecialty(""); setDrSpecialtyAr("");
+    setDrClinic(""); setDrClinicAr(""); setDrAddress(""); setDrAddressAr("");
+    setDrPhone(""); setDrSchedule(""); setDrScheduleAr(""); setDrRegion("");
+    setDrImageBase64(""); setDrImageMime("image/jpeg");
+  };
+
+  const openAddDoctor = () => {
+    setEditingDoctor(null); resetDoctorForm(); setShowDoctorModal(true);
+  };
+
+  const openEditDoctor = (d: Doctor) => {
+    setEditingDoctor(d);
+    setDrName(d.doctorName); setDrNameAr(d.doctorNameAr ?? "");
+    setDrSpecialty(d.specialty ?? ""); setDrSpecialtyAr(d.specialtyAr ?? "");
+    setDrClinic(d.clinicName); setDrClinicAr(d.clinicNameAr ?? "");
+    setDrAddress(d.address); setDrAddressAr(d.addressAr ?? "");
+    setDrPhone(d.phone); setDrSchedule(d.scheduleText ?? ""); setDrScheduleAr(d.scheduleAr ?? "");
+    setDrRegion(d.region ?? ""); setDrImageBase64(""); setDrImageMime(d.imageMimeType ?? "image/jpeg");
+    setShowDoctorModal(true);
+  };
+
+  const submitDoctor = () => {
+    if (!drName.trim() || !drClinic.trim() || !drAddress.trim() || !drPhone.trim()) {
+      Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "يرجى ملء الحقول الإلزامية" : "Champs obligatoires manquants"); return;
+    }
+    const body: any = {
+      doctorName: drName.trim(), doctorNameAr: drNameAr.trim() || null,
+      specialty: drSpecialty.trim() || null, specialtyAr: drSpecialtyAr.trim() || null,
+      clinicName: drClinic.trim(), clinicNameAr: drClinicAr.trim() || null,
+      address: drAddress.trim(), addressAr: drAddressAr.trim() || null,
+      phone: drPhone.trim(), scheduleText: drSchedule.trim() || null,
+      scheduleAr: drScheduleAr.trim() || null, region: drRegion.trim() || null,
+    };
+    if (drImageBase64) { body.imageData = drImageBase64; body.imageMimeType = drImageMime; }
+    saveDoctorMutation.mutate(body);
+  };
+
+  const pickDoctorImage = async () => {
+    setPickingDrImage(true);
+    try {
+      const { launchImageLibraryAsync, MediaTypeOptions } = await import("expo-image-picker");
+      const result = await launchImageLibraryAsync({ mediaTypes: MediaTypeOptions.Images, quality: 0.7, base64: true });
+      if (!result.canceled && result.assets?.[0]?.base64) {
+        setDrImageBase64(result.assets[0].base64);
+        const uri = result.assets[0].uri ?? "";
+        setDrImageMime(uri.endsWith(".png") ? "image/png" : "image/jpeg");
+      }
+    } catch {} finally { setPickingDrImage(false); }
+  };
 
   const openAddPrice = () => {
     setEditingPrice(null);
@@ -459,6 +578,7 @@ export default function AdminScreen() {
     { id: "pharmacies", label: isRTL ? "صيدليات" : "Pharma" },
     { id: "duty", label: isRTL ? "مداومة" : "Garde" },
     { id: "prices", label: isRTL ? "أسعار" : "Prix" },
+    { id: "doctors", label: isRTL ? "أطباء" : "Médecins" },
   ];
 
   const isLoading =
@@ -466,6 +586,7 @@ export default function AdminScreen() {
     activeTab === "pharmacies" ? pharmaLoading :
     activeTab === "portal" ? portalLoading :
     activeTab === "prices" ? priceLoading :
+    activeTab === "doctors" ? doctorLoading :
     reqLoading;
 
   const isRefetching =
@@ -473,6 +594,7 @@ export default function AdminScreen() {
     activeTab === "pharmacies" ? pharmaRefetching :
     activeTab === "portal" ? portalRefetching :
     activeTab === "prices" ? priceRefetching :
+    activeTab === "doctors" ? doctorRefetching :
     reqRefetching;
 
   const onRefresh = () => {
@@ -480,6 +602,7 @@ export default function AdminScreen() {
     else if (activeTab === "pharmacies") refetchPharma();
     else if (activeTab === "portal") refetchPortal();
     else if (activeTab === "prices") refetchPrices();
+    else if (activeTab === "doctors") refetchDoctors();
     else refetchReq();
   };
 
@@ -654,13 +777,50 @@ export default function AdminScreen() {
     </View>
   );
 
-  const isAddTab = activeTab === "pharmacies" || activeTab === "prices";
+  const renderDoctor = ({ item }: { item: Doctor }) => (
+    <View style={styles.pharmCard}>
+      <View style={[styles.cardRow, isRTL && styles.rtlRow]}>
+        <View style={[styles.requestIcon, { backgroundColor: "#1BB58015" }]}>
+          <MaterialCommunityIcons name="doctor" size={22} color="#1BB580" />
+        </View>
+        <View style={[styles.requestInfo, isRTL && styles.rtlInfo]}>
+          <Text style={[styles.drugName, isRTL && styles.rtlText]}>
+            {isRTL && item.doctorNameAr ? item.doctorNameAr : item.doctorName}
+          </Text>
+          {item.specialty && (
+            <Text style={[styles.userId, isRTL && styles.rtlText]}>
+              {isRTL && item.specialtyAr ? item.specialtyAr : item.specialty}
+            </Text>
+          )}
+          <Text style={[styles.requestTime, isRTL && styles.rtlText]}>
+            {isRTL && item.clinicNameAr ? item.clinicNameAr : item.clinicName} • {item.phone}
+          </Text>
+          <View style={[styles.tagRow, isRTL && styles.rtlRow]}>
+            {item.region && <View style={styles.tag}><Text style={styles.tagText}>{item.region}</Text></View>}
+            {item.scheduleText && <View style={[styles.tag, { backgroundColor: "#1BB58015" }]}><Ionicons name="calendar" size={10} color="#1BB580" /><Text style={[styles.tagText, { color: "#1BB580" }]}>{isRTL ? "جدول" : "Horaire"}</Text></View>}
+            {item.imageData && <View style={[styles.tag, { backgroundColor: Colors.primary + "15" }]}><Ionicons name="image" size={10} color={Colors.primary} /><Text style={[styles.tagText, { color: Colors.primary }]}>{isRTL ? "صورة" : "Image"}</Text></View>}
+          </View>
+        </View>
+        <View style={styles.actionIcons}>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => openEditDoctor(item)} activeOpacity={0.8}>
+            <Ionicons name="create-outline" size={18} color={Colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: Colors.danger + "10" }]} onPress={() => confirmDelete(isRTL ? "حذف هذا الطبيب؟" : "Supprimer ce médecin?", () => deleteDoctorMutation.mutate(item.id))} activeOpacity={0.8}>
+            <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+
+  const isAddTab = activeTab === "pharmacies" || activeTab === "prices" || activeTab === "doctors";
   const currentData: any[] =
     activeTab === "pending" ? pendingRequests :
     activeTab === "responded" ? respondedRequests :
     activeTab === "payments" ? pendingPayments :
     activeTab === "pharmacies" ? pharmacies :
     activeTab === "prices" ? filteredDrugPrices :
+    activeTab === "doctors" ? filteredDoctors :
     portalResponses;
 
   return (
@@ -754,6 +914,7 @@ export default function AdminScreen() {
             activeTab === "payments" ? renderPayment :
             activeTab === "portal" ? renderPortalResponse :
             activeTab === "prices" ? renderDrugPrice :
+            activeTab === "doctors" ? renderDoctor :
             renderRequest) as any
           }
           contentContainerStyle={[styles.list, currentData.length === 0 && styles.emptyList, { paddingBottom: Platform.OS === "web" ? 34 : 0 }]}
@@ -791,6 +952,29 @@ export default function AdminScreen() {
                   </View>
                   <Text style={[styles.countLabel, isRTL && styles.rtlText]}>{isRTL ? `${filteredDrugPrices.length} دواء` : `${filteredDrugPrices.length} médicament(s)`}</Text>
                 </View>
+              ) : activeTab === "doctors" ? (
+                <View>
+                  <TouchableOpacity style={[styles.addBtn, { backgroundColor: "#1BB580" }]} onPress={() => { openAddDoctor(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} activeOpacity={0.85}>
+                    <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                    <Text style={styles.addBtnText}>{isRTL ? "إضافة طبيب/مصحة" : "Ajouter un médecin"}</Text>
+                  </TouchableOpacity>
+                  <View style={[styles.searchBarWrap, { marginTop: 8 }]}>
+                    <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />
+                    <TextInput
+                      style={[styles.searchBarInput, isRTL && styles.rtlText]}
+                      placeholder={isRTL ? "بحث عن طبيب..." : "Rechercher un médecin..."}
+                      placeholderTextColor={Colors.light.textTertiary}
+                      value={drSearch}
+                      onChangeText={setDrSearch}
+                    />
+                    {drSearch.length > 0 && (
+                      <TouchableOpacity onPress={() => setDrSearch("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <Text style={[styles.countLabel, isRTL && styles.rtlText]}>{isRTL ? `${filteredDoctors.length} طبيب` : `${filteredDoctors.length} médecin(s)`}</Text>
+                </View>
               ) : (
                 <TouchableOpacity
                   style={styles.addBtn}
@@ -810,6 +994,7 @@ export default function AdminScreen() {
                 {activeTab === "pharmacies" ? (isRTL ? "لا توجد صيدليات مسجلة" : "Aucune pharmacie enregistrée") :
                  activeTab === "portal" ? (isRTL ? "لا توجد ردود من الصيدليات" : "Aucune réponse de pharmacie") :
                  activeTab === "prices" ? (isRTL ? "لا توجد أسعار مسجلة" : "Aucun médicament enregistré") :
+                 activeTab === "doctors" ? (isRTL ? "لا يوجد أطباء مسجلون" : "Aucun médecin enregistré") :
                  t("noPendingRequests")}
               </Text>
             </View>
@@ -1085,6 +1270,77 @@ export default function AdminScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Doctor Add/Edit Modal */}
+      <Modal visible={showDoctorModal} transparent animationType="slide" onRequestClose={() => setShowDoctorModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>
+                {editingDoctor ? (isRTL ? "تعديل الطبيب" : "Modifier le médecin") : (isRTL ? "إضافة طبيب/مصحة" : "Ajouter un médecin")}
+              </Text>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {[
+                  { label: isRTL ? "اسم الطبيب (فرنسي) *" : "Nom du médecin (fr) *", value: drName, setter: setDrName, placeholder: "Dr. Mohamed" },
+                  { label: isRTL ? "اسم الطبيب (عربي)" : "Nom en arabe", value: drNameAr, setter: setDrNameAr, placeholder: isRTL ? "د. محمد" : "Optionnel" },
+                  { label: isRTL ? "التخصص (فرنسي)" : "Spécialité (fr)", value: drSpecialty, setter: setDrSpecialty, placeholder: isRTL ? "مثال: Cardiologie" : "Ex: Cardiologie" },
+                  { label: isRTL ? "التخصص (عربي)" : "Spécialité (ar)", value: drSpecialtyAr, setter: setDrSpecialtyAr, placeholder: isRTL ? "مثال: طب القلب" : "Optionnel" },
+                  { label: isRTL ? "اسم المصحة/المستشفى (فرنسي) *" : "Clinique/Hôpital (fr) *", value: drClinic, setter: setDrClinic, placeholder: "Clinique Al Shifa" },
+                  { label: isRTL ? "اسم المصحة (عربي)" : "Clinique (ar)", value: drClinicAr, setter: setDrClinicAr, placeholder: isRTL ? "مصحة الشفاء" : "Optionnel" },
+                  { label: isRTL ? "العنوان (فرنسي) *" : "Adresse (fr) *", value: drAddress, setter: setDrAddress, placeholder: isRTL ? "العنوان الكامل" : "Adresse complète" },
+                  { label: isRTL ? "العنوان (عربي)" : "Adresse (ar)", value: drAddressAr, setter: setDrAddressAr, placeholder: isRTL ? "اختياري" : "Optionnel" },
+                  { label: isRTL ? "رقم السكرتاريا *" : "Téléphone secrétariat *", value: drPhone, setter: setDrPhone, placeholder: "22 XX XX XX", keyboardType: "phone-pad" as const },
+                  { label: isRTL ? "المنطقة" : "Région", value: drRegion, setter: setDrRegion, placeholder: isRTL ? "مثال: نواكشوط" : "Ex: Nouakchott" },
+                ].map((f) => (
+                  <View key={f.label} style={{ marginBottom: 10 }}>
+                    <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{f.label}</Text>
+                    <TextInput
+                      style={[styles.modalInput, isRTL && styles.rtlInput]}
+                      value={f.value} onChangeText={f.setter}
+                      placeholder={f.placeholder} placeholderTextColor={Colors.light.textTertiary}
+                      keyboardType={f.keyboardType}
+                    />
+                  </View>
+                ))}
+                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "جدول الدوام (نص)" : "Horaires (texte)"}</Text>
+                <TextInput style={[styles.modalInput, styles.textArea, isRTL && styles.rtlInput]} value={drSchedule} onChangeText={setDrSchedule} placeholder={isRTL ? "مثال: السبت-الأربعاء 9ص-5م" : "Ex: Sam-Mer 9h-17h"} placeholderTextColor={Colors.light.textTertiary} multiline numberOfLines={3} />
+                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "جدول الدوام (عربي)" : "Horaires (ar)"}</Text>
+                <TextInput style={[styles.modalInput, styles.textArea, isRTL && styles.rtlInput]} value={drScheduleAr} onChangeText={setDrScheduleAr} placeholder={isRTL ? "اختياري" : "Optionnel"} placeholderTextColor={Colors.light.textTertiary} multiline numberOfLines={2} />
+                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "صورة جدول الدوام" : "Image des horaires"}</Text>
+                <TouchableOpacity
+                  style={[styles.imagePicker, drImageBase64 && styles.imagePickerHasImg]}
+                  onPress={pickDoctorImage} activeOpacity={0.8} disabled={pickingDrImage}
+                >
+                  {pickingDrImage ? (
+                    <ActivityIndicator color="#1BB580" size="large" />
+                  ) : drImageBase64 ? (
+                    <View style={{ alignItems: "center", gap: 8 }}>
+                      <Image source={{ uri: `data:${drImageMime};base64,${drImageBase64}` }} style={styles.previewImg} resizeMode="cover" />
+                      <Text style={{ fontSize: 12, color: Colors.light.textSecondary, fontFamily: "Inter_400Regular" }}>{isRTL ? "اضغط لتغيير الصورة" : "Appuyer pour changer"}</Text>
+                    </View>
+                  ) : (
+                    <View style={{ alignItems: "center", gap: 10 }}>
+                      <Ionicons name="camera-outline" size={36} color="#1BB580" />
+                      <Text style={[styles.imagePickerText, isRTL && styles.rtlText]}>{isRTL ? "اضغط لاختيار صورة الجدول" : "Choisir une image"}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sendButton, { backgroundColor: "#1BB580" }, (!drName.trim() || !drClinic.trim() || !drAddress.trim() || !drPhone.trim()) && styles.sendButtonDisabled]}
+                  onPress={submitDoctor}
+                  disabled={!drName.trim() || !drClinic.trim() || !drAddress.trim() || !drPhone.trim() || saveDoctorMutation.isPending}
+                  activeOpacity={0.85}
+                >
+                  {saveDoctorMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="save-outline" size={18} color="#fff" /><Text style={styles.sendButtonText}>{isRTL ? "حفظ" : "Enregistrer"}</Text></>}
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.cancelButton} onPress={() => setShowDoctorModal(false)} activeOpacity={0.7}>
+                  <Text style={styles.cancelText}>{t("cancel")}</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* CSV Import Modal */}
       <Modal visible={showImportModal} transparent animationType="slide" onRequestClose={() => setShowImportModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
@@ -1208,6 +1464,9 @@ const styles = StyleSheet.create({
   loadingText: { fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary },
 
   modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
+  modalCard: { backgroundColor: Colors.light.background, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: "92%", paddingBottom: Platform.OS === "ios" ? 34 : 20, paddingHorizontal: 20, paddingTop: 8 },
+  modalInput: { backgroundColor: Colors.light.inputBackground, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.light.text, borderWidth: 1, borderColor: Colors.light.border },
+  fieldLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary, marginBottom: 5, marginTop: 2 },
   modalSheet: { backgroundColor: Colors.light.background, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: "92%", paddingBottom: Platform.OS === "ios" ? 34 : 20 },
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.light.border, alignSelf: "center", marginTop: 12, marginBottom: 6 },
   modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: Colors.light.text, marginHorizontal: 20, marginVertical: 12 },

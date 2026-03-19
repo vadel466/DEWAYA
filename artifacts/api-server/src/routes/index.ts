@@ -7,6 +7,7 @@ import dutyPharmaciesRouter from "./duty-pharmacies";
 import dutyImagesRouter from "./duty-images";
 import pharmacyPortalRouter from "./pharmacy-portal";
 import drugPricesRouter from "./drug-prices";
+import doctorsRouter from "./doctors";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use("/duty-pharmacies", dutyPharmaciesRouter);
 router.use("/duty-images", dutyImagesRouter);
 router.use("/pharmacy-portal", pharmacyPortalRouter);
 router.use("/drug-prices", drugPricesRouter);
+router.use("/doctors", doctorsRouter);
 
 export default router;

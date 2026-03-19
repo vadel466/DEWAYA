@@ -155,6 +155,9 @@ export default function AdminScreen() {
   const [dpNotes, setDpNotes] = useState("");
   const [showImportModal, setShowImportModal] = useState(false);
   const [csvText, setCsvText] = useState("");
+  const [showFileImportModal, setShowFileImportModal] = useState(false);
+  const [excelRows, setExcelRows] = useState<{ name: string; price: number; nameAr?: string; unit?: string; category?: string; notes?: string }[]>([]);
+  const [fileImportLoading, setFileImportLoading] = useState(false);
 
   const [showDoctorModal, setShowDoctorModal] = useState(false);
   const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null);
@@ -361,9 +364,26 @@ export default function AdminScreen() {
     onSuccess: (data: any) => {
       qc.invalidateQueries({ queryKey: ["admin-drug-prices"] });
       setShowImportModal(false); setCsvText("");
+      setShowFileImportModal(false); setExcelRows([]);
       Alert.alert(isRTL ? "تم الاستيراد" : "Import réussi", isRTL ? `تمت إضافة ${data.inserted} دواء` : `${data.inserted} médicaments importés`);
     },
     onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل الاستيراد" : "Échec de l'import"),
+  });
+
+  const clearAllPricesMutation = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`${API_BASE}/drug-prices/clear-all`, {
+        method: "DELETE",
+        headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      if (!r.ok) throw new Error();
+      return r.json();
+    },
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["admin-drug-prices"] });
+      Alert.alert(isRTL ? "تم المسح" : "Suppression effectuée", isRTL ? `تم حذف ${data.deleted} دواء من القاعدة` : `${data.deleted} médicaments supprimés de la base`);
+    },
+    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل المسح" : "Échec de la suppression"),
   });
 
   const saveDoctorMutation = useMutation({
@@ -482,6 +502,75 @@ export default function AdminScreen() {
     }
     if (rows.length === 0) { Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "لا توجد صفوف صالحة" : "Aucune ligne valide"); return; }
     bulkImportMutation.mutate(rows);
+  };
+
+  const pickAndParseExcel = async () => {
+    try {
+      setFileImportLoading(true);
+      const { getDocumentAsync } = await import("expo-document-picker");
+      const result = await getDocumentAsync({
+        type: [
+          "application/vnd.ms-excel",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "text/csv",
+          "text/comma-separated-values",
+          "*/*",
+        ],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.[0]) { setFileImportLoading(false); return; }
+      const asset = result.assets[0];
+      const { readAsStringAsync, EncodingType } = (await import("expo-file-system")) as any;
+      const base64 = await readAsStringAsync(asset.uri, { encoding: EncodingType.Base64 });
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(base64, { type: "base64" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      const isHeader = (r: any[]) => !r[0] || isNaN(parseFloat(String(r[1]).replace(",", ".")));
+      const parsed = raw
+        .filter((r, i) => !(i === 0 && isHeader(r)) && r[0] && !isNaN(parseFloat(String(r[1]).replace(",", "."))))
+        .map(r => ({
+          name: String(r[0]).trim(),
+          price: parseFloat(String(r[1]).replace(",", ".")),
+          nameAr: r[2] ? String(r[2]).trim() : undefined,
+          unit: r[3] ? String(r[3]).trim() : undefined,
+          category: r[4] ? String(r[4]).trim() : undefined,
+          notes: r[5] ? String(r[5]).trim() : undefined,
+        }));
+      if (parsed.length === 0) {
+        Alert.alert(isRTL ? "لا توجد بيانات" : "Aucune donnée", isRTL ? "تحقق من تنسيق الملف:\nعمود A=اسم، B=سعر، C=عربي، D=وحدة، E=فئة" : "Vérifiez le format:\nCol A=Nom, B=Prix, C=NomAr, D=Unité, E=Catégorie");
+        setFileImportLoading(false); return;
+      }
+      setExcelRows(parsed);
+      setShowFileImportModal(true);
+    } catch {
+      Alert.alert(isRTL ? "خطأ في قراءة الملف" : "Erreur de lecture", isRTL ? "تأكد أن الملف بصيغة Excel (.xlsx/.xls) أو CSV" : "Assurez-vous que le fichier est en format Excel (.xlsx/.xls) ou CSV");
+    } finally {
+      setFileImportLoading(false);
+    }
+  };
+
+  const confirmFileImport = () => {
+    if (excelRows.length === 0) return;
+    Alert.alert(
+      isRTL ? "تأكيد الاستيراد" : "Confirmer l'import",
+      isRTL ? `سيتم إضافة ${excelRows.length} دواء إلى قاعدة البيانات` : `${excelRows.length} médicaments seront ajoutés à la base de données`,
+      [
+        { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+        { text: isRTL ? "استيراد" : "Importer", onPress: () => bulkImportMutation.mutate(excelRows) },
+      ]
+    );
+  };
+
+  const handleClearAllPrices = () => {
+    Alert.alert(
+      isRTL ? "مسح جميع الأدوية" : "Effacer tous les médicaments",
+      isRTL ? "سيتم حذف جميع بيانات الأسعار نهائياً. هل أنت متأكد؟" : "Toutes les données de prix seront supprimées définitivement. Confirmer ?",
+      [
+        { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+        { text: isRTL ? "مسح الكل" : "Tout effacer", style: "destructive", onPress: () => clearAllPricesMutation.mutate() },
+      ]
+    );
   };
 
   const respondMutation = useMutation({
@@ -1572,14 +1661,22 @@ export default function AdminScreen() {
             isAddTab ? (
               activeTab === "prices" ? (
                 <View>
-                  <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+                  <View style={{ flexDirection: "row", gap: 8, marginBottom: 6 }}>
                     <TouchableOpacity style={[styles.addBtn, { flex: 1 }]} onPress={() => { openAddPrice(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} activeOpacity={0.85}>
-                      <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                      <Text style={styles.addBtnText}>{isRTL ? "إضافة دواء" : "Ajouter un médicament"}</Text>
+                      <Ionicons name="add-circle-outline" size={18} color="#fff" />
+                      <Text style={styles.addBtnText}>{isRTL ? "إضافة دواء" : "Ajouter"}</Text>
                     </TouchableOpacity>
+                    <TouchableOpacity style={[styles.addBtn, { flex: 1, backgroundColor: "#059669" }]} onPress={pickAndParseExcel} disabled={fileImportLoading} activeOpacity={0.85}>
+                      {fileImportLoading ? <ActivityIndicator color="#fff" size="small" /> : <><MaterialCommunityIcons name="file-excel-outline" size={18} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "رفع ملف" : "Importer fichier"}</Text></>}
+                    </TouchableOpacity>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
                     <TouchableOpacity style={[styles.addBtn, { flex: 1, backgroundColor: Colors.accent }]} onPress={() => setShowImportModal(true)} activeOpacity={0.85}>
-                      <Ionicons name="cloud-upload-outline" size={20} color="#fff" />
+                      <Ionicons name="code-outline" size={18} color="#fff" />
                       <Text style={styles.addBtnText}>{isRTL ? "استيراد CSV" : "Import CSV"}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.addBtn, { flex: 1, backgroundColor: Colors.danger }]} onPress={handleClearAllPrices} disabled={clearAllPricesMutation.isPending} activeOpacity={0.85}>
+                      {clearAllPricesMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><MaterialCommunityIcons name="delete-sweep-outline" size={18} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "مسح الكل" : "Tout effacer"}</Text></>}
                     </TouchableOpacity>
                   </View>
                   <View style={styles.searchBarWrap}>
@@ -1997,6 +2094,55 @@ export default function AdminScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* File (Excel/CSV) Import Preview Modal */}
+      <Modal visible={showFileImportModal} transparent animationType="slide" onRequestClose={() => { setShowFileImportModal(false); setExcelRows([]); }}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: "80%" }]}>
+            <View style={styles.modalHandle} />
+            <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>
+              {isRTL ? "معاينة الملف المستورد" : "Aperçu du fichier importé"}
+            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#059669" + "15", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+              <MaterialCommunityIcons name="file-excel-box" size={28} color="#059669" />
+              <View style={{ flex: 1 }}>
+                <Text style={[{ fontFamily: "Inter_700Bold", fontSize: 15, color: "#059669" }, isRTL && styles.rtlText]}>
+                  {isRTL ? `${excelRows.length} دواء جاهز للاستيراد` : `${excelRows.length} médicaments prêts à importer`}
+                </Text>
+                <Text style={[{ fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 }, isRTL && styles.rtlText]}>
+                  {isRTL ? "سيتم إضافتها إلى قاعدة بيانات الأسعار" : "Seront ajoutés à la base de données des prix"}
+                </Text>
+              </View>
+            </View>
+            <ScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator={false}>
+              {excelRows.slice(0, 20).map((row, i) => (
+                <View key={i} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: Colors.light.border, gap: 8 }}>
+                  <Text style={{ width: 24, fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.light.textTertiary }}>{i + 1}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: Colors.light.text }} numberOfLines={1}>{row.name}</Text>
+                    {row.nameAr ? <Text style={{ fontFamily: "Inter_400Regular", fontSize: 11, color: Colors.light.textSecondary, textAlign: "right" }}>{row.nameAr}</Text> : null}
+                  </View>
+                  <View style={{ backgroundColor: Colors.primary + "18", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                    <Text style={{ fontFamily: "Inter_700Bold", fontSize: 12, color: Colors.primary }}>{row.price} MRU</Text>
+                  </View>
+                  {row.unit ? <Text style={{ fontFamily: "Inter_400Regular", fontSize: 11, color: Colors.light.textSecondary }}>{row.unit}</Text> : null}
+                </View>
+              ))}
+              {excelRows.length > 20 && (
+                <Text style={{ fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.light.textTertiary, textAlign: "center", paddingVertical: 10 }}>
+                  {isRTL ? `... و ${excelRows.length - 20} دواء آخر` : `... et ${excelRows.length - 20} autres médicaments`}
+                </Text>
+              )}
+            </ScrollView>
+            <TouchableOpacity style={[styles.sendButton, { marginTop: 16 }]} onPress={confirmFileImport} disabled={bulkImportMutation.isPending} activeOpacity={0.85}>
+              {bulkImportMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><MaterialCommunityIcons name="database-import-outline" size={18} color="#fff" /><Text style={styles.sendButtonText}>{isRTL ? `استيراد ${excelRows.length} دواء` : `Importer ${excelRows.length} médicaments`}</Text></>}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cancelButton} onPress={() => { setShowFileImportModal(false); setExcelRows([]); }} activeOpacity={0.7}>
+              <Text style={styles.cancelText}>{isRTL ? "إلغاء" : "Annuler"}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* CSV Import Modal */}

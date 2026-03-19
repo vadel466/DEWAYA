@@ -137,6 +137,18 @@ router.put("/:id", async (req, res) => {
   }
 });
 
+router.delete("/clear-all", async (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: "Forbidden" });
+  try {
+    const { count } = await db.select({ count: sql`count(*)` }).from(drugPricesTable).then(r => ({ count: Number((r[0] as any).count) }));
+    await db.delete(drugPricesTable);
+    return res.json({ deleted: count });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
 router.delete("/:id", async (req, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: "Forbidden" });
   try {

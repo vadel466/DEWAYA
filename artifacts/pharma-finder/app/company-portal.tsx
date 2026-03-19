@@ -8,6 +8,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { DewyaBrand } from "@/components/DewyaBrand";
@@ -28,7 +30,7 @@ type CompanyOrder = {
   type: string; status: string; companyResponse: string | null; respondedAt: string | null; createdAt: string;
   attachmentData: string | null; attachmentType: string | null; attachmentName: string | null;
 };
-type InventoryItem = { id: string; companyId: string; companyName: string; drugName: string; price: number | null; unit: string | null; notes: string | null; isAd: boolean; createdAt: string };
+type InventoryItem = { id: string; companyId: string; companyName: string; drugName: string; price: number | null; unit: string | null; notes: string | null; isAd: boolean; createdAt: string; attachmentData: string | null; attachmentType: string | null; attachmentName: string | null };
 
 type CompanyTab = "orders" | "inventory" | "announcements";
 
@@ -63,6 +65,7 @@ export default function CompanyPortalScreen() {
   const [invNotes, setInvNotes] = useState("");
   const [invIsAd, setInvIsAd] = useState(false);
   const [invSaving, setInvSaving] = useState(false);
+  const [invAttachment, setInvAttachment] = useState<{ data: string; type: string; name: string } | null>(null);
 
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [showRespondModal, setShowRespondModal] = useState(false);
@@ -150,6 +153,52 @@ export default function CompanyPortalScreen() {
     } catch {} finally { setRespondingId(null); }
   };
 
+  const pickInvImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") { Alert.alert(isRTL ? "مطلوب إذن الصور" : "Permission galerie requise"); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.7, base64: true,
+      });
+      if (!result.canceled && result.assets[0].base64) {
+        const asset = result.assets[0];
+        const mimeType = asset.mimeType || "image/jpeg";
+        const ext = mimeType.split("/")[1] || "jpg";
+        setInvAttachment({ data: asset.base64!, type: mimeType, name: `photo.${ext}` });
+      }
+    } catch {}
+  };
+
+  const pickInvCamera = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") { Alert.alert(isRTL ? "مطلوب إذن الكاميرا" : "Permission caméra requise"); return; }
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.7, base64: true });
+      if (!result.canceled && result.assets[0].base64) {
+        const asset = result.assets[0];
+        const mimeType = asset.mimeType || "image/jpeg";
+        const ext = mimeType.split("/")[1] || "jpg";
+        setInvAttachment({ data: asset.base64!, type: mimeType, name: `photo.${ext}` });
+      }
+    } catch {}
+  };
+
+  const pickInvDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/pdf", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        const { FileSystem } = await import("expo-file-system");
+        const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+        setInvAttachment({ data: base64, type: asset.mimeType || "application/pdf", name: asset.name });
+      }
+    } catch {}
+  };
+
   const handleAddInventory = async () => {
     if (!company || !invDrug.trim()) return;
     setInvSaving(true);
@@ -161,11 +210,15 @@ export default function CompanyPortalScreen() {
           companyId: company.id, companyName: company.nameAr || company.name,
           drugName: invDrug.trim(), price: invPrice.trim() || null, unit: invUnit.trim() || null,
           notes: invNotes.trim() || null, isAd: invIsAd,
+          attachmentData: invAttachment?.data || null,
+          attachmentType: invAttachment?.type || null,
+          attachmentName: invAttachment?.name || null,
         }),
       });
       if (resp.ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setInvDrug(""); setInvPrice(""); setInvUnit(""); setInvNotes(""); setInvIsAd(false);
+        setInvAttachment(null);
         setShowInvModal(false);
         if (activeTab === "inventory") fetchInventory();
         else if (activeTab === "announcements") fetchAnnouncements();
@@ -466,6 +519,15 @@ export default function CompanyPortalScreen() {
                       <Ionicons name="trash-outline" size={18} color={Colors.danger} />
                     </TouchableOpacity>
                   </View>
+                  {item.attachmentData && item.attachmentType?.startsWith("image/") && (
+                    <Image source={{ uri: `data:${item.attachmentType};base64,${item.attachmentData}` }} style={styles.invAttachImg} resizeMode="cover" />
+                  )}
+                  {item.attachmentData && !item.attachmentType?.startsWith("image/") && (
+                    <View style={styles.invAttachFile}>
+                      <MaterialCommunityIcons name={item.attachmentType?.includes("pdf") ? "file-pdf-box" : "file-excel-box"} size={22} color={item.attachmentType?.includes("pdf") ? "#E53E3E" : "#38A169"} />
+                      <Text style={styles.invAttachFileName} numberOfLines={1}>{item.attachmentName}</Text>
+                    </View>
+                  )}
                   <Text style={styles.invTime}>{fmt(item.createdAt, language)}</Text>
                 </View>
               )}
@@ -552,6 +614,38 @@ export default function CompanyPortalScreen() {
                   placeholder={isRTL ? "ملاحظات إضافية..." : "Notes supplémentaires..."} placeholderTextColor={Colors.light.textTertiary}
                   multiline numberOfLines={2} textAlign={isRTL ? "right" : "left"} />
               </View>
+              <View style={styles.formGroup}>
+                <Text style={[styles.label, isRTL && styles.rtlText]}>{isRTL ? "مرفق (صورة / PDF / Excel)" : "Pièce jointe (image / PDF / Excel)"}</Text>
+                <View style={[styles.attachBtnRow, isRTL && styles.rtlRow]}>
+                  <TouchableOpacity style={styles.attachBtn} onPress={pickInvCamera} activeOpacity={0.8}>
+                    <Ionicons name="camera-outline" size={18} color={COMPANY_COLOR} />
+                    <Text style={[styles.attachBtnText, { color: COMPANY_COLOR }]}>{isRTL ? "كاميرا" : "Caméra"}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.attachBtn} onPress={pickInvImage} activeOpacity={0.8}>
+                    <Ionicons name="image-outline" size={18} color={COMPANY_COLOR} />
+                    <Text style={[styles.attachBtnText, { color: COMPANY_COLOR }]}>{isRTL ? "صورة" : "Image"}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.attachBtn} onPress={pickInvDocument} activeOpacity={0.8}>
+                    <Ionicons name="document-attach-outline" size={18} color={COMPANY_COLOR} />
+                    <Text style={[styles.attachBtnText, { color: COMPANY_COLOR }]}>{isRTL ? "ملف" : "Fichier"}</Text>
+                  </TouchableOpacity>
+                </View>
+                {invAttachment && (
+                  <View style={styles.attachPreviewRow}>
+                    {invAttachment.type.startsWith("image/") ? (
+                      <Image source={{ uri: `data:${invAttachment.type};base64,${invAttachment.data}` }} style={styles.attachPreviewImg} resizeMode="cover" />
+                    ) : (
+                      <View style={styles.attachFileRow}>
+                        <MaterialCommunityIcons name={invAttachment.type.includes("pdf") ? "file-pdf-box" : "file-excel-box"} size={28} color={invAttachment.type.includes("pdf") ? "#E53E3E" : "#38A169"} />
+                        <Text style={styles.attachFileName} numberOfLines={1}>{invAttachment.name}</Text>
+                      </View>
+                    )}
+                    <TouchableOpacity onPress={() => setInvAttachment(null)} style={styles.attachRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="close-circle" size={20} color={Colors.danger} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
               <TouchableOpacity style={styles.typeToggle} onPress={() => setInvIsAd(!invIsAd)} activeOpacity={0.8}>
                 <View style={[styles.typeToggleCheck, invIsAd && { backgroundColor: Colors.warning, borderColor: Colors.warning }]}>
                   {invIsAd && <Ionicons name="checkmark" size={12} color="#fff" />}
@@ -565,7 +659,7 @@ export default function CompanyPortalScreen() {
                   onPress={handleAddInventory} disabled={!invDrug.trim() || invSaving} activeOpacity={0.85}>
                   {invSaving ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="add" size={16} color="#fff" /><Text style={styles.sendBtnText}>{isRTL ? "حفظ" : "Enregistrer"}</Text></>}
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowInvModal(false)} activeOpacity={0.7}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowInvModal(false); setInvAttachment(null); }} activeOpacity={0.7}>
                   <Text style={styles.cancelBtnText}>{isRTL ? "إلغاء" : "Annuler"}</Text>
                 </TouchableOpacity>
               </View>
@@ -688,4 +782,17 @@ const styles = StyleSheet.create({
   b2bExplainBanner: { backgroundColor: COMPANY_COLOR + "0C", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: COMPANY_COLOR + "25", gap: 5 },
   b2bTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: COMPANY_COLOR },
   b2bSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, lineHeight: 17 },
+
+  attachBtnRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  attachBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: 10, paddingVertical: 9, borderWidth: 1.5, borderColor: COMPANY_COLOR + "50", backgroundColor: COMPANY_COLOR + "08" },
+  attachBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  attachPreviewRow: { position: "relative", marginBottom: 4 },
+  attachPreviewImg: { width: "100%", height: 130, borderRadius: 10 },
+  attachFileRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: Colors.light.inputBackground, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: Colors.light.border },
+  attachFileName: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.light.text },
+  attachRemove: { position: "absolute", top: 6, right: 6, backgroundColor: "#fff", borderRadius: 12 },
+
+  invAttachImg: { width: "100%", height: 140, borderRadius: 10, marginTop: 8, marginBottom: 2 },
+  invAttachFile: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: Colors.light.inputBackground, borderRadius: 10, padding: 8, marginTop: 6, marginBottom: 2, borderWidth: 1, borderColor: Colors.light.border },
+  invAttachFileName: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary },
 });

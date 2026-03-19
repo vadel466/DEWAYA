@@ -109,7 +109,7 @@ router.post("/orders/:id/respond", async (req, res) => {
 
 router.post("/inventory", async (req, res) => {
   try {
-    const { companyId, companyName, drugName, price, unit, notes, isAd } = req.body;
+    const { companyId, companyName, drugName, price, unit, notes, isAd, attachmentData, attachmentType, attachmentName } = req.body;
     if (!companyId || !companyName || !drugName) { res.status(400).json({ error: "Champs requis" }); return; }
 
     const authorized = isAdmin(req) || await validateCompanyCode(req, companyId);
@@ -121,6 +121,9 @@ router.post("/inventory", async (req, res) => {
       drugName: drugName.trim(), drugNameLower: drugName.trim().toLowerCase(),
       price: price ? Number(price) : null, unit: unit || null,
       notes: notes || null, isAd: !!isAd,
+      attachmentData: attachmentData || null,
+      attachmentType: attachmentType || null,
+      attachmentName: attachmentName || null,
     }).returning();
     res.status(201).json(serializeInventory(item));
   } catch (err) {

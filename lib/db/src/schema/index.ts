@@ -278,6 +278,9 @@ export const companyInventoryTable = pgTable("company_inventory", {
   notes: text("notes"),
   isAd: boolean("is_ad").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
+  attachmentData: text("attachment_data"),
+  attachmentType: text("attachment_type"),
+  attachmentName: text("attachment_name"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("company_inventory_drug_name_lower_idx").on(table.drugNameLower),

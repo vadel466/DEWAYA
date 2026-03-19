@@ -51,6 +51,7 @@ export default function HomeScreen() {
   const [regionQuery, setRegionQuery] = useState("");
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [showImgMenu, setShowImgMenu] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
 
   const [showAdminPinModal, setShowAdminPinModal] = useState(false);
   const [adminPinInput, setAdminPinInput] = useState("");
@@ -423,6 +424,8 @@ export default function HomeScreen() {
                 returnKeyType="search"
                 onSubmitEditing={handleSearch}
                 editable={!capturedImage}
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)}
               />
               {drugName.length > 0 && !capturedImage && (
                 <TouchableOpacity onPress={() => setDrugName("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -449,6 +452,21 @@ export default function HomeScreen() {
               <Ionicons name="camera" size={20} color={Colors.primary} />
             </TouchableOpacity>
           </View>
+
+          {/* Search hint — shown when input is focused and empty */}
+          {inputFocused && !drugName && !capturedImage && (
+            <View style={[styles.searchHintRow, isRTL && styles.rowReverse]}>
+              <View style={styles.searchHintItem}>
+                <Ionicons name="create-outline" size={14} color={Colors.primary} />
+                <Text style={styles.searchHintText}>{isRTL ? "اكتب اسم دوائك" : "Tapez le nom"}</Text>
+              </View>
+              <Text style={styles.searchHintOr}>{isRTL ? "أو" : "ou"}</Text>
+              <View style={styles.searchHintItem}>
+                <Ionicons name="camera-outline" size={14} color={Colors.primary} />
+                <Text style={styles.searchHintText}>{isRTL ? "ارفع صورته" : "Prenez une photo"}</Text>
+              </View>
+            </View>
+          )}
 
           {error && <Text style={styles.errorText}>{error}</Text>}
 
@@ -485,6 +503,9 @@ export default function HomeScreen() {
             <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
               {t("nearestPharmacyDesc")}
             </Text>
+            <View style={[styles.cardChevron, { backgroundColor: Colors.primary + "18" }]}>
+              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color={Colors.primary} />
+            </View>
           </TouchableOpacity>
 
         </View>
@@ -511,6 +532,9 @@ export default function HomeScreen() {
             <Text style={[styles.cardDesc, { marginRight: 84 }, isRTL && styles.textRight]} numberOfLines={2}>
               {t("findDoctorDesc")}
             </Text>
+            <View style={[styles.cardChevron, { backgroundColor: DOCTOR_BLUE + "18" }]}>
+              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color={DOCTOR_BLUE} />
+            </View>
           </TouchableOpacity>
 
           {/* صيدليات المداومة وسعر الدواء */}
@@ -525,6 +549,9 @@ export default function HomeScreen() {
             <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
               {t("dutyAndPriceDesc")}
             </Text>
+            <View style={[styles.cardChevron, { backgroundColor: DUTY_RED + "18" }]}>
+              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color={DUTY_RED} />
+            </View>
           </TouchableOpacity>
         </View>
       </View>
@@ -1110,9 +1137,9 @@ const styles = StyleSheet.create({
     padding: 12,
     overflow: "hidden",
     justifyContent: "flex-end",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
-    borderWidth: 1, borderColor: "rgba(0,0,0,0.04)",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.13, shadowRadius: 8, elevation: 5,
+    borderWidth: 1.2, borderColor: "rgba(0,0,0,0.08)",
   },
   cardAccent: {
     position: "absolute", top: 0, left: 0, width: 4,
@@ -1140,6 +1167,42 @@ const styles = StyleSheet.create({
     width: 78,
     height: 78,
     opacity: 0.95,
+  },
+  cardChevron: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  /* SEARCH HINT */
+  searchHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginTop: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    backgroundColor: Colors.primary + "0D",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.primary + "22",
+  },
+  searchHintItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  searchHintText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: Colors.primary,
+  },
+  searchHintOr: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: Colors.light.textTertiary,
   },
 
   /* REGION PICKER */

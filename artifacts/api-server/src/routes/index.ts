@@ -4,6 +4,7 @@ import requestsRouter from "./requests";
 import notificationsRouter from "./notifications";
 import pharmaciesRouter from "./pharmacies";
 import dutyPharmaciesRouter from "./duty-pharmacies";
+import dutyImagesRouter from "./duty-images";
 import pharmacyPortalRouter from "./pharmacy-portal";
 import drugPricesRouter from "./drug-prices";
 
@@ -14,6 +15,7 @@ router.use("/requests", requestsRouter);
 router.use("/notifications", notificationsRouter);
 router.use("/pharmacies", pharmaciesRouter);
 router.use("/duty-pharmacies", dutyPharmaciesRouter);
+router.use("/duty-images", dutyImagesRouter);
 router.use("/pharmacy-portal", pharmacyPortalRouter);
 router.use("/drug-prices", drugPricesRouter);
 

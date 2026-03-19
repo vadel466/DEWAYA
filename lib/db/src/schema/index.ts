@@ -86,6 +86,20 @@ export const insertPharmacyResponseSchema = createInsertSchema(pharmacyResponses
 export type InsertPharmacyResponse = z.infer<typeof insertPharmacyResponseSchema>;
 export type PharmacyResponse = typeof pharmacyResponsesTable.$inferSelect;
 
+export const dutyImagesTable = pgTable("duty_images", {
+  id: text("id").primaryKey(),
+  region: text("region").notNull(),
+  imageData: text("image_data").notNull(),
+  mimeType: text("mime_type").notNull().default("image/jpeg"),
+  caption: text("caption"),
+  isActive: boolean("is_active").notNull().default(true),
+  uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
+});
+
+export const insertDutyImageSchema = createInsertSchema(dutyImagesTable).omit({ uploadedAt: true });
+export type InsertDutyImage = z.infer<typeof insertDutyImageSchema>;
+export type DutyImage = typeof dutyImagesTable.$inferSelect;
+
 export const drugPricesTable = pgTable("drug_prices", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),

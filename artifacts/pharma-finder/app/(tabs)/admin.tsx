@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Alert,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -47,11 +48,6 @@ type Pharmacy = {
   phone: string; lat: number | null; lon: number | null;
   region: string | null; portalPin: string | null; isActive: boolean;
 };
-type DutyPharmacy = {
-  id: string; pharmacyName: string; pharmacyAddress: string;
-  pharmacyPhone: string; region: string; date: string;
-  scheduleText: string | null; notes: string | null; isActive: boolean;
-};
 type PortalResponse = {
   id: string; requestId: string; pharmacyName: string;
   pharmacyAddress: string; pharmacyPhone: string;
@@ -69,10 +65,7 @@ function formatTime(dateStr: string, lang = "ar") {
   });
 }
 
-function todayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+
 
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
@@ -97,12 +90,13 @@ export default function AdminScreen() {
   const [pLon, setPLon] = useState(""); const [pRegion, setPRegion] = useState("");
   const [pPin, setPPin] = useState("");
 
-  const [showDutyModal, setShowDutyModal] = useState(false);
-  const [editingDuty, setEditingDuty] = useState<DutyPharmacy | null>(null);
-  const [dName, setDName] = useState(""); const [dAddress, setDAddress] = useState("");
-  const [dPhone, setDPhone] = useState(""); const [dRegion, setDRegion] = useState("");
-  const [dDate, setDDate] = useState(todayStr());
-  const [dSchedule, setDSchedule] = useState(""); const [dNotes, setDNotes] = useState("");
+  const [selectedAdminDutyRegion, setSelectedAdminDutyRegion] = useState<import("@/constants/duty-regions").DutyRegion | null>(null);
+  const [showDutyImagesModal, setShowDutyImagesModal] = useState(false);
+  const [showDutyUploadModal, setShowDutyUploadModal] = useState(false);
+  const [uploadCaption, setUploadCaption] = useState("");
+  const [uploadBase64, setUploadBase64] = useState("");
+  const [uploadMimeType, setUploadMimeType] = useState("image/jpeg");
+  const [pickingImage, setPickingImage] = useState(false);
 
   const [selectedPortalResponse, setSelectedPortalResponse] = useState<PortalResponse | null>(null);
   const [showPortalModal, setShowPortalModal] = useState(false);
@@ -137,10 +131,13 @@ export default function AdminScreen() {
     enabled: isAdmin && activeTab === "pharmacies",
   });
 
-  const { data: dutyList = [], isLoading: dutyLoading, refetch: refetchDuty, isRefetching: dutyRefetching } = useQuery<DutyPharmacy[]>({
-    queryKey: ["admin-duty"],
-    queryFn: async () => { const r = await fetch(`${API_BASE}/duty-pharmacies/all`); if (!r.ok) throw new Error(); return r.json(); },
-    enabled: isAdmin && activeTab === "duty",
+  const { data: dutyRegionImages = [], isLoading: dutyImgLoading, refetch: refetchDutyImages, isRefetching: dutyImgRefetching } = useQuery<{ id: string; region: string; mimeType: string; caption: string | null; isActive: boolean; uploadedAt: string }[]>({
+    queryKey: ["admin-duty-images", selectedAdminDutyRegion?.id],
+    queryFn: async () => {
+      const r = await fetch(`${API_BASE}/duty-images/${selectedAdminDutyRegion!.id}`);
+      if (!r.ok) throw new Error(); return r.json();
+    },
+    enabled: isAdmin && !!selectedAdminDutyRegion && showDutyImagesModal,
   });
 
   const { data: portalResponses = [], isLoading: portalLoading, refetch: refetchPortal, isRefetching: portalRefetching } = useQuery<PortalResponse[]>({
@@ -285,25 +282,48 @@ export default function AdminScreen() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-pharmacies"] }); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); },
   });
 
-  const saveDutyMutation = useMutation({
+  const uploadDutyImageMutation = useMutation({
     mutationFn: async () => {
-      const body = { pharmacyName: dName, pharmacyAddress: dAddress, pharmacyPhone: dPhone, region: dRegion, date: dDate, scheduleText: dSchedule || undefined, notes: dNotes || undefined };
-      if (editingDuty) {
-        const r = await fetch(`${API_BASE}/duty-pharmacies/${editingDuty.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-        if (!r.ok) throw new Error(); return r.json();
-      } else {
-        const r = await fetch(`${API_BASE}/duty-pharmacies`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-        if (!r.ok) throw new Error(); return r.json();
-      }
+      if (!selectedAdminDutyRegion || !uploadBase64) throw new Error("No image selected");
+      const r = await fetch(`${API_BASE}/duty-images`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+        body: JSON.stringify({ region: selectedAdminDutyRegion.id, imageData: uploadBase64, mimeType: uploadMimeType, caption: uploadCaption.trim() || null }),
+      });
+      if (!r.ok) throw new Error(); return r.json();
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-duty"] }); setShowDutyModal(false); resetDutyForm(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); },
-    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "حدث خطأ" : "Une erreur"),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-duty-images", selectedAdminDutyRegion?.id] });
+      setShowDutyUploadModal(false);
+      setUploadBase64(""); setUploadCaption(""); setUploadMimeType("image/jpeg");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل رفع الصورة" : "Échec du téléchargement"),
   });
 
-  const deleteDutyMutation = useMutation({
-    mutationFn: async (id: string) => { const r = await fetch(`${API_BASE}/duty-pharmacies/${id}`, { method: "DELETE" }); if (!r.ok) throw new Error(); },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-duty"] }); },
+  const deleteDutyImageMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`${API_BASE}/duty-images/${id}`, { method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET } });
+      if (!r.ok) throw new Error();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-duty-images", selectedAdminDutyRegion?.id] }),
   });
+
+  const pickDutyImage = async () => {
+    setPickingImage(true);
+    try {
+      const { launchImageLibraryAsync, MediaTypeOptions } = await import("expo-image-picker");
+      const result = await launchImageLibraryAsync({ mediaTypes: MediaTypeOptions.Images, quality: 0.7, base64: true, allowsEditing: false });
+      if (!result.canceled && result.assets?.[0]?.base64) {
+        setUploadBase64(result.assets[0].base64);
+        const uri = result.assets[0].uri ?? "";
+        setUploadMimeType(uri.endsWith(".png") ? "image/png" : "image/jpeg");
+      }
+    } catch {
+    } finally {
+      setPickingImage(false);
+    }
+  };
 
   const usePortalResponseMutation = useMutation({
     mutationFn: async ({ portalRes, requestId }: { portalRes: PortalResponse; requestId: string }) => {
@@ -322,13 +342,9 @@ export default function AdminScreen() {
   });
 
   const resetPharmacyForm = () => { setPName(""); setPNameAr(""); setPAddress(""); setPAddressAr(""); setPPhone(""); setPLat(""); setPLon(""); setPRegion(""); setPPin(""); setEditingPharmacy(null); };
-  const resetDutyForm = () => { setDName(""); setDAddress(""); setDPhone(""); setDRegion(""); setDDate(todayStr()); setDSchedule(""); setDNotes(""); setEditingDuty(null); };
 
   const openEditPharmacy = (p: Pharmacy) => {
     setEditingPharmacy(p); setPName(p.name); setPNameAr(p.nameAr ?? ""); setPAddress(p.address); setPAddressAr(p.addressAr ?? ""); setPPhone(p.phone); setPLat(p.lat ? String(p.lat) : ""); setPLon(p.lon ? String(p.lon) : ""); setPRegion(p.region ?? ""); setPPin(p.portalPin ?? ""); setShowPharmacyModal(true);
-  };
-  const openEditDuty = (d: DutyPharmacy) => {
-    setEditingDuty(d); setDName(d.pharmacyName); setDAddress(d.pharmacyAddress); setDPhone(d.pharmacyPhone); setDRegion(d.region); setDDate(d.date); setDSchedule(d.scheduleText ?? ""); setDNotes(d.notes ?? ""); setShowDutyModal(true);
   };
 
   const confirmDelete = (title: string, onConfirm: () => void) => {
@@ -384,7 +400,6 @@ export default function AdminScreen() {
   const isLoading =
     activeTab === "payments" ? payLoading :
     activeTab === "pharmacies" ? pharmaLoading :
-    activeTab === "duty" ? dutyLoading :
     activeTab === "portal" ? portalLoading :
     activeTab === "prices" ? priceLoading :
     reqLoading;
@@ -392,7 +407,6 @@ export default function AdminScreen() {
   const isRefetching =
     activeTab === "payments" ? payRefetching :
     activeTab === "pharmacies" ? pharmaRefetching :
-    activeTab === "duty" ? dutyRefetching :
     activeTab === "portal" ? portalRefetching :
     activeTab === "prices" ? priceRefetching :
     reqRefetching;
@@ -400,7 +414,6 @@ export default function AdminScreen() {
   const onRefresh = () => {
     if (activeTab === "payments") refetchPay();
     else if (activeTab === "pharmacies") refetchPharma();
-    else if (activeTab === "duty") refetchDuty();
     else if (activeTab === "portal") refetchPortal();
     else if (activeTab === "prices") refetchPrices();
     else refetchReq();
@@ -517,29 +530,37 @@ export default function AdminScreen() {
     </View>
   );
 
-  const renderDuty = ({ item }: { item: DutyPharmacy }) => (
-    <View style={styles.pharmCard}>
-      <View style={[styles.cardRow, isRTL && styles.rtlRow]}>
-        <View style={[styles.requestIcon, { backgroundColor: "#DC354514" }]}>
-          <MaterialCommunityIcons name="hospital-building" size={22} color="#DC3545" />
-        </View>
-        <View style={[styles.requestInfo, isRTL && styles.rtlInfo]}>
-          <Text style={[styles.drugName, isRTL && styles.rtlText]}>{item.pharmacyName}</Text>
-          <Text style={[styles.userId, isRTL && styles.rtlText]}>{item.pharmacyPhone}</Text>
-          <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{item.date} — {item.region}</Text>
-          {item.scheduleText && <Text style={[styles.userId, isRTL && styles.rtlText]}>{item.scheduleText}</Text>}
-        </View>
-        <View style={styles.actionIcons}>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => openEditDuty(item)} activeOpacity={0.8}>
-            <Ionicons name="create-outline" size={18} color={Colors.primary} />
+  const renderDutyAdminRegions = () => {
+    const { DUTY_REGIONS } = require("@/constants/duty-regions");
+    return (
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 10 }}>
+        {DUTY_REGIONS.map((r: import("@/constants/duty-regions").DutyRegion) => (
+          <TouchableOpacity
+            key={r.id}
+            style={styles.dutyRegionRow}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setSelectedAdminDutyRegion(r);
+              setShowDutyImagesModal(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.dutyRegionIcon]}>
+              <MaterialCommunityIcons name="hospital-building" size={20} color="#DC3545" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.drugName, isRTL && styles.rtlText]}>{isRTL ? r.ar : r.fr}</Text>
+              <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{isRTL ? r.fr : r.ar}</Text>
+            </View>
+            <View style={styles.dutyRegionBadge}>
+              <Ionicons name="images-outline" size={16} color="#DC3545" />
+            </View>
+            <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={18} color={Colors.light.textTertiary} />
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: Colors.danger + "10" }]} onPress={() => confirmDelete(isRTL ? "حذف هذا الإدخال؟" : "Supprimer cet entrée?", () => deleteDutyMutation.mutate(item.id))} activeOpacity={0.8}>
-            <Ionicons name="trash-outline" size={18} color={Colors.danger} />
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
+        ))}
+      </ScrollView>
+    );
+  };
 
   const renderDrugPrice = ({ item }: { item: DrugPrice }) => (
     <View style={styles.requestCard}>
@@ -569,13 +590,12 @@ export default function AdminScreen() {
     </View>
   );
 
-  const isAddTab = activeTab === "pharmacies" || activeTab === "duty" || activeTab === "prices";
+  const isAddTab = activeTab === "pharmacies" || activeTab === "prices";
   const currentData: any[] =
     activeTab === "pending" ? pendingRequests :
     activeTab === "responded" ? respondedRequests :
     activeTab === "payments" ? pendingPayments :
     activeTab === "pharmacies" ? pharmacies :
-    activeTab === "duty" ? dutyList :
     activeTab === "prices" ? filteredDrugPrices :
     portalResponses;
 
@@ -610,7 +630,7 @@ export default function AdminScreen() {
         ))}
       </ScrollView>
 
-      {isLoading ? (
+      {activeTab === "duty" ? renderDutyAdminRegions() : isLoading ? (
         <View style={styles.centered}><ActivityIndicator size="large" color={Colors.primary} /><Text style={styles.loadingText}>{t("loading")}</Text></View>
       ) : (
         <FlatList
@@ -618,7 +638,6 @@ export default function AdminScreen() {
           keyExtractor={(item) => item.id}
           renderItem={
             (activeTab === "pharmacies" ? renderPharmacy :
-            activeTab === "duty" ? renderDuty :
             activeTab === "payments" ? renderPayment :
             activeTab === "portal" ? renderPortalResponse :
             activeTab === "prices" ? renderDrugPrice :
@@ -662,11 +681,11 @@ export default function AdminScreen() {
               ) : (
                 <TouchableOpacity
                   style={styles.addBtn}
-                  onPress={() => { resetPharmacyForm(); resetDutyForm(); if (activeTab === "pharmacies") setShowPharmacyModal(true); else setShowDutyModal(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                  onPress={() => { resetPharmacyForm(); setShowPharmacyModal(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
                   activeOpacity={0.85}
                 >
                   <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                  <Text style={styles.addBtnText}>{activeTab === "pharmacies" ? (isRTL ? "إضافة صيدلية" : "Ajouter une pharmacie") : (isRTL ? "إضافة مداومة" : "Ajouter une garde")}</Text>
+                  <Text style={styles.addBtnText}>{isRTL ? "إضافة صيدلية" : "Ajouter une pharmacie"}</Text>
                 </TouchableOpacity>
               )
             ) : null
@@ -676,7 +695,6 @@ export default function AdminScreen() {
               <MaterialCommunityIcons name="inbox-remove-outline" size={64} color={Colors.light.textTertiary} />
               <Text style={[styles.emptyTitle, isRTL && styles.rtlText]}>
                 {activeTab === "pharmacies" ? (isRTL ? "لا توجد صيدليات مسجلة" : "Aucune pharmacie enregistrée") :
-                 activeTab === "duty" ? (isRTL ? "لا توجد مداومات" : "Aucune garde enregistrée") :
                  activeTab === "portal" ? (isRTL ? "لا توجد ردود من الصيدليات" : "Aucune réponse de pharmacie") :
                  activeTab === "prices" ? (isRTL ? "لا توجد أسعار مسجلة" : "Aucun médicament enregistré") :
                  t("noPendingRequests")}
@@ -807,46 +825,115 @@ export default function AdminScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Duty pharmacy add/edit modal */}
-      <Modal visible={showDutyModal} transparent animationType="slide" onRequestClose={() => setShowDutyModal(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalSheet}>
-              <View style={styles.modalHandle} />
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>
-                  {editingDuty ? (isRTL ? "تعديل مداومة" : "Modifier la garde") : (isRTL ? "إضافة صيدلية مداومة" : "Ajouter une pharmacie de garde")}
-                </Text>
-                {[
-                  { label: isRTL ? "اسم الصيدلية" : "Nom de la pharmacie", value: dName, setter: setDName, placeholder: isRTL ? "اسم الصيدلية..." : "Nom..." },
-                  { label: isRTL ? "العنوان" : "Adresse", value: dAddress, setter: setDAddress, placeholder: isRTL ? "العنوان..." : "Adresse..." },
-                  { label: isRTL ? "رقم الهاتف" : "Téléphone", value: dPhone, setter: setDPhone, placeholder: "XX XXX XXX", keyboardType: "phone-pad" as any },
-                  { label: isRTL ? "التاريخ (YYYY-MM-DD)" : "Date (YYYY-MM-DD)", value: dDate, setter: setDDate, placeholder: todayStr() },
-                  { label: isRTL ? "أوقات العمل" : "Horaires", value: dSchedule, setter: setDSchedule, placeholder: isRTL ? "8:00 - 22:00" : "8:00 - 22:00" },
-                  { label: isRTL ? "ملاحظات" : "Notes", value: dNotes, setter: setDNotes, placeholder: isRTL ? "ملاحظة..." : "Note..." },
-                ].map((field) => (
-                  <View key={field.label} style={styles.formGroup}>
-                    <Text style={[styles.label, isRTL && styles.rtlText]}>{field.label}</Text>
-                    <TextInput style={[styles.input, { marginHorizontal: 0 }, isRTL && styles.rtlInput]} placeholder={field.placeholder} placeholderTextColor={Colors.light.textTertiary} value={field.value} onChangeText={field.setter} textAlign={isRTL ? "right" : "left"} keyboardType={field.keyboardType} />
+      {/* Duty region images management modal */}
+      <Modal visible={showDutyImagesModal} transparent animationType="slide" onRequestClose={() => { setShowDutyImagesModal(false); setSelectedAdminDutyRegion(null); }}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: "80%" }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <Text style={[styles.modalTitle, { marginBottom: 0 }, isRTL && styles.rtlText]}>
+                {selectedAdminDutyRegion ? (isRTL ? selectedAdminDutyRegion.ar : selectedAdminDutyRegion.fr) : ""}
+              </Text>
+              <TouchableOpacity onPress={() => { setShowDutyImagesModal(false); setSelectedAdminDutyRegion(null); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={24} color={Colors.light.textTertiary} />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={[styles.addBtn, { backgroundColor: "#DC3545", marginBottom: 12 }]}
+              onPress={() => setShowDutyUploadModal(true)}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="cloud-upload-outline" size={20} color="#fff" />
+              <Text style={styles.addBtnText}>{isRTL ? "رفع صورة جديدة" : "Télécharger une image"}</Text>
+            </TouchableOpacity>
+            {dutyImgLoading ? (
+              <ActivityIndicator color="#DC3545" size="small" style={{ marginVertical: 20 }} />
+            ) : dutyRegionImages.length === 0 ? (
+              <View style={{ alignItems: "center", paddingVertical: 24, gap: 8 }}>
+                <Ionicons name="images-outline" size={40} color={Colors.light.textTertiary} />
+                <Text style={[styles.emptySub, isRTL && styles.rtlText]}>{isRTL ? "لا توجد صور لهذه المنطقة" : "Aucune image pour cette région"}</Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {dutyRegionImages.map((img) => (
+                  <View key={img.id} style={[styles.dutyImgRow, isRTL && styles.rtlRow]}>
+                    <View style={styles.dutyImgIconWrap}>
+                      <Ionicons name="image-outline" size={20} color="#DC3545" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.userId, isRTL && styles.rtlText]}>{img.caption || (isRTL ? "بدون وصف" : "Sans description")}</Text>
+                      <Text style={[styles.requestTime, isRTL && styles.rtlText]}>
+                        {new Date(img.uploadedAt).toLocaleDateString(isRTL ? "ar-SA" : "fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => Alert.alert(
+                        isRTL ? "حذف الصورة" : "Supprimer l'image",
+                        isRTL ? "هل تريد حذف هذه الصورة؟" : "Supprimer cette image ?",
+                        [{ text: isRTL ? "إلغاء" : "Annuler", style: "cancel" }, { text: isRTL ? "حذف" : "Supprimer", style: "destructive", onPress: () => deleteDutyImageMutation.mutate(img.id) }]
+                      )}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="trash-outline" size={20} color={Colors.danger} />
+                    </TouchableOpacity>
                   </View>
                 ))}
-                <View style={styles.formGroup}>
-                  <Text style={[styles.label, isRTL && styles.rtlText]}>{isRTL ? "المنطقة" : "Région"}</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
-                    {REGIONS.map((r) => (
-                      <TouchableOpacity key={r.id} style={[styles.regionChip, dRegion === r.id && styles.regionChipActive]} onPress={() => setDRegion(r.id)} activeOpacity={0.8}>
-                        <Text style={[styles.regionChipText, dRegion === r.id && { color: "#fff" }]}>{isRTL ? r.ar : r.fr}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-                <TouchableOpacity style={[styles.sendButton, (!dName || !dAddress || !dPhone || !dRegion || !dDate) && styles.sendButtonDisabled]} onPress={() => saveDutyMutation.mutate()} disabled={!dName || !dAddress || !dPhone || !dRegion || !dDate || saveDutyMutation.isPending} activeOpacity={0.85}>
-                  {saveDutyMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="save-outline" size={18} color="#fff" /><Text style={styles.sendButtonText}>{isRTL ? "حفظ" : "Enregistrer"}</Text></>}
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.cancelButton} onPress={() => setShowDutyModal(false)} activeOpacity={0.7}>
-                  <Text style={styles.cancelText}>{t("cancel")}</Text>
-                </TouchableOpacity>
               </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Duty image upload modal */}
+      <Modal visible={showDutyUploadModal} transparent animationType="slide" onRequestClose={() => { setShowDutyUploadModal(false); setUploadBase64(""); setUploadCaption(""); }}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>
+                {isRTL ? "رفع صورة مداومة" : "Télécharger une image de garde"}
+              </Text>
+              <TouchableOpacity
+                style={[styles.imagePicker, uploadBase64 && styles.imagePickerHasImg]}
+                onPress={pickDutyImage}
+                activeOpacity={0.8}
+                disabled={pickingImage}
+              >
+                {pickingImage ? (
+                  <ActivityIndicator color="#DC3545" size="large" />
+                ) : uploadBase64 ? (
+                  <View style={{ alignItems: "center", gap: 8 }}>
+                    <Image source={{ uri: `data:${uploadMimeType};base64,${uploadBase64}` }} style={styles.previewImg} resizeMode="cover" />
+                    <Text style={{ fontSize: 12, color: Colors.light.textSecondary, fontFamily: "Inter_400Regular" }}>
+                      {isRTL ? "اضغط لتغيير الصورة" : "Appuyer pour changer"}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={{ alignItems: "center", gap: 10 }}>
+                    <Ionicons name="camera-outline" size={40} color="#DC3545" />
+                    <Text style={[styles.imagePickerText, isRTL && styles.rtlText]}>
+                      {isRTL ? "اضغط لاختيار صورة من المعرض" : "Appuyer pour choisir une image"}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "وصف (اختياري)" : "Description (optionnel)"}</Text>
+              <TextInput
+                style={[styles.modalInput, isRTL && styles.rtlInput]}
+                value={uploadCaption}
+                onChangeText={setUploadCaption}
+                placeholder={isRTL ? "مثال: قائمة مداومة أسبوع..." : "Ex: Liste de garde semaine..."}
+                placeholderTextColor={Colors.light.textTertiary}
+              />
+              <TouchableOpacity
+                style={[styles.sendButton, { backgroundColor: "#DC3545" }, !uploadBase64 && styles.sendButtonDisabled]}
+                onPress={() => uploadDutyImageMutation.mutate()}
+                disabled={!uploadBase64 || uploadDutyImageMutation.isPending}
+                activeOpacity={0.85}
+              >
+                {uploadDutyImageMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="cloud-upload-outline" size={18} color="#fff" /><Text style={styles.sendButtonText}>{isRTL ? "رفع الصورة" : "Télécharger"}</Text></>}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => { setShowDutyUploadModal(false); setUploadBase64(""); setUploadCaption(""); }} activeOpacity={0.7}>
+                <Text style={styles.cancelText}>{t("cancel")}</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -1042,4 +1129,40 @@ const styles = StyleSheet.create({
   csvArea: { height: 160, textAlignVertical: "top", fontFamily: "monospace" as any, fontSize: 12 },
   csvHintBox: { backgroundColor: Colors.light.inputBackground, borderRadius: 10, padding: 10, marginBottom: 10 },
   csvHintCode: { fontSize: 11, fontFamily: "monospace" as any, color: Colors.light.textSecondary, lineHeight: 18 },
+
+  dutyRegionRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    backgroundColor: Colors.light.card, borderRadius: 14,
+    padding: 14, borderWidth: 1, borderColor: "#DC354520",
+  },
+  dutyRegionIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "#DC354514",
+    alignItems: "center", justifyContent: "center",
+  },
+  dutyRegionBadge: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: "#DC354514",
+    alignItems: "center", justifyContent: "center",
+  },
+  dutyImgRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.light.border,
+  },
+  dutyImgIconWrap: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: "#DC354514", alignItems: "center", justifyContent: "center",
+  },
+  imagePicker: {
+    borderWidth: 2, borderColor: "#DC3545", borderStyle: "dashed",
+    borderRadius: 16, padding: 24, alignItems: "center", justifyContent: "center",
+    marginBottom: 16, minHeight: 140, backgroundColor: "#DC354508",
+  },
+  imagePickerHasImg: { borderStyle: "solid", padding: 8 },
+  imagePickerText: {
+    fontSize: 14, fontFamily: "Inter_400Regular",
+    color: Colors.light.textSecondary, textAlign: "center",
+  },
+  previewImg: { width: "100%", height: 180, borderRadius: 10 },
+  emptySub: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary, textAlign: "center", lineHeight: 19 },
 });

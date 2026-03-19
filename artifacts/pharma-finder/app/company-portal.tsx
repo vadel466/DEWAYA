@@ -10,6 +10,7 @@ import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
+import { DewyaBrand } from "@/components/DewyaBrand";
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
@@ -207,6 +208,7 @@ export default function CompanyPortalScreen() {
           <View style={[styles.loginIconWrap, { backgroundColor: COMPANY_LIGHT }]}>
             <MaterialCommunityIcons name="domain" size={52} color={COMPANY_COLOR} />
           </View>
+          <DewyaBrand isRTL={isRTL} size="md" variant="badge" />
           <Text style={[styles.loginTitle, isRTL && styles.rtlText]}>{isRTL ? "دخول شركات الأدوية" : "Accès Sociétés Pharmaceutiques"}</Text>
           <Text style={[styles.loginSub, isRTL && styles.rtlText]}>
             {isRTL ? "أدخل رمز الشركة للوصول إلى لوحة التحكم" : "Entrez le code société pour accéder au tableau de bord"}

@@ -11,6 +11,7 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { useBell } from "@/hooks/useBell";
+import { DewyaBrand, DewyaFooter } from "@/components/DewyaBrand";
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
@@ -401,6 +402,7 @@ export default function PharmacyPortalScreen() {
           <View style={styles.loginIconWrap}>
             <MaterialCommunityIcons name="shield-key" size={52} color={Colors.primary} />
           </View>
+          <DewyaBrand isRTL={isRTL} size="md" variant="badge" />
           <Text style={[styles.loginTitle, isRTL && styles.rtlText]}>{isRTL ? "دخول الصيدليات" : "Accès Pharmacies"}</Text>
           <Text style={[styles.loginSub, isRTL && styles.rtlText]}>
             {isRTL
@@ -501,9 +503,12 @@ export default function PharmacyPortalScreen() {
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchRequests(true)} tintColor={Colors.primary} />}
             ListHeaderComponent={myResponsesStatus.length > 0 ? (
               <View style={{ marginBottom: 10 }}>
-                <Text style={[{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary, marginBottom: 6, paddingHorizontal: 2 }, isRTL && { textAlign: "right" }]}>
-                  {isRTL ? "حالة ردودي الأخيرة:" : "État de mes réponses:"}
-                </Text>
+                <View style={[{ flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6, paddingHorizontal: 2 }]}>
+                  <Text style={[{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary }, isRTL && { textAlign: "right" }]}>
+                    {isRTL ? "حالة ردودي الأخيرة:" : "État de mes réponses:"}
+                  </Text>
+                  <DewyaBrand isRTL={isRTL} size="xs" variant="badge" />
+                </View>
                 {myResponsesStatus.slice(0, 5).map(r => {
                   const statusColor = r.adminStatus === "confirmed" ? Colors.accent : r.adminStatus === "ignored" ? "#888" : Colors.warning;
                   const statusIcon = r.adminStatus === "confirmed" ? "checkmark-circle" : r.adminStatus === "ignored" ? "close-circle" : "time-outline";

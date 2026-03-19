@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DewyaBrand, DewyaFooter } from "@/components/DewyaBrand";
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
 import Colors from "@/constants/colors";
@@ -285,6 +286,7 @@ export default function NotificationsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
+            <DewyaBrand isRTL={isRTL} size="md" variant="bar" />
 
             <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
 
@@ -453,17 +455,12 @@ export default function NotificationsScreen() {
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
 
-            {/* شعار DEWAYA + أيقونة النجاح */}
+            {/* شعار أدْواَيَ + أيقونة النجاح */}
             <View style={styles.resultHeaderWrap}>
               <View style={styles.successIconLarge}>
                 <MaterialCommunityIcons name="check-circle" size={38} color={Colors.accent} />
               </View>
-              <View style={styles.dewaяBadge}>
-                <View style={styles.dewaяLogoMini}>
-                  <MaterialCommunityIcons name="stethoscope" size={11} color="#fff" />
-                </View>
-                <Text style={styles.dewaяBadgeText}>DEWAYA</Text>
-              </View>
+              <DewyaBrand isRTL={isRTL} size="sm" variant="badge" />
             </View>
 
             <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>{t("pharmacyFound")}</Text>
@@ -489,15 +486,7 @@ export default function NotificationsScreen() {
               <Text style={styles.closeButtonText}>{t("close")}</Text>
             </TouchableOpacity>
 
-            {/* توقيع خفيف */}
-            <View style={styles.modalFooterBrand}>
-              <View style={styles.modalFooterLogoMini}>
-                <MaterialCommunityIcons name="stethoscope" size={9} color={Colors.primary} />
-              </View>
-              <Text style={styles.modalFooterBrandText}>
-                {isRTL ? "أدواي | DEWAYA" : "DEWAYA | أدواي"}
-              </Text>
-            </View>
+            <DewyaFooter isRTL={isRTL} />
           </View>
         </View>
       </Modal>
@@ -651,22 +640,8 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center", alignSelf: "center",
     borderWidth: 2, borderColor: Colors.accent + "30",
   },
-  dewaяBadge: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    backgroundColor: Colors.primary + "0E", borderRadius: 20,
-    paddingHorizontal: 10, paddingVertical: 4, marginTop: 10,
-    borderWidth: 1, borderColor: Colors.primary + "20",
-  },
-  dewaяLogoMini: {
-    width: 18, height: 18, borderRadius: 9, backgroundColor: Colors.primary,
-    alignItems: "center", justifyContent: "center",
-  },
-  dewaяBadgeText: { fontSize: 11, fontFamily: "Inter_700Bold", color: Colors.primary, letterSpacing: 0.5 },
   modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: Colors.light.text, textAlign: "center", marginBottom: 6 },
   modalSubtitle: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, textAlign: "center", marginBottom: 16, lineHeight: 18 },
-  modalFooterBrand: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 12, opacity: 0.45 },
-  modalFooterLogoMini: { width: 14, height: 14, borderRadius: 7, backgroundColor: Colors.primary, alignItems: "center", justifyContent: "center" },
-  modalFooterBrandText: { fontSize: 10, fontFamily: "Inter_500Medium", color: Colors.primary, letterSpacing: 0.4 },
   infoCard: { width: "100%", backgroundColor: Colors.light.background, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.light.border },
   infoRow: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingVertical: 6 },
   infoContent: { flex: 1 },

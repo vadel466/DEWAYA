@@ -26,6 +26,7 @@ import * as Clipboard from "expo-clipboard";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { REGIONS } from "@/constants/regions";
+import { DewyaBrand, DewyaFooter } from "@/components/DewyaBrand";
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
@@ -1622,6 +1623,7 @@ export default function AdminScreen() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalSheet}>
               <View style={styles.modalHandle} />
+              <DewyaBrand isRTL={isRTL} size="md" variant="bar" />
               <ScrollView showsVerticalScrollIndicator={false}>
                 <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>{t("respondToRequest")}</Text>
                 {selectedRequest && (
@@ -1649,6 +1651,7 @@ export default function AdminScreen() {
                 <TouchableOpacity style={styles.cancelButton} onPress={() => setShowRespondModal(false)} activeOpacity={0.7}>
                   <Text style={styles.cancelText}>{t("cancel")}</Text>
                 </TouchableOpacity>
+                <DewyaFooter isRTL={isRTL} />
               </ScrollView>
             </View>
           </View>

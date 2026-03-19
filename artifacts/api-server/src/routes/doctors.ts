@@ -56,7 +56,7 @@ router.get("/", async (req, res) => {
 
 router.get("/admin", requireAdmin, async (_req, res) => {
   try {
-    const rows = await db.select().from(doctorsTable).orderBy(desc(doctorsTable.createdAt));
+    const rows = await db.select().from(doctorsTable).orderBy(desc(doctorsTable.createdAt)).limit(500);
     res.json(rows);
   } catch {
     res.status(500).json({ error: "Internal server error" });

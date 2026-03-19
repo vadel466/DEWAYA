@@ -110,8 +110,8 @@ router.post("/respond", async (req, res) => {
 router.get("/responses", async (req, res) => {
   try {
     if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }
-    const { adminStatus } = req.query;
-    // Join with drug requests to include drug name
+    // Default: only pending_admin — confirmed/ignored are archived and must not fill the admin view
+    const statusFilter = (req.query.adminStatus as string) || "pending_admin";
     const rows = await db
       .select({
         id: pharmacyResponsesTable.id,
@@ -126,16 +126,11 @@ router.get("/responses", async (req, res) => {
         drugName: drugRequestsTable.drugName,
       })
       .from(pharmacyResponsesTable)
-      .leftJoin(drugRequestsTable, eq(pharmacyResponsesTable.requestId, drugRequestsTable.id));
-
-    let filtered = adminStatus ? rows.filter(r => r.adminStatus === adminStatus) : rows;
-    // Sort: pending_admin first, then by date desc
-    filtered.sort((a, b) => {
-      if (a.adminStatus === "pending_admin" && b.adminStatus !== "pending_admin") return -1;
-      if (b.adminStatus === "pending_admin" && a.adminStatus !== "pending_admin") return 1;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-    res.json(filtered.map(r => ({ ...r, createdAt: r.createdAt.toISOString() })));
+      .leftJoin(drugRequestsTable, eq(pharmacyResponsesTable.requestId, drugRequestsTable.id))
+      .where(eq(pharmacyResponsesTable.adminStatus, statusFilter))
+      .orderBy(desc(pharmacyResponsesTable.createdAt))
+      .limit(200);
+    res.json(rows.map(r => ({ ...r, createdAt: r.createdAt.toISOString() })));
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Erreur serveur" });
   }
@@ -282,7 +277,8 @@ router.post("/b2b", async (req, res) => {
 router.get("/b2b", async (req, res) => {
   try {
     if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }
-    const msgs = await db.select().from(b2bMessagesTable);
+    const msgs = await db.select().from(b2bMessagesTable)
+      .orderBy(desc(b2bMessagesTable.createdAt)).limit(300);
     res.json(msgs.map(m => ({ ...m, createdAt: m.createdAt.toISOString() })));
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Erreur serveur" });
@@ -291,7 +287,9 @@ router.get("/b2b", async (req, res) => {
 
 router.get("/b2b/pharmacy/:pharmacyId", async (req, res) => {
   try {
-    const msgs = await db.select().from(b2bMessagesTable).where(eq(b2bMessagesTable.pharmacyId, req.params.pharmacyId));
+    const msgs = await db.select().from(b2bMessagesTable)
+      .where(eq(b2bMessagesTable.pharmacyId, req.params.pharmacyId))
+      .orderBy(desc(b2bMessagesTable.createdAt)).limit(100);
     res.json(msgs.map(m => ({ ...m, createdAt: m.createdAt.toISOString() })));
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Erreur serveur" });

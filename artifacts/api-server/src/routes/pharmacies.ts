@@ -28,7 +28,8 @@ router.get("/", async (_req, res) => {
     const pharmacies = await db
       .select()
       .from(pharmaciesTable)
-      .orderBy(pharmaciesTable.createdAt);
+      .orderBy(pharmaciesTable.createdAt)
+      .limit(1000);
     res.json(
       pharmacies.map((p) => ({ ...p, createdAt: p.createdAt.toISOString() }))
     );

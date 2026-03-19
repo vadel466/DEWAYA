@@ -218,8 +218,8 @@ export default function AdminScreen() {
     queryFn: async () => { const r = await fetch(`${API_BASE}/pharmacy-portal/responses`, { headers: { "x-admin-secret": ADMIN_SECRET } }); if (!r.ok) throw new Error(); return r.json(); },
     refetchInterval: 8000, enabled: isAdmin && (activeTab === "portal" || activeTab === "b2b"),
   });
-  const portalResponses = allPortalResponses;
-  const pendingPortalCount = allPortalResponses.filter(r => r.adminStatus === "pending_admin").length;
+  const portalResponses = allPortalResponses.filter(r => r.adminStatus === "pending_admin");
+  const pendingPortalCount = portalResponses.length;
 
   const { data: b2bMessages = [], isLoading: b2bLoading, refetch: refetchB2b, isRefetching: b2bRefetching } = useQuery<B2bMessage[]>({
     queryKey: ["admin-b2b"],

@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, real } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, real, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -85,3 +85,21 @@ export const pharmacyResponsesTable = pgTable("pharmacy_responses", {
 export const insertPharmacyResponseSchema = createInsertSchema(pharmacyResponsesTable).omit({ createdAt: true });
 export type InsertPharmacyResponse = z.infer<typeof insertPharmacyResponseSchema>;
 export type PharmacyResponse = typeof pharmacyResponsesTable.$inferSelect;
+
+export const drugPricesTable = pgTable("drug_prices", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  nameAr: text("name_ar"),
+  nameLower: text("name_lower").notNull(),
+  price: real("price").notNull(),
+  unit: text("unit"),
+  category: text("category"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertDrugPriceSchema = createInsertSchema(drugPricesTable).omit({ createdAt: true, updatedAt: true });
+export type InsertDrugPrice = z.infer<typeof insertDrugPriceSchema>;
+export type DrugPrice = typeof drugPricesTable.$inferSelect;

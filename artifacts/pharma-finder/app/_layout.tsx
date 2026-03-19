@@ -29,6 +29,7 @@ function RootLayoutNav() {
       <Stack.Screen name="duty-pharmacies" options={{ headerShown: false, animation: "slide_from_bottom", presentation: "card" }} />
       <Stack.Screen name="nearest-pharmacy" options={{ headerShown: false, animation: "slide_from_bottom", presentation: "card" }} />
       <Stack.Screen name="pharmacy-portal" options={{ headerShown: false, animation: "slide_from_bottom", presentation: "card" }} />
+      <Stack.Screen name="drug-price" options={{ headerShown: false, animation: "slide_from_bottom", presentation: "card" }} />
     </Stack>
   );
 }

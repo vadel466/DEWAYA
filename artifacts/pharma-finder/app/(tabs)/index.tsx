@@ -217,6 +217,11 @@ export default function HomeScreen() {
     router.push("/duty-pharmacies");
   };
 
+  const goToDrugPrice = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push("/drug-price");
+  };
+
   const filteredRegions = regionQuery.trim()
     ? REGIONS.filter((r) => r.ar.includes(regionQuery) || r.fr.toLowerCase().includes(regionQuery.toLowerCase()))
     : REGIONS;
@@ -439,7 +444,7 @@ export default function HomeScreen() {
 
         <View style={styles.gridRow}>
           {/* سعر الدواء */}
-          <TouchableOpacity style={[styles.card, { backgroundColor: AMBER_LIGHT }]} onPress={showComingSoon} activeOpacity={0.82}>
+          <TouchableOpacity style={[styles.card, { backgroundColor: AMBER_LIGHT }]} onPress={goToDrugPrice} activeOpacity={0.82}>
             <View style={[styles.cardAccent, { backgroundColor: AMBER }]} />
             <View style={[styles.cardIconCircle, { backgroundColor: AMBER + "22" }]}>
               <MaterialCommunityIcons name="tag-outline" size={22} color={AMBER} />

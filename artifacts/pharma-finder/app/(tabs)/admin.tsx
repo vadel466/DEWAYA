@@ -27,6 +27,8 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : "/api";
 
+const ADMIN_SECRET = "DEWAYA_ADMIN_2026";
+
 
 type DrugRequest = {
   id: string; userId: string; drugName: string;
@@ -55,6 +57,11 @@ type PortalResponse = {
   pharmacyAddress: string; pharmacyPhone: string;
   status: string; createdAt: string;
 };
+type DrugPrice = {
+  id: string; name: string; nameAr: string | null;
+  price: number; unit: string | null; category: string | null;
+  notes: string | null; isActive: boolean; createdAt: string;
+};
 
 function formatTime(dateStr: string, lang = "ar") {
   return new Date(dateStr).toLocaleString(lang === "ar" ? "ar-SA" : "fr-FR", {
@@ -74,7 +81,7 @@ export default function AdminScreen() {
   const qc = useQueryClient();
 
 
-  const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal" | "prices">("pending");
   const [selectedRequest, setSelectedRequest] = useState<DrugRequest | null>(null);
   const [showRespondModal, setShowRespondModal] = useState(false);
   const [pharmacyNameR, setPharmacyNameR] = useState("");
@@ -99,6 +106,18 @@ export default function AdminScreen() {
 
   const [selectedPortalResponse, setSelectedPortalResponse] = useState<PortalResponse | null>(null);
   const [showPortalModal, setShowPortalModal] = useState(false);
+
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [editingPrice, setEditingPrice] = useState<DrugPrice | null>(null);
+  const [prSearch, setPrSearch] = useState("");
+  const [dpName, setDpName] = useState("");
+  const [dpNameAr, setDpNameAr] = useState("");
+  const [dpPrice, setDpPrice] = useState("");
+  const [dpUnit, setDpUnit] = useState("");
+  const [dpCategory, setDpCategory] = useState("");
+  const [dpNotes, setDpNotes] = useState("");
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [csvText, setCsvText] = useState("");
 
   const { data: requests = [], isLoading: reqLoading, refetch: refetchReq, isRefetching: reqRefetching } = useQuery<DrugRequest[]>({
     queryKey: ["admin-requests"],
@@ -129,6 +148,101 @@ export default function AdminScreen() {
     queryFn: async () => { const r = await fetch(`${API_BASE}/pharmacy-portal/responses`); if (!r.ok) throw new Error(); return r.json(); },
     refetchInterval: 8000, enabled: isAdmin && activeTab === "portal",
   });
+
+  const { data: allDrugPrices = [], isLoading: priceLoading, refetch: refetchPrices, isRefetching: priceRefetching } = useQuery<DrugPrice[]>({
+    queryKey: ["admin-drug-prices"],
+    queryFn: async () => {
+      const r = await fetch(`${API_BASE}/drug-prices?limit=500`, { headers: { "x-admin-secret": ADMIN_SECRET } });
+      if (!r.ok) throw new Error(); return r.json();
+    },
+    enabled: isAdmin && activeTab === "prices",
+  });
+
+  const filteredDrugPrices = prSearch.trim()
+    ? allDrugPrices.filter(p => p.name.toLowerCase().includes(prSearch.toLowerCase()) || (p.nameAr && p.nameAr.includes(prSearch)))
+    : allDrugPrices;
+
+  const savePriceMutation = useMutation({
+    mutationFn: async (body: object) => {
+      const url = editingPrice ? `${API_BASE}/drug-prices/${editingPrice.id}` : `${API_BASE}/drug-prices`;
+      const r = await fetch(url, {
+        method: editingPrice ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(); return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-drug-prices"] });
+      setShowPriceModal(false); setEditingPrice(null);
+      setDpName(""); setDpNameAr(""); setDpPrice(""); setDpUnit(""); setDpCategory(""); setDpNotes("");
+    },
+  });
+
+  const deletePriceMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`${API_BASE}/drug-prices/${id}`, {
+        method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      if (!r.ok) throw new Error(); return r.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-drug-prices"] }),
+  });
+
+  const bulkImportMutation = useMutation({
+    mutationFn: async (rows: object[]) => {
+      const r = await fetch(`${API_BASE}/drug-prices/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+        body: JSON.stringify(rows),
+      });
+      if (!r.ok) throw new Error(); return r.json();
+    },
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["admin-drug-prices"] });
+      setShowImportModal(false); setCsvText("");
+      Alert.alert(isRTL ? "تم الاستيراد" : "Import réussi", isRTL ? `تمت إضافة ${data.inserted} دواء` : `${data.inserted} médicaments importés`);
+    },
+    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل الاستيراد" : "Échec de l'import"),
+  });
+
+  const openAddPrice = () => {
+    setEditingPrice(null);
+    setDpName(""); setDpNameAr(""); setDpPrice(""); setDpUnit(""); setDpCategory(""); setDpNotes("");
+    setShowPriceModal(true);
+  };
+
+  const openEditPrice = (p: DrugPrice) => {
+    setEditingPrice(p);
+    setDpName(p.name); setDpNameAr(p.nameAr ?? ""); setDpPrice(String(p.price));
+    setDpUnit(p.unit ?? ""); setDpCategory(p.category ?? ""); setDpNotes(p.notes ?? "");
+    setShowPriceModal(true);
+  };
+
+  const submitPrice = () => {
+    if (!dpName.trim() || !dpPrice.trim()) {
+      Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "يرجى إدخال الاسم والسعر" : "Nom et prix obligatoires"); return;
+    }
+    const price = parseFloat(dpPrice.replace(",", "."));
+    if (isNaN(price) || price < 0) {
+      Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "سعر غير صالح" : "Prix invalide"); return;
+    }
+    savePriceMutation.mutate({ name: dpName.trim(), nameAr: dpNameAr.trim() || null, price, unit: dpUnit.trim() || null, category: dpCategory.trim() || null, notes: dpNotes.trim() || null });
+  };
+
+  const parseAndImportCSV = () => {
+    const lines = csvText.trim().split("\n").filter(l => l.trim());
+    if (lines.length === 0) { Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "لا توجد بيانات" : "Pas de données"); return; }
+    const rows: object[] = [];
+    for (const line of lines) {
+      const parts = line.split(/[,;\t]/).map(p => p.trim().replace(/^"|"$/g, ""));
+      const name = parts[0]; const price = parseFloat((parts[1] || "").replace(",", "."));
+      if (!name || isNaN(price)) continue;
+      rows.push({ name, nameAr: parts[2] || null, price, unit: parts[3] || null, category: parts[4] || null });
+    }
+    if (rows.length === 0) { Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "لا توجد صفوف صالحة" : "Aucune ligne valide"); return; }
+    bulkImportMutation.mutate(rows);
+  };
 
   const respondMutation = useMutation({
     mutationFn: async ({ id, body }: { id: string; body: object }) => {
@@ -264,6 +378,7 @@ export default function AdminScreen() {
     { id: "portal", label: isRTL ? `ردود${portalResponses.length > 0 ? ` (${portalResponses.length})` : ""}` : `Portail${portalResponses.length > 0 ? ` (${portalResponses.length})` : ""}` },
     { id: "pharmacies", label: isRTL ? "صيدليات" : "Pharma" },
     { id: "duty", label: isRTL ? "مداومة" : "Garde" },
+    { id: "prices", label: isRTL ? "أسعار" : "Prix" },
   ];
 
   const isLoading =
@@ -271,6 +386,7 @@ export default function AdminScreen() {
     activeTab === "pharmacies" ? pharmaLoading :
     activeTab === "duty" ? dutyLoading :
     activeTab === "portal" ? portalLoading :
+    activeTab === "prices" ? priceLoading :
     reqLoading;
 
   const isRefetching =
@@ -278,6 +394,7 @@ export default function AdminScreen() {
     activeTab === "pharmacies" ? pharmaRefetching :
     activeTab === "duty" ? dutyRefetching :
     activeTab === "portal" ? portalRefetching :
+    activeTab === "prices" ? priceRefetching :
     reqRefetching;
 
   const onRefresh = () => {
@@ -285,6 +402,7 @@ export default function AdminScreen() {
     else if (activeTab === "pharmacies") refetchPharma();
     else if (activeTab === "duty") refetchDuty();
     else if (activeTab === "portal") refetchPortal();
+    else if (activeTab === "prices") refetchPrices();
     else refetchReq();
   };
 
@@ -423,13 +541,42 @@ export default function AdminScreen() {
     </View>
   );
 
-  const isAddTab = activeTab === "pharmacies" || activeTab === "duty";
+  const renderDrugPrice = ({ item }: { item: DrugPrice }) => (
+    <View style={styles.requestCard}>
+      <View style={[styles.cardRow, isRTL && styles.rtlRow]}>
+        <View style={[styles.cardIconCircle2, { backgroundColor: "#F59E0B22" }]}>
+          <MaterialCommunityIcons name="tag-outline" size={20} color="#F59E0B" />
+        </View>
+        <View style={[styles.requestInfo, isRTL && styles.rtlInfo, { flex: 1 }]}>
+          <Text style={[styles.drugName, isRTL && styles.rtlText]}>{item.name}</Text>
+          {item.nameAr ? <Text style={[styles.userId, isRTL && styles.rtlText]}>{item.nameAr}</Text> : null}
+          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+            <View style={styles.priceBadge}>
+              <Text style={styles.priceBadgeText}>{item.price.toFixed(2)} MRU{item.unit ? ` / ${item.unit}` : ""}</Text>
+            </View>
+            {item.category ? <View style={styles.categoryBadge}><Text style={styles.categoryText}>{item.category}</Text></View> : null}
+          </View>
+        </View>
+        <View style={{ flexDirection: "column", gap: 6, alignItems: "center" }}>
+          <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); openEditPrice(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="pencil-outline" size={18} color={Colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => Alert.alert(isRTL ? "حذف" : "Supprimer", isRTL ? `حذف "${item.name}"؟` : `Supprimer "${item.name}" ?`, [{ text: isRTL ? "إلغاء" : "Annuler", style: "cancel" }, { text: isRTL ? "حذف" : "Supprimer", style: "destructive", onPress: () => deletePriceMutation.mutate(item.id) }])} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+
+  const isAddTab = activeTab === "pharmacies" || activeTab === "duty" || activeTab === "prices";
   const currentData: any[] =
     activeTab === "pending" ? pendingRequests :
     activeTab === "responded" ? respondedRequests :
     activeTab === "payments" ? pendingPayments :
     activeTab === "pharmacies" ? pharmacies :
     activeTab === "duty" ? dutyList :
+    activeTab === "prices" ? filteredDrugPrices :
     portalResponses;
 
   return (
@@ -474,6 +621,7 @@ export default function AdminScreen() {
             activeTab === "duty" ? renderDuty :
             activeTab === "payments" ? renderPayment :
             activeTab === "portal" ? renderPortalResponse :
+            activeTab === "prices" ? renderDrugPrice :
             renderRequest) as any
           }
           contentContainerStyle={[styles.list, currentData.length === 0 && styles.emptyList, { paddingBottom: Platform.OS === "web" ? 34 : 0 }]}
@@ -481,14 +629,46 @@ export default function AdminScreen() {
           refreshControl={<RefreshControl refreshing={!!isRefetching} onRefresh={onRefresh} tintColor={Colors.primary} />}
           ListHeaderComponent={
             isAddTab ? (
-              <TouchableOpacity
-                style={styles.addBtn}
-                onPress={() => { resetPharmacyForm(); resetDutyForm(); if (activeTab === "pharmacies") setShowPharmacyModal(true); else setShowDutyModal(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                <Text style={styles.addBtnText}>{activeTab === "pharmacies" ? (isRTL ? "إضافة صيدلية" : "Ajouter une pharmacie") : (isRTL ? "إضافة مداومة" : "Ajouter une garde")}</Text>
-              </TouchableOpacity>
+              activeTab === "prices" ? (
+                <View>
+                  <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+                    <TouchableOpacity style={[styles.addBtn, { flex: 1 }]} onPress={() => { openAddPrice(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} activeOpacity={0.85}>
+                      <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                      <Text style={styles.addBtnText}>{isRTL ? "إضافة دواء" : "Ajouter un médicament"}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.addBtn, { flex: 1, backgroundColor: Colors.accent }]} onPress={() => setShowImportModal(true)} activeOpacity={0.85}>
+                      <Ionicons name="cloud-upload-outline" size={20} color="#fff" />
+                      <Text style={styles.addBtnText}>{isRTL ? "استيراد CSV" : "Import CSV"}</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.searchBarWrap}>
+                    <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />
+                    <TextInput
+                      style={[styles.searchBarInput, isRTL && styles.rtlText]}
+                      placeholder={isRTL ? "بحث عن دواء..." : "Rechercher un médicament..."}
+                      placeholderTextColor={Colors.light.textTertiary}
+                      value={prSearch}
+                      onChangeText={setPrSearch}
+                      returnKeyType="search"
+                    />
+                    {prSearch.length > 0 && (
+                      <TouchableOpacity onPress={() => setPrSearch("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <Text style={[styles.countLabel, isRTL && styles.rtlText]}>{isRTL ? `${filteredDrugPrices.length} دواء` : `${filteredDrugPrices.length} médicament(s)`}</Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.addBtn}
+                  onPress={() => { resetPharmacyForm(); resetDutyForm(); if (activeTab === "pharmacies") setShowPharmacyModal(true); else setShowDutyModal(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                  <Text style={styles.addBtnText}>{activeTab === "pharmacies" ? (isRTL ? "إضافة صيدلية" : "Ajouter une pharmacie") : (isRTL ? "إضافة مداومة" : "Ajouter une garde")}</Text>
+                </TouchableOpacity>
+              )
             ) : null
           }
           ListEmptyComponent={
@@ -498,6 +678,7 @@ export default function AdminScreen() {
                 {activeTab === "pharmacies" ? (isRTL ? "لا توجد صيدليات مسجلة" : "Aucune pharmacie enregistrée") :
                  activeTab === "duty" ? (isRTL ? "لا توجد مداومات" : "Aucune garde enregistrée") :
                  activeTab === "portal" ? (isRTL ? "لا توجد ردود من الصيدليات" : "Aucune réponse de pharmacie") :
+                 activeTab === "prices" ? (isRTL ? "لا توجد أسعار مسجلة" : "Aucun médicament enregistré") :
                  t("noPendingRequests")}
               </Text>
             </View>
@@ -670,6 +851,73 @@ export default function AdminScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Drug Price Modal */}
+      <Modal visible={showPriceModal} transparent animationType="slide" onRequestClose={() => setShowPriceModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>
+                {editingPrice ? (isRTL ? "تعديل الدواء" : "Modifier le médicament") : (isRTL ? "إضافة دواء" : "Ajouter un médicament")}
+              </Text>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "الاسم بالفرنسية *" : "Nom en français *"}</Text>
+                <TextInput style={[styles.modalInput, isRTL && styles.rtlInput]} value={dpName} onChangeText={setDpName} placeholder={isRTL ? "مثال: Paracetamol" : "Ex: Paracetamol"} placeholderTextColor={Colors.light.textTertiary} />
+                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "الاسم بالعربية" : "Nom en arabe"}</Text>
+                <TextInput style={[styles.modalInput, isRTL && styles.rtlInput]} value={dpNameAr} onChangeText={setDpNameAr} placeholder={isRTL ? "اختياري" : "Optionnel"} placeholderTextColor={Colors.light.textTertiary} />
+                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "السعر (MRU) *" : "Prix (MRU) *"}</Text>
+                <TextInput style={[styles.modalInput, isRTL && styles.rtlInput]} value={dpPrice} onChangeText={setDpPrice} placeholder="0.00" placeholderTextColor={Colors.light.textTertiary} keyboardType="decimal-pad" />
+                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "الوحدة" : "Unité"}</Text>
+                <TextInput style={[styles.modalInput, isRTL && styles.rtlInput]} value={dpUnit} onChangeText={setDpUnit} placeholder={isRTL ? "مثال: بوكس، حبة..." : "Ex: boîte, comprimé..."} placeholderTextColor={Colors.light.textTertiary} />
+                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "الفئة" : "Catégorie"}</Text>
+                <TextInput style={[styles.modalInput, isRTL && styles.rtlInput]} value={dpCategory} onChangeText={setDpCategory} placeholder={isRTL ? "مثال: مضاد حيوي..." : "Ex: Antibiotique..."} placeholderTextColor={Colors.light.textTertiary} />
+                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "ملاحظات" : "Notes"}</Text>
+                <TextInput style={[styles.modalInput, styles.textArea, isRTL && styles.rtlInput]} value={dpNotes} onChangeText={setDpNotes} placeholder={isRTL ? "اختياري" : "Optionnel"} placeholderTextColor={Colors.light.textTertiary} multiline numberOfLines={3} />
+                <TouchableOpacity style={[styles.sendButton, (!dpName.trim() || !dpPrice.trim()) && styles.sendButtonDisabled]} onPress={submitPrice} disabled={!dpName.trim() || !dpPrice.trim() || savePriceMutation.isPending} activeOpacity={0.85}>
+                  {savePriceMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="save-outline" size={18} color="#fff" /><Text style={styles.sendButtonText}>{isRTL ? "حفظ" : "Enregistrer"}</Text></>}
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.cancelButton} onPress={() => setShowPriceModal(false)} activeOpacity={0.7}>
+                  <Text style={styles.cancelText}>{t("cancel")}</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* CSV Import Modal */}
+      <Modal visible={showImportModal} transparent animationType="slide" onRequestClose={() => setShowImportModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>{isRTL ? "استيراد CSV" : "Import CSV"}</Text>
+              <Text style={[styles.fieldLabel, { marginBottom: 8 }, isRTL && styles.rtlText]}>
+                {isRTL ? "صيغة: الاسم, السعر, الاسم عربي, الوحدة, الفئة (سطر لكل دواء)" : "Format: Nom, Prix, NomArabe, Unité, Catégorie (une ligne par médicament)"}
+              </Text>
+              <View style={[styles.csvHintBox, isRTL && { alignItems: "flex-end" }]}>
+                <Text style={styles.csvHintCode}>{"Paracetamol, 45.00, باراسيتامول, boîte\nAmoxicilline, 120.00, أموكسيسيلين, gélule, Antibiotique"}</Text>
+              </View>
+              <TextInput
+                style={[styles.modalInput, styles.csvArea, isRTL && styles.rtlInput]}
+                value={csvText}
+                onChangeText={setCsvText}
+                placeholder={isRTL ? "ألصق البيانات هنا..." : "Collez vos données ici..."}
+                placeholderTextColor={Colors.light.textTertiary}
+                multiline
+                numberOfLines={8}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity style={[styles.sendButton, !csvText.trim() && styles.sendButtonDisabled]} onPress={parseAndImportCSV} disabled={!csvText.trim() || bulkImportMutation.isPending} activeOpacity={0.85}>
+                {bulkImportMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="cloud-upload-outline" size={18} color="#fff" /><Text style={styles.sendButtonText}>{isRTL ? "استيراد" : "Importer"}</Text></>}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setShowImportModal(false)} activeOpacity={0.7}>
+                <Text style={styles.cancelText}>{t("cancel")}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -781,4 +1029,17 @@ const styles = StyleSheet.create({
   regionChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: Colors.light.inputBackground, borderWidth: 1, borderColor: Colors.light.border },
   regionChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   regionChipText: { fontSize: 12, fontFamily: "Inter_500Medium", color: Colors.light.textSecondary },
+
+  cardIconCircle2: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", marginRight: 12 },
+  priceBadge: { backgroundColor: "#F59E0B22", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  priceBadgeText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#B45309" },
+  categoryBadge: { backgroundColor: Colors.primary + "18", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  categoryText: { fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.primary },
+  searchBarWrap: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: Colors.light.inputBackground, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: Colors.light.border, marginBottom: 8 },
+  searchBarInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.light.text },
+  countLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary, marginBottom: 6 },
+  textArea: { height: 80, textAlignVertical: "top" },
+  csvArea: { height: 160, textAlignVertical: "top", fontFamily: "monospace" as any, fontSize: 12 },
+  csvHintBox: { backgroundColor: Colors.light.inputBackground, borderRadius: 10, padding: 10, marginBottom: 10 },
+  csvHintCode: { fontSize: 11, fontFamily: "monospace" as any, color: Colors.light.textSecondary, lineHeight: 18 },
 });

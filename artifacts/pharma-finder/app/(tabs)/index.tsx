@@ -352,6 +352,15 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* ─── APP DESCRIPTION ─── */}
+      <View style={[styles.appDescRow, isRTL && styles.rowReverse]}>
+        <MaterialCommunityIcons name="pill" size={11} color={Colors.primary + "70"} />
+        <Text style={[styles.appDescText, isRTL && styles.textRight]} numberOfLines={2}>
+          {t("appDescription")}
+        </Text>
+        <MaterialCommunityIcons name="map-marker-outline" size={11} color={Colors.primary + "70"} />
+      </View>
+
       {/* ─── REGION SELECTOR ─── */}
       <View style={[styles.regionRow, isRTL && styles.rowReverse]}>
         <Ionicons name="location-outline" size={16} color={Colors.primary} />
@@ -747,13 +756,32 @@ const styles = StyleSheet.create({
   rowReverse: { flexDirection: "row-reverse" },
   textRight: { textAlign: "right", writingDirection: "rtl" },
 
+  /* APP DESCRIPTION */
+  appDescRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+  appDescText: {
+    flex: 1,
+    textAlign: "center",
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    color: Colors.primary + "80",
+    letterSpacing: 0.2,
+    lineHeight: 17,
+  },
+
   /* HEADER */
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 8,
-    marginBottom: 6,
+    marginBottom: 2,
   },
   langPill: {
     flexDirection: "row",

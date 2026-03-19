@@ -153,6 +153,16 @@ export default function HomeScreen() {
     Alert.alert(t("comingSoon"), t("comingSoonMsg"));
   };
 
+  const goToNearest = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push("/nearest-pharmacy");
+  };
+
+  const goToDuty = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push("/duty-pharmacies");
+  };
+
   const filteredRegions = regionQuery.trim()
     ? REGIONS.filter((r) => r.ar.includes(regionQuery) || r.fr.toLowerCase().includes(regionQuery.toLowerCase()))
     : REGIONS;
@@ -322,7 +332,7 @@ export default function HomeScreen() {
       <View style={styles.grid}>
         <View style={styles.gridRow}>
           {/* أقرب صيدلية */}
-          <TouchableOpacity style={[styles.card, { backgroundColor: "#EBF6FB" }]} onPress={showComingSoon} activeOpacity={0.82}>
+          <TouchableOpacity style={[styles.card, { backgroundColor: "#EBF6FB" }]} onPress={goToNearest} activeOpacity={0.82}>
             <View style={[styles.cardAccent, { backgroundColor: Colors.primary }]} />
             <View style={[styles.cardIconCircle, { backgroundColor: Colors.primary + "20" }]}>
               <MaterialCommunityIcons name="map-marker-radius" size={22} color={Colors.primary} />
@@ -370,7 +380,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
 
           {/* صيدليات المداومة */}
-          <TouchableOpacity style={[styles.card, { backgroundColor: DUTY_RED_LIGHT }]} onPress={showComingSoon} activeOpacity={0.82}>
+          <TouchableOpacity style={[styles.card, { backgroundColor: DUTY_RED_LIGHT }]} onPress={goToDuty} activeOpacity={0.82}>
             <View style={[styles.cardAccent, { backgroundColor: DUTY_RED }]} />
             <View style={[styles.cardIconCircle, { backgroundColor: DUTY_RED + "18" }]}>
               <MaterialCommunityIcons name="hospital-building" size={22} color={DUTY_RED} />
@@ -384,6 +394,19 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* ─── PHARMACY PORTAL LINK ─── */}
+      <TouchableOpacity
+        style={[styles.portalLink, isRTL && styles.rowReverse]}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/pharmacy-portal"); }}
+        activeOpacity={0.7}
+      >
+        <MaterialCommunityIcons name="shield-key-outline" size={14} color={Colors.light.textTertiary} />
+        <Text style={styles.portalLinkText}>
+          {isRTL ? "بوابة الصيدليات" : "Portail pharmacies"}
+        </Text>
+        <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color={Colors.light.textTertiary} />
+      </TouchableOpacity>
 
       {/* ─── REGION PICKER MODAL ─── */}
       <Modal visible={showRegionPicker} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowRegionPicker(false)}>
@@ -767,4 +790,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.inputBackground, marginTop: 4,
   },
   menuCancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary },
+
+  portalLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 8,
+    marginTop: 2,
+  },
+  portalLinkText: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.light.textTertiary,
+  },
 });

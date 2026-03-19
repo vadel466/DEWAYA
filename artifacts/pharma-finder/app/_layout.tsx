@@ -24,8 +24,11 @@ const queryClient = new QueryClient();
 
 function RootLayoutNav() {
   return (
-    <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    <Stack screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false, animation: "fade" }} />
+      <Stack.Screen name="duty-pharmacies" options={{ headerShown: false, animation: "slide_from_bottom", presentation: "card" }} />
+      <Stack.Screen name="nearest-pharmacy" options={{ headerShown: false, animation: "slide_from_bottom", presentation: "card" }} />
+      <Stack.Screen name="pharmacy-portal" options={{ headerShown: false, animation: "slide_from_bottom", presentation: "card" }} />
     </Stack>
   );
 }

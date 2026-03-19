@@ -416,7 +416,7 @@ export default function HomeScreen() {
                 ref={inputRef}
                 style={[styles.textField, isRTL && styles.textRight]}
                 placeholder={t("searchPlaceholder")}
-                placeholderTextColor={Colors.light.textTertiary}
+                placeholderTextColor={Colors.light.textSecondary}
                 value={drugName}
                 onChangeText={setDrugName}
                 textAlign={isRTL ? "right" : "left"}
@@ -510,9 +510,16 @@ export default function HomeScreen() {
           {/* جِدْ طبيبك */}
           <TouchableOpacity style={[styles.card, { backgroundColor: DOCTOR_LIGHT }]} onPress={goToFindDoctor} activeOpacity={0.82}>
             <View style={[styles.cardAccent, { backgroundColor: DOCTOR_BLUE }]} />
+            {/* Female doctor — slightly behind */}
             <Image
               source={require("@/assets/images/doctor-card.png")}
-              style={styles.doctorCardImg}
+              style={styles.doctorFemaleImg}
+              resizeMode="contain"
+            />
+            {/* Male doctor — front/primary */}
+            <Image
+              source={require("@/assets/images/doctor-male-card.png")}
+              style={styles.doctorMaleImg}
               resizeMode="contain"
             />
             <Text style={[styles.cardTitle, { color: DOCTOR_BLUE }, isRTL && styles.textRight]} numberOfLines={2}>
@@ -1135,13 +1142,21 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 13, fontFamily: "Inter_700Bold", marginBottom: 3, paddingLeft: 6 },
   cardDesc: { fontSize: 10, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, lineHeight: 14, paddingLeft: 6 },
-  doctorCardImg: {
+  doctorFemaleImg: {
+    position: "absolute",
+    right: 38,
+    top: -4,
+    width: 68,
+    height: 68,
+    opacity: 0.82,
+  },
+  doctorMaleImg: {
     position: "absolute",
     right: -4,
     top: -6,
-    width: 88,
-    height: 88,
-    opacity: 0.92,
+    width: 78,
+    height: 78,
+    opacity: 0.95,
   },
 
   /* REGION PICKER */

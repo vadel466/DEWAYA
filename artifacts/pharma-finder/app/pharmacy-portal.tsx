@@ -36,10 +36,11 @@ export default function PharmacyPortalScreen() {
   const insets = useSafeAreaInsets();
   const { language } = useApp();
   const isRTL = language === "ar";
-  const { playAlertBell } = useBell();
+  const { playAlertBell } = useBell("alert");
 
   const [step, setStep] = useState<"code" | "dashboard">("code");
   const [pin, setPin] = useState("");
+  const pinRef = useRef<string>("");
   const [authLoading, setAuthLoading] = useState(false);
   const [pharmacy, setPharmacy] = useState<PharmacyInfo | null>(null);
 
@@ -116,7 +117,9 @@ export default function PharmacyPortalScreen() {
     fetchMyResponsesStatus();
     pollIntervalRef.current = setInterval(async () => {
       try {
-        const resp = await fetch(`${API_BASE}/pharmacy-portal/requests`);
+        const resp = await fetch(`${API_BASE}/pharmacy-portal/requests`, {
+          headers: pinRef.current ? { "x-pharmacy-pin": pinRef.current } : {},
+        });
         if (!resp.ok) return;
         const data: DrugRequest[] = await resp.json();
         const cnt = data.filter(r => r.status === "pending").length;
@@ -157,6 +160,7 @@ export default function PharmacyPortalScreen() {
         return;
       }
       const data = await resp.json();
+      pinRef.current = pin.trim();
       setPharmacy(data);
       setStep("dashboard");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -168,7 +172,9 @@ export default function PharmacyPortalScreen() {
   const fetchRequests = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
-      const resp = await fetch(`${API_BASE}/pharmacy-portal/requests`);
+      const resp = await fetch(`${API_BASE}/pharmacy-portal/requests`, {
+        headers: pinRef.current ? { "x-pharmacy-pin": pinRef.current } : {},
+      });
       if (resp.ok) {
         const data: DrugRequest[] = await resp.json();
         setRequests(data);

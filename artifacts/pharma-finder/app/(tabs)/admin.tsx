@@ -103,7 +103,7 @@ export default function AdminScreen() {
   const { t, language, userId, isAdmin, adminLogout } = useApp();
   const isRTL = language === "ar";
   const qc = useQueryClient();
-  const { playAlertBell } = useBell();
+  const { playAlertBell } = useBell("alert");
 
 
   const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal" | "prices" | "doctors" | "b2b" | "companies">("pending");

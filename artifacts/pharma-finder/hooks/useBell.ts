@@ -2,43 +2,42 @@ import { useEffect, useRef, useCallback } from "react";
 import { Audio } from "expo-av";
 import { Platform } from "react-native";
 
-// Bell sounds — alert for admin/pharmacy, soft for user
 const ALERT_BELL = require("../assets/sounds/bell-alert.mp3");
 const SOFT_BELL = require("../assets/sounds/bell-soft.mp3");
 
-async function loadSound(source: any): Promise<Audio.Sound | null> {
+async function loadSound(source: any, volume = 1.0): Promise<Audio.Sound | null> {
   try {
     await Audio.setAudioModeAsync({
       playsInSilentModeIOS: true,
       shouldDuckAndroid: true,
     });
-    const { sound } = await Audio.Sound.createAsync(source, { volume: 1.0 });
+    const { sound } = await Audio.Sound.createAsync(source, { volume });
     return sound;
   } catch {
     return null;
   }
 }
 
-export function useBell() {
+export function useBell(mode: "alert" | "both" = "both") {
   const alertRef = useRef<Audio.Sound | null>(null);
   const softRef = useRef<Audio.Sound | null>(null);
-  const loadedRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const [a, s] = await Promise.all([
-        loadSound(ALERT_BELL),
-        loadSound(SOFT_BELL),
-      ]);
-      if (!mounted) {
-        a?.unloadAsync();
-        s?.unloadAsync();
-        return;
+      if (mode === "alert") {
+        const a = await loadSound(ALERT_BELL, 1.0);
+        if (!mounted) { a?.unloadAsync(); return; }
+        alertRef.current = a;
+      } else {
+        const [a, s] = await Promise.all([
+          loadSound(ALERT_BELL, 1.0),
+          loadSound(SOFT_BELL, 0.55),
+        ]);
+        if (!mounted) { a?.unloadAsync(); s?.unloadAsync(); return; }
+        alertRef.current = a;
+        softRef.current = s;
       }
-      alertRef.current = a;
-      softRef.current = s;
-      loadedRef.current = true;
     })();
     return () => {
       mounted = false;

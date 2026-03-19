@@ -173,16 +173,21 @@ export default function AdminScreen() {
   const [coCode, setCoCode] = useState(""); const [coContact, setCoContact] = useState("");
   const [coNotes, setCoNotes] = useState("");
 
+  const reqTabActive = isAdmin && (activeTab === "pending" || activeTab === "responded");
+  const payTabActive = isAdmin && activeTab === "payments";
+
   const { data: requests = [], isLoading: reqLoading, refetch: refetchReq, isRefetching: reqRefetching } = useQuery<DrugRequest[]>({
     queryKey: ["admin-requests"],
     queryFn: async () => { const r = await fetch(`${API_BASE}/requests`); if (!r.ok) throw new Error(); return r.json(); },
-    refetchInterval: 5000, enabled: isAdmin,
+    refetchInterval: reqTabActive ? 5000 : false,
+    enabled: isAdmin,
   });
 
   const { data: pendingPayments = [], isLoading: payLoading, refetch: refetchPay, isRefetching: payRefetching } = useQuery<PendingPayment[]>({
     queryKey: ["admin-pending-payments"],
     queryFn: async () => { const r = await fetch(`${API_BASE}/notifications/admin/pending-payments`); if (!r.ok) throw new Error(); return r.json(); },
-    refetchInterval: 5000, enabled: isAdmin,
+    refetchInterval: payTabActive ? 5000 : false,
+    enabled: isAdmin,
   });
 
   const { data: pharmacies = [], isLoading: pharmaLoading, refetch: refetchPharma, isRefetching: pharmaRefetching } = useQuery<Pharmacy[]>({

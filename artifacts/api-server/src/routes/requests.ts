@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { drugRequestsTable, notificationsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, count, sql, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -11,29 +11,34 @@ function generateId(): string {
 
 router.get("/stats", async (_req, res) => {
   try {
-    const all = await db.select().from(drugRequestsTable);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayItems = all.filter((r) => new Date(r.createdAt) >= today);
-    res.json({
-      today: todayItems.length,
-      total: all.length,
-      pending: all.filter((r) => r.status === "pending").length,
-      responded: all.filter((r) => r.status === "responded").length,
-      todayPending: todayItems.filter((r) => r.status === "pending").length,
-    });
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const [totals] = await db
+      .select({
+        total: count(),
+        pending: count(sql`CASE WHEN ${drugRequestsTable.status} = 'pending' THEN 1 END`),
+        responded: count(sql`CASE WHEN ${drugRequestsTable.status} = 'responded' THEN 1 END`),
+        today: count(sql`CASE WHEN ${drugRequestsTable.createdAt} >= ${todayStart.toISOString()} THEN 1 END`),
+        todayPending: count(sql`CASE WHEN ${drugRequestsTable.status} = 'pending' AND ${drugRequestsTable.createdAt} >= ${todayStart.toISOString()} THEN 1 END`),
+      })
+      .from(drugRequestsTable);
+
+    res.json(totals);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
   try {
+    const limit = Math.min(Number(req.query.limit) || 200, 500);
     const requests = await db
       .select()
       .from(drugRequestsTable)
-      .orderBy(drugRequestsTable.createdAt);
+      .orderBy(desc(drugRequestsTable.createdAt))
+      .limit(limit);
     res.json(
       requests.map((r) => ({
         ...r,

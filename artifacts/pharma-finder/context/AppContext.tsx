@@ -227,6 +227,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const appStateRef = useRef(AppState.currentState);
   const softSoundRef = useRef<Audio.Sound | null>(null);
+  const languageRef = useRef<Language>(language);
+  languageRef.current = language;
 
   useEffect(() => {
     let mounted = true;
@@ -302,8 +304,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               }
               playSoftBell();
               await fireLocalNotification(
-                translations[language].notifAlertTitle,
-                translations[language].notifAlertBody,
+                translations[languageRef.current].notifAlertTitle,
+                translations[languageRef.current].notifAlertBody,
                 locked.length
               );
             }
@@ -320,8 +322,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
             playSoftBell();
             await fireLocalNotification(
-              translations[language].notifUnlockedTitle,
-              translations[language].notifUnlockedBody,
+              translations[languageRef.current].notifUnlockedTitle,
+              translations[languageRef.current].notifUnlockedBody,
               Math.max(0, locked.length - 1)
             );
           }
@@ -342,7 +344,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (intervalRef.current) clearInterval(intervalRef.current);
       sub.remove();
     };
-  }, [userId, language]);
+  }, [userId]);
 
   const setLanguage = async (lang: Language) => {
     setLanguageSt(lang);

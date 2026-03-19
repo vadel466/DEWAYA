@@ -128,6 +128,30 @@ router.put("/:id", async (req, res) => {
   }
 });
 
+router.patch("/:id", async (req, res) => {
+  try {
+    if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }
+    const { id } = req.params;
+    const updates: Record<string, unknown> = {};
+    if (typeof req.body.isActive === "boolean") updates.isActive = req.body.isActive;
+    if (typeof req.body.subscriptionActive === "boolean") updates.subscriptionActive = req.body.subscriptionActive;
+    if (typeof req.body.b2bEnabled === "boolean") updates.b2bEnabled = req.body.b2bEnabled;
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ error: "No valid fields to update" }); return;
+    }
+    const [pharmacy] = await db
+      .update(pharmaciesTable)
+      .set(updates)
+      .where(eq(pharmaciesTable.id, id))
+      .returning();
+    if (!pharmacy) { res.status(404).json({ error: "Pharmacy not found" }); return; }
+    res.json({ ...pharmacy, createdAt: pharmacy.createdAt.toISOString() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.delete("/:id", async (req, res) => {
   try {
     if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }

@@ -50,7 +50,8 @@ type Pharmacy = {
   id: string; name: string; nameAr: string | null;
   address: string; addressAr: string | null;
   phone: string; lat: number | null; lon: number | null;
-  region: string | null; portalPin: string | null; isActive: boolean; b2bEnabled?: boolean;
+  region: string | null; portalPin: string | null;
+  isActive: boolean; b2bEnabled: boolean; subscriptionActive: boolean;
 };
 type PortalResponse = {
   id: string; requestId: string; pharmacyId: string | null; pharmacyName: string;
@@ -664,6 +665,45 @@ export default function AdminScreen() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-pharmacies"] }); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); },
   });
 
+  const togglePharmacyBanMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      const r = await fetch(`${API_BASE}/pharmacies/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+        body: JSON.stringify({ isActive }),
+      });
+      if (!r.ok) throw new Error();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-pharmacies"] }); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); },
+    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل تغيير حالة الحظر" : "Échec du changement de statut"),
+  });
+
+  const togglePharmacySubMutation = useMutation({
+    mutationFn: async ({ id, subscriptionActive }: { id: string; subscriptionActive: boolean }) => {
+      const r = await fetch(`${API_BASE}/pharmacies/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+        body: JSON.stringify({ subscriptionActive }),
+      });
+      if (!r.ok) throw new Error();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-pharmacies"] }); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); },
+    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل تغيير الاشتراك" : "Échec du changement d'abonnement"),
+  });
+
+  const toggleCompanyBanMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      const r = await fetch(`${API_BASE}/company-portal/companies/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+        body: JSON.stringify({ isActive }),
+      });
+      if (!r.ok) throw new Error();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-companies"] }); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); },
+    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل تغيير حالة الحظر" : "Échec du changement de statut"),
+  });
+
   const usePortalResponseMutation = { isPending: false };
 
   const saveServiceMutation = useMutation({
@@ -1106,8 +1146,9 @@ export default function AdminScreen() {
               </Text>
             </View>
             {!item.isActive && (
-              <View style={[styles.tag, { backgroundColor: Colors.danger + "18" }]}>
-                <Text style={[styles.tagText, { color: Colors.danger }]}>{isRTL ? "موقوف" : "Suspendu"}</Text>
+              <View style={[styles.tag, { backgroundColor: Colors.danger + "22", borderWidth: 1, borderColor: Colors.danger + "50" }]}>
+                <Ionicons name="lock-closed" size={10} color={Colors.danger} />
+                <Text style={[styles.tagText, { color: Colors.danger }]}>{isRTL ? "محظور" : "Bloqué"}</Text>
               </View>
             )}
           </View>
@@ -1124,6 +1165,12 @@ export default function AdminScreen() {
               refetchCompanies();
             }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <MaterialCommunityIcons name={item.subscriptionActive ? "pause-circle-outline" : "play-circle-outline"} size={18} color={item.subscriptionActive ? Colors.warning : Colors.accent} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: item.isActive ? Colors.danger + "10" : Colors.accent + "10" }]}
+            onPress={() => toggleCompanyBanMutation.mutate({ id: item.id, isActive: !item.isActive })}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name={item.isActive ? "lock-closed-outline" : "lock-open-outline"} size={18} color={item.isActive ? Colors.danger : Colors.accent} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconBtn} onPress={() => {
             setEditingCompany(item);
@@ -1162,6 +1209,17 @@ export default function AdminScreen() {
               : <View style={[styles.tag, { backgroundColor: Colors.warning + "18", borderWidth: 1, borderColor: Colors.warning + "40" }]}><Ionicons name="warning-outline" size={10} color={Colors.warning} /><Text style={[styles.tagText, { color: Colors.warning }]}>{isRTL ? "بدون PIN" : "Sans PIN"}</Text></View>
             }
             {item.lat && item.lon && <View style={[styles.tag, { backgroundColor: Colors.primary + "12" }]}><Ionicons name="location" size={10} color={Colors.primary} /><Text style={[styles.tagText, { color: Colors.primary }]}>GPS</Text></View>}
+            <View style={[styles.tag, { backgroundColor: item.subscriptionActive ? Colors.accent + "18" : Colors.warning + "18" }]}>
+              <Text style={[styles.tagText, { color: item.subscriptionActive ? Colors.accent : Colors.warning }]}>
+                {item.subscriptionActive ? (isRTL ? "اشتراك فعّال" : "Abonné") : (isRTL ? "اشتراك متوقف" : "Non abonné")}
+              </Text>
+            </View>
+            {!item.isActive && (
+              <View style={[styles.tag, { backgroundColor: Colors.danger + "22", borderWidth: 1, borderColor: Colors.danger + "50" }]}>
+                <Ionicons name="lock-closed" size={10} color={Colors.danger} />
+                <Text style={[styles.tagText, { color: Colors.danger }]}>{isRTL ? "محظور" : "Bloqué"}</Text>
+              </View>
+            )}
           </View>
         </View>
         <View style={styles.actionIcons}>
@@ -1172,6 +1230,22 @@ export default function AdminScreen() {
             activeOpacity={0.8}
           >
             <Text style={[styles.b2bToggleText, item.b2bEnabled && styles.b2bToggleTextOn]}>B2B</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: item.subscriptionActive ? Colors.warning + "15" : Colors.accent + "15" }]}
+            onPress={() => togglePharmacySubMutation.mutate({ id: item.id, subscriptionActive: !item.subscriptionActive })}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name={item.subscriptionActive ? "pause-circle-outline" : "play-circle-outline"} size={18} color={item.subscriptionActive ? Colors.warning : Colors.accent} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: item.isActive ? Colors.danger + "10" : Colors.accent + "10" }]}
+            onPress={() => togglePharmacyBanMutation.mutate({ id: item.id, isActive: !item.isActive })}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name={item.isActive ? "lock-closed-outline" : "lock-open-outline"} size={18} color={item.isActive ? Colors.danger : Colors.accent} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconBtn} onPress={() => openEditPharmacy(item)} activeOpacity={0.8}>
             <Ionicons name="create-outline" size={18} color={Colors.primary} />

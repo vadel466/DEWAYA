@@ -60,6 +60,19 @@ type B2bMessage = {
   message: string; type: string; adminStatus: string;
   adminNote: string | null; createdAt: string;
 };
+type Company = {
+  id: string; name: string; nameAr: string | null;
+  code: string; contact: string | null;
+  subscriptionActive: boolean; isActive: boolean;
+  notes: string | null; createdAt: string;
+};
+type CompanyOrder = {
+  id: string; pharmacyId: string; pharmacyName: string;
+  companyId: string | null; companyName: string | null;
+  drugName: string; quantity: string | null; message: string | null;
+  type: string; status: string; companyResponse: string | null;
+  respondedAt: string | null; createdAt: string;
+};
 type DrugPrice = {
   id: string; name: string; nameAr: string | null;
   price: number; unit: string | null; category: string | null;
@@ -90,7 +103,7 @@ export default function AdminScreen() {
   const qc = useQueryClient();
 
 
-  const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal" | "prices" | "doctors" | "b2b">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal" | "prices" | "doctors" | "b2b" | "companies">("pending");
   const [hasNewRequests, setHasNewRequests] = useState(false);
   const prevPendingCountRef = useRef<number>(-1);
   const vibrationActiveRef = useRef(false);
@@ -146,6 +159,13 @@ export default function AdminScreen() {
   const [drImageBase64, setDrImageBase64] = useState(""); const [drImageMime, setDrImageMime] = useState("image/jpeg");
   const [pickingDrImage, setPickingDrImage] = useState(false);
 
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
+  const [coSearch, setCoSearch] = useState("");
+  const [coName, setCoName] = useState(""); const [coNameAr, setCoNameAr] = useState("");
+  const [coCode, setCoCode] = useState(""); const [coContact, setCoContact] = useState("");
+  const [coNotes, setCoNotes] = useState("");
+
   const { data: requests = [], isLoading: reqLoading, refetch: refetchReq, isRefetching: reqRefetching } = useQuery<DrugRequest[]>({
     queryKey: ["admin-requests"],
     queryFn: async () => { const r = await fetch(`${API_BASE}/requests`); if (!r.ok) throw new Error(); return r.json(); },
@@ -185,6 +205,22 @@ export default function AdminScreen() {
     queryFn: async () => { const r = await fetch(`${API_BASE}/pharmacy-portal/b2b`, { headers: { "x-admin-secret": ADMIN_SECRET } }); if (!r.ok) throw new Error(); return r.json(); },
     refetchInterval: 15000, enabled: isAdmin && activeTab === "b2b",
   });
+
+  const { data: companies = [], isLoading: companyLoading, refetch: refetchCompanies, isRefetching: companyRefetching } = useQuery<Company[]>({
+    queryKey: ["admin-companies"],
+    queryFn: async () => { const r = await fetch(`${API_BASE}/company-portal/companies`, { headers: { "x-admin-secret": ADMIN_SECRET } }); if (!r.ok) throw new Error(); return r.json(); },
+    enabled: isAdmin && activeTab === "companies",
+  });
+
+  const { data: allCompanyOrders = [], isLoading: coOrdersLoading } = useQuery<CompanyOrder[]>({
+    queryKey: ["admin-company-orders"],
+    queryFn: async () => { const r = await fetch(`${API_BASE}/company-portal/orders-all`, { headers: { "x-admin-secret": ADMIN_SECRET } }); if (!r.ok) throw new Error(); return r.json(); },
+    refetchInterval: 15000, enabled: isAdmin && activeTab === "companies",
+  });
+
+  const filteredCompanies = coSearch.trim()
+    ? companies.filter(c => c.name.toLowerCase().includes(coSearch.toLowerCase()) || (c.nameAr && c.nameAr.includes(coSearch)))
+    : companies;
 
   const { data: allDrugPrices = [], isLoading: priceLoading, refetch: refetchPrices, isRefetching: priceRefetching } = useQuery<DrugPrice[]>({
     queryKey: ["admin-drug-prices"],
@@ -637,6 +673,7 @@ export default function AdminScreen() {
     { id: "prices", label: isRTL ? "أسعار" : "Prix" },
     { id: "doctors", label: isRTL ? "أطباء" : "Médecins" },
     { id: "b2b", label: `B2B${b2bMessages.filter(m => m.adminStatus === "pending").length > 0 ? ` (${b2bMessages.filter(m => m.adminStatus === "pending").length})` : ""}` },
+    { id: "companies", label: isRTL ? "شركات" : "Sociétés" },
   ];
 
   const isLoading =
@@ -646,6 +683,7 @@ export default function AdminScreen() {
     activeTab === "prices" ? priceLoading :
     activeTab === "doctors" ? doctorLoading :
     activeTab === "b2b" ? b2bLoading :
+    activeTab === "companies" ? companyLoading :
     reqLoading;
 
   const isRefetching =
@@ -655,6 +693,7 @@ export default function AdminScreen() {
     activeTab === "prices" ? priceRefetching :
     activeTab === "doctors" ? doctorRefetching :
     activeTab === "b2b" ? b2bRefetching :
+    activeTab === "companies" ? companyRefetching :
     reqRefetching;
 
   const onRefresh = () => {
@@ -664,6 +703,7 @@ export default function AdminScreen() {
     else if (activeTab === "prices") refetchPrices();
     else if (activeTab === "doctors") refetchDoctors();
     else if (activeTab === "b2b") refetchB2b();
+    else if (activeTab === "companies") refetchCompanies();
     else refetchReq();
   };
 
@@ -794,6 +834,64 @@ export default function AdminScreen() {
           </TouchableOpacity>
         </View>
       )}
+    </View>
+  );
+
+  const renderCompany = ({ item }: { item: Company }) => (
+    <View style={[styles.pharmCard, { borderColor: "#7C3AED18" }]}>
+      <View style={[styles.cardRow, isRTL && styles.rtlRow]}>
+        <View style={[styles.requestIcon, { backgroundColor: "#7C3AED12" }]}>
+          <MaterialCommunityIcons name="domain" size={22} color="#7C3AED" />
+        </View>
+        <View style={[styles.requestInfo, isRTL && styles.rtlInfo]}>
+          <Text style={[styles.drugName, isRTL && styles.rtlText]}>{isRTL && item.nameAr ? item.nameAr : item.name}</Text>
+          {item.nameAr && !isRTL && <Text style={styles.requestTime}>{item.nameAr}</Text>}
+          <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
+            <View style={[styles.tag, { backgroundColor: "#7C3AED18" }]}>
+              <Text style={[styles.tagText, { color: "#7C3AED" }]}>{isRTL ? `الرمز: ${item.code}` : `Code: ${item.code}`}</Text>
+            </View>
+            <View style={[styles.tag, { backgroundColor: item.subscriptionActive ? Colors.accent + "18" : Colors.warning + "18" }]}>
+              <Text style={[styles.tagText, { color: item.subscriptionActive ? Colors.accent : Colors.warning }]}>
+                {item.subscriptionActive ? (isRTL ? "اشتراك فعّال" : "Abonnement actif") : (isRTL ? "اشتراك متوقف" : "Abonnement inactif")}
+              </Text>
+            </View>
+            {!item.isActive && (
+              <View style={[styles.tag, { backgroundColor: Colors.danger + "18" }]}>
+                <Text style={[styles.tagText, { color: Colors.danger }]}>{isRTL ? "موقوف" : "Suspendu"}</Text>
+              </View>
+            )}
+          </View>
+          {item.contact && <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{item.contact}</Text>}
+        </View>
+        <View style={styles.actionIcons}>
+          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: item.subscriptionActive ? Colors.warning + "15" : Colors.accent + "15" }]}
+            onPress={async () => {
+              await fetch(`${API_BASE}/company-portal/companies/${item.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+                body: JSON.stringify({ subscriptionActive: !item.subscriptionActive }),
+              });
+              refetchCompanies();
+            }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <MaterialCommunityIcons name={item.subscriptionActive ? "pause-circle-outline" : "play-circle-outline"} size={18} color={item.subscriptionActive ? Colors.warning : Colors.accent} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => {
+            setEditingCompany(item);
+            setCoName(item.name); setCoNameAr(item.nameAr || "");
+            setCoCode(item.code); setCoContact(item.contact || ""); setCoNotes(item.notes || "");
+            setShowCompanyModal(true);
+          }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="create-outline" size={18} color={Colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: Colors.danger + "10" }]}
+            onPress={() => confirmDelete(isRTL ? "إيقاف هذه الشركة؟" : "Suspendre cette société?", async () => {
+              await fetch(`${API_BASE}/company-portal/companies/${item.id}`, { method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET } });
+              refetchCompanies();
+            })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="ban-outline" size={18} color={Colors.danger} />
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 
@@ -929,7 +1027,7 @@ export default function AdminScreen() {
     </View>
   );
 
-  const isAddTab = activeTab === "pharmacies" || activeTab === "prices" || activeTab === "doctors";
+  const isAddTab = activeTab === "pharmacies" || activeTab === "prices" || activeTab === "doctors" || activeTab === "companies";
   const currentData: any[] =
     activeTab === "pending" ? pendingRequests :
     activeTab === "responded" ? respondedRequests :
@@ -938,6 +1036,7 @@ export default function AdminScreen() {
     activeTab === "prices" ? filteredDrugPrices :
     activeTab === "doctors" ? filteredDoctors :
     activeTab === "b2b" ? b2bMessages :
+    activeTab === "companies" ? filteredCompanies :
     portalResponses;
 
   return (
@@ -1033,6 +1132,7 @@ export default function AdminScreen() {
             activeTab === "prices" ? renderDrugPrice :
             activeTab === "doctors" ? renderDoctor :
             activeTab === "b2b" ? renderB2b :
+            activeTab === "companies" ? renderCompany :
             renderRequest) as any
           }
           contentContainerStyle={[styles.list, currentData.length === 0 && styles.emptyList, { paddingBottom: Platform.OS === "web" ? 34 : 0 }]}
@@ -1093,6 +1193,37 @@ export default function AdminScreen() {
                   </View>
                   <Text style={[styles.countLabel, isRTL && styles.rtlText]}>{isRTL ? `${filteredDoctors.length} طبيب` : `${filteredDoctors.length} médecin(s)`}</Text>
                 </View>
+              ) : activeTab === "companies" ? (
+                <View>
+                  <TouchableOpacity style={[styles.addBtn, { backgroundColor: "#7C3AED" }]} onPress={() => {
+                    setEditingCompany(null); setCoName(""); setCoNameAr(""); setCoCode(""); setCoContact(""); setCoNotes("");
+                    setShowCompanyModal(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }} activeOpacity={0.85}>
+                    <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                    <Text style={styles.addBtnText}>{isRTL ? "إضافة شركة" : "Ajouter une société"}</Text>
+                  </TouchableOpacity>
+                  <View style={[styles.searchBarWrap, { marginTop: 8 }]}>
+                    <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />
+                    <TextInput style={[styles.searchBarInput, isRTL && styles.rtlText]} placeholder={isRTL ? "بحث عن شركة..." : "Rechercher une société..."} placeholderTextColor={Colors.light.textTertiary} value={coSearch} onChangeText={setCoSearch} />
+                    {coSearch.length > 0 && (<TouchableOpacity onPress={() => setCoSearch("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} /></TouchableOpacity>)}
+                  </View>
+                  <Text style={[styles.countLabel, isRTL && styles.rtlText]}>{isRTL ? `${filteredCompanies.length} شركة` : `${filteredCompanies.length} société(s)`}</Text>
+                  {allCompanyOrders.length > 0 && (
+                    <View style={{ backgroundColor: "#7C3AED08", borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: "#7C3AED18" }}>
+                      <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#7C3AED", marginBottom: 6 }}>{isRTL ? "آخر الطلبات B2B" : "Dernières commandes B2B"}</Text>
+                      {allCompanyOrders.slice(0, 3).map(order => (
+                        <View key={order.id} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 }}>
+                          <MaterialCommunityIcons name="package-variant" size={14} color="#7C3AED" />
+                          <Text style={{ flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: Colors.light.text }}>{order.drugName}</Text>
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary }}>{order.pharmacyName}</Text>
+                          <View style={[styles.tag, { backgroundColor: order.status === "responded" ? Colors.accent + "18" : Colors.warning + "18" }]}>
+                            <Text style={[styles.tagText, { color: order.status === "responded" ? Colors.accent : Colors.warning }]}>{order.status === "responded" ? (isRTL ? "مجاب" : "Répondu") : (isRTL ? "انتظار" : "Attente")}</Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
               ) : (
                 <TouchableOpacity
                   style={styles.addBtn}
@@ -1114,6 +1245,7 @@ export default function AdminScreen() {
                  activeTab === "prices" ? (isRTL ? "لا توجد أسعار مسجلة" : "Aucun médicament enregistré") :
                  activeTab === "doctors" ? (isRTL ? "لا يوجد أطباء مسجلون" : "Aucun médecin enregistré") :
                  activeTab === "b2b" ? (isRTL ? "لا توجد رسائل B2B" : "Aucun message B2B") :
+                 activeTab === "companies" ? (isRTL ? "لا توجد شركات مسجلة" : "Aucune société enregistrée") :
                  t("noPendingRequests")}
               </Text>
             </View>
@@ -1454,6 +1586,63 @@ export default function AdminScreen() {
               <TouchableOpacity style={styles.cancelButton} onPress={() => setShowImportModal(false)} activeOpacity={0.7}>
                 <Text style={styles.cancelText}>{t("cancel")}</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Company add/edit modal */}
+      <Modal visible={showCompanyModal} transparent animationType="slide" onRequestClose={() => setShowCompanyModal(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHandle} />
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>
+                  {editingCompany ? (isRTL ? "تعديل الشركة" : "Modifier la société") : (isRTL ? "إضافة شركة جديدة" : "Ajouter une société")}
+                </Text>
+                {[
+                  { label: isRTL ? "اسم الشركة (فرنسي) *" : "Nom (français) *", value: coName, setter: setCoName, placeholder: isRTL ? "اسم الشركة" : "Nom de la société" },
+                  { label: isRTL ? "اسم الشركة (عربي)" : "Nom (arabe)", value: coNameAr, setter: setCoNameAr, placeholder: isRTL ? "الاسم بالعربية" : "Nom en arabe", rtl: true },
+                  { label: isRTL ? "رمز الدخول *" : "Code d'accès *", value: coCode, setter: setCoCode, placeholder: isRTL ? "مثال: PHARMA2026" : "Ex: PHARMA2026" },
+                  { label: isRTL ? "جهة التواصل" : "Contact", value: coContact, setter: setCoContact, placeholder: isRTL ? "رقم الهاتف أو الإيميل" : "Téléphone ou email" },
+                  { label: isRTL ? "ملاحظات" : "Notes", value: coNotes, setter: setCoNotes, placeholder: isRTL ? "ملاحظات إضافية..." : "Notes supplémentaires..." },
+                ].map(({ label, value, setter, placeholder, rtl }) => (
+                  <View key={label} style={styles.formGroup}>
+                    <Text style={[styles.label, isRTL && styles.rtlText]}>{label}</Text>
+                    <View style={styles.inputRow}>
+                      <TextInput
+                        style={[styles.modalInput, { flex: 1, borderWidth: 0 }, (isRTL || rtl) && styles.rtlInput]}
+                        value={value} onChangeText={setter}
+                        placeholder={placeholder} placeholderTextColor={Colors.light.textTertiary}
+                        textAlign={(isRTL || rtl) ? "right" : "left"}
+                      />
+                    </View>
+                  </View>
+                ))}
+                <View style={[styles.formGroup, { flexDirection: "row", gap: 10 }]}>
+                  <TouchableOpacity
+                    style={[styles.addBtn, { flex: 1 }, { backgroundColor: "#7C3AED" }, (!coName.trim() || !coCode.trim()) && { opacity: 0.5 }]}
+                    onPress={async () => {
+                      if (!coName.trim() || !coCode.trim()) return;
+                      const url = editingCompany ? `${API_BASE}/company-portal/companies/${editingCompany.id}` : `${API_BASE}/company-portal/companies`;
+                      const resp = await fetch(url, {
+                        method: editingCompany ? "PATCH" : "POST",
+                        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+                        body: JSON.stringify({ name: coName.trim(), nameAr: coNameAr.trim() || null, code: coCode.trim().toUpperCase(), contact: coContact.trim() || null, notes: coNotes.trim() || null }),
+                      });
+                      if (resp.ok) { refetchCompanies(); setShowCompanyModal(false); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
+                    }}
+                    disabled={!coName.trim() || !coCode.trim()} activeOpacity={0.85}
+                  >
+                    <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                    <Text style={styles.addBtnText}>{isRTL ? "حفظ" : "Enregistrer"}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.addBtn, { flex: 0.5, backgroundColor: Colors.light.inputBackground }]} onPress={() => setShowCompanyModal(false)} activeOpacity={0.7}>
+                    <Text style={[styles.addBtnText, { color: Colors.light.textSecondary }]}>{t("cancel")}</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             </View>
           </View>
         </KeyboardAvoidingView>

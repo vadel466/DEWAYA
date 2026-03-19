@@ -15,17 +15,21 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : "/api";
 
+const PARTNER_COLOR = "#7C3AED";
+
 type DrugRequest = { id: string; userId: string; drugName: string; status: string; createdAt: string };
-type PharmacyInfo = { id: string; name: string; nameAr: string | null; address: string; phone: string; region: string | null; b2bEnabled: boolean };
+type PharmacyInfo = { id: string; name: string; nameAr: string | null; address: string; phone: string; region: string | null; b2bEnabled: boolean; subscriptionActive?: boolean };
 type PharmacyListItem = { id: string; name: string; nameAr: string | null; address: string; region: string | null; phone: string; b2bEnabled: boolean };
 type InventoryItem = { id: string; pharmacyId: string; drugName: string; notes: string | null; createdAt: string };
-type B2bMessage = { id: string; pharmacyId: string; pharmacyName: string; message: string; type: string; adminStatus: string; createdAt: string };
+type Company = { id: string; name: string; nameAr: string | null; contact: string | null; subscriptionActive: boolean };
+type CompanyOrder = { id: string; pharmacyId: string; pharmacyName: string; companyId: string | null; companyName: string | null; drugName: string; quantity: string | null; message: string | null; type: string; status: string; companyResponse: string | null; respondedAt: string | null; createdAt: string };
+type CompanyAnnouncement = { id: string; companyId: string; companyName: string; drugName: string; price: number | null; unit: string | null; notes: string | null; isAd: boolean; createdAt: string };
 
 function formatTime(dateStr: string, lang: string): string {
   return new Date(dateStr).toLocaleString(lang === "ar" ? "ar-SA" : "fr-FR", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" });
 }
 
-type PortalTab = "requests" | "repeater" | "b2b";
+type PortalTab = "requests" | "repeater" | "partners" | "ads";
 
 export default function PharmacyPortalScreen() {
   const insets = useSafeAreaInsets();
@@ -61,12 +65,21 @@ export default function PharmacyPortalScreen() {
   const [repeaterNotes, setRepeaterNotes] = useState("");
   const [repeaterSaving, setRepeaterSaving] = useState(false);
 
-  const [b2bMessages, setB2bMessages] = useState<B2bMessage[]>([]);
-  const [b2bLoading, setB2bLoading] = useState(false);
-  const [showB2bModal, setShowB2bModal] = useState(false);
-  const [b2bText, setB2bText] = useState("");
-  const [b2bType, setB2bType] = useState<"order" | "inquiry">("order");
-  const [b2bSending, setB2bSending] = useState(false);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companiesLoading, setCompaniesLoading] = useState(false);
+  const [companyOrders, setCompanyOrders] = useState<CompanyOrder[]>([]);
+  const [companyOrdersLoading, setCompanyOrdersLoading] = useState(false);
+  const [companyOrdersRefreshing, setCompanyOrdersRefreshing] = useState(false);
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [orderDrug, setOrderDrug] = useState("");
+  const [orderQty, setOrderQty] = useState("");
+  const [orderMsg, setOrderMsg] = useState("");
+  const [orderType, setOrderType] = useState<"order" | "inquiry" | "promotion">("order");
+  const [orderSending, setOrderSending] = useState(false);
+
+  const [announcements, setAnnouncements] = useState<CompanyAnnouncement[]>([]);
+  const [adsLoading, setAdsLoading] = useState(false);
 
   const stopBellAlert = useCallback(() => {
     bellLoop.current?.stop(); bellShake.setValue(0);
@@ -171,18 +184,35 @@ export default function PharmacyPortalScreen() {
     } catch {} finally { setInventoryLoading(false); }
   };
 
-  const fetchB2b = async () => {
-    if (!pharmacy) return;
-    setB2bLoading(true);
+  const fetchCompanies = useCallback(async () => {
+    setCompaniesLoading(true);
     try {
-      const resp = await fetch(`${API_BASE}/pharmacy-portal/b2b/pharmacy/${pharmacy.id}`);
-      if (resp.ok) setB2bMessages(await resp.json());
-    } catch {} finally { setB2bLoading(false); }
-  };
+      const resp = await fetch(`${API_BASE}/pharmacy-portal/companies-list`);
+      if (resp.ok) setCompanies(await resp.json());
+    } catch {} finally { setCompaniesLoading(false); }
+  }, []);
+
+  const fetchCompanyOrders = useCallback(async (isRefresh = false) => {
+    if (!pharmacy) return;
+    if (isRefresh) setCompanyOrdersRefreshing(true); else setCompanyOrdersLoading(true);
+    try {
+      const resp = await fetch(`${API_BASE}/pharmacy-portal/company-orders/${pharmacy.id}`);
+      if (resp.ok) setCompanyOrders(await resp.json());
+    } catch {} finally { setCompanyOrdersLoading(false); setCompanyOrdersRefreshing(false); }
+  }, [pharmacy]);
+
+  const fetchAnnouncements = useCallback(async () => {
+    setAdsLoading(true);
+    try {
+      const resp = await fetch(`${API_BASE}/company-portal/announcements`);
+      if (resp.ok) setAnnouncements(await resp.json());
+    } catch {} finally { setAdsLoading(false); }
+  }, []);
 
   useEffect(() => {
     if (activeTab === "repeater") fetchInventory();
-    else if (activeTab === "b2b") fetchB2b();
+    else if (activeTab === "partners") { fetchCompanies(); fetchCompanyOrders(); }
+    else if (activeTab === "ads") fetchAnnouncements();
   }, [activeTab]);
 
   const handleRespond = async (request: DrugRequest) => {
@@ -233,26 +263,36 @@ export default function PharmacyPortalScreen() {
     } catch {}
   };
 
-  const handleSendB2b = async () => {
-    if (!pharmacy || !b2bText.trim()) return;
-    setB2bSending(true);
+  const handleSendOrder = async () => {
+    if (!pharmacy || !orderDrug.trim()) return;
+    setOrderSending(true);
     try {
-      const resp = await fetch(`${API_BASE}/pharmacy-portal/b2b`, {
+      const resp = await fetch(`${API_BASE}/pharmacy-portal/company-order`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pharmacyId: pharmacy.id, pharmacyName: pharmacy.nameAr || pharmacy.name, message: b2bText.trim(), type: b2bType }),
+        body: JSON.stringify({
+          pharmacyId: pharmacy.id, pharmacyName: pharmacy.nameAr || pharmacy.name,
+          companyId: selectedCompany?.id || null, companyName: selectedCompany ? (selectedCompany.nameAr || selectedCompany.name) : null,
+          drugName: orderDrug.trim(), quantity: orderQty.trim() || null,
+          message: orderMsg.trim() || null, type: orderType,
+        }),
       });
       if (resp.ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setB2bText(""); setShowB2bModal(false); fetchB2b();
-        Alert.alert(isRTL ? "تم الإرسال" : "Envoyé", isRTL ? "طلبك في انتظار موافقة الإدارة" : "Votre demande attend la validation de l'administration");
+        setOrderDrug(""); setOrderQty(""); setOrderMsg(""); setSelectedCompany(null); setOrderType("order");
+        setShowOrderModal(false);
+        fetchCompanyOrders();
+        Alert.alert(
+          isRTL ? "✅ تم الإرسال" : "✅ Envoyé",
+          isRTL ? "تم إرسال طلبك للشركة مباشرةً" : "Votre commande a été envoyée directement à la société"
+        );
       }
-    } catch {} finally { setB2bSending(false); }
+    } catch {} finally { setOrderSending(false); }
   };
 
   const doLogout = () => {
     setPharmacy(null); setPin(""); setRespondedIds(new Set()); stopBellAlert();
     prevPendingCountRef.current = -1; setStep("code"); setPharmacyList([]);
-    setRequests([]); setInventory([]); setB2bMessages([]); setActiveTab("requests");
+    setRequests([]); setInventory([]); setCompanyOrders([]); setAnnouncements([]); setActiveTab("requests");
   };
 
   const filteredPharmacies = pharmacyList.filter(p =>
@@ -264,11 +304,13 @@ export default function PharmacyPortalScreen() {
 
   const pendingRequests = requests.filter(r => r.status === "pending" && !respondedIds.has(r.id));
   const myResponded = requests.filter(r => respondedIds.has(r.id));
+  const pendingOrders = companyOrders.filter(o => o.status === "pending");
 
   const TABS: { id: PortalTab; label: string; icon: any }[] = [
     { id: "requests", label: isRTL ? `الطلبات${pendingRequests.length > 0 ? ` (${pendingRequests.length})` : ""}` : `Demandes${pendingRequests.length > 0 ? ` (${pendingRequests.length})` : ""}`, icon: "pill" },
     { id: "repeater", label: isRTL ? "ريبتير" : "Répéteur", icon: "repeat" },
-    ...(pharmacy?.b2bEnabled ? [{ id: "b2b" as PortalTab, label: "B2B", icon: "briefcase-outline" }] : []),
+    { id: "partners", label: isRTL ? `الشركاء${pendingOrders.length > 0 ? ` (${pendingOrders.length})` : ""}` : `Partenaires${pendingOrders.length > 0 ? ` (${pendingOrders.length})` : ""}`, icon: "domain" },
+    { id: "ads", label: isRTL ? "إعلانات" : "Annonces", icon: "bullhorn" },
   ];
 
   if (step === "code") {
@@ -517,58 +559,112 @@ export default function PharmacyPortalScreen() {
         </View>
       )}
 
-      {activeTab === "b2b" && (
+      {activeTab === "partners" && (
         <View style={{ flex: 1 }}>
           <View style={styles.repeaterHeader}>
             <View style={[styles.repeaterHeaderInfo, isRTL && { alignItems: "flex-end" }]}>
-              <Text style={[styles.repeaterTitle, isRTL && styles.rtlText]}>{isRTL ? "قناة B2B — التواصل مع الشركات" : "Canal B2B — Contact fournisseurs"}</Text>
+              <Text style={[styles.repeaterTitle, isRTL && styles.rtlText]}>{isRTL ? "الشركاء — شركات الأدوية" : "Partenaires — Sociétés Pharma"}</Text>
               <Text style={[styles.repeaterSub, isRTL && styles.rtlText]}>
-                {isRTL ? "أرسل طلبات أو استفسارات للشركات عبر الإدارة" : "Envoyez commandes ou demandes via l'administration"}
+                {isRTL ? "أرسل طلبات مباشرة لشركات الأدوية" : "Envoyez des commandes directement aux sociétés pharmaceutiques"}
               </Text>
             </View>
-            <TouchableOpacity style={[styles.addRepeaterBtn, { backgroundColor: "#7C3AED" }]} onPress={() => setShowB2bModal(true)} activeOpacity={0.85}>
+            <TouchableOpacity style={[styles.addRepeaterBtn, { backgroundColor: PARTNER_COLOR }]} onPress={() => setShowOrderModal(true)} activeOpacity={0.85}>
               <Ionicons name="send" size={18} color="#fff" />
             </TouchableOpacity>
           </View>
-          {b2bLoading ? (
-            <View style={styles.centered}><ActivityIndicator size="large" color="#7C3AED" /></View>
+
+          {companiesLoading ? (
+            <View style={styles.centered}><ActivityIndicator size="large" color={PARTNER_COLOR} /></View>
           ) : (
-            <FlatList
-              data={b2bMessages}
-              keyExtractor={i => i.id}
-              contentContainerStyle={[styles.list, b2bMessages.length === 0 && styles.emptyList]}
-              refreshControl={<RefreshControl refreshing={false} onRefresh={fetchB2b} tintColor="#7C3AED" />}
-              renderItem={({ item }) => (
-                <View style={styles.b2bCard}>
-                  <View style={[styles.inventoryRow, isRTL && styles.rtlRow]}>
-                    <View style={[styles.inventoryIcon, { backgroundColor: "#7C3AED18" }]}>
-                      <MaterialCommunityIcons name={item.type === "order" ? "cart-outline" : "help-circle-outline"} size={20} color="#7C3AED" />
-                    </View>
-                    <View style={[styles.inventoryInfo, isRTL && { alignItems: "flex-end" }]}>
-                      <View style={[{ flexDirection: "row", gap: 6, alignItems: "center" }, isRTL && { flexDirection: "row-reverse" }]}>
-                        <Text style={[styles.b2bTypeBadge, { backgroundColor: item.type === "order" ? "#7C3AED18" : "#F59E0B18", color: item.type === "order" ? "#7C3AED" : "#B45309" }]}>
-                          {item.type === "order" ? (isRTL ? "طلبية" : "Commande") : (isRTL ? "استفسار" : "Demande")}
-                        </Text>
-                        <Text style={[styles.b2bStatusBadge, { backgroundColor: item.adminStatus === "approved" ? Colors.accent + "18" : item.adminStatus === "rejected" ? Colors.danger + "18" : Colors.warning + "18", color: item.adminStatus === "approved" ? Colors.accent : item.adminStatus === "rejected" ? Colors.danger : Colors.warning }]}>
-                          {item.adminStatus === "approved" ? (isRTL ? "موافق" : "Approuvé") : item.adminStatus === "rejected" ? (isRTL ? "مرفوض" : "Rejeté") : (isRTL ? "قيد المراجعة" : "En attente")}
-                        </Text>
-                      </View>
-                      <Text style={[styles.drugName, { fontSize: 13 }, isRTL && styles.rtlText]}>{item.message}</Text>
-                      <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{formatTime(item.createdAt, language)}</Text>
-                    </View>
-                  </View>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 20 }}>
+              {companies.length > 0 && (
+                <View style={styles.companiesSection}>
+                  <Text style={[styles.sectionLabel, isRTL && styles.rtlText]}>{isRTL ? "الشركاء المتاحون" : "Partenaires disponibles"}</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                    {companies.map(c => (
+                      <TouchableOpacity key={c.id} style={styles.companyChip} onPress={() => { setSelectedCompany(c); setShowOrderModal(true); }} activeOpacity={0.8}>
+                        <MaterialCommunityIcons name="domain" size={14} color={PARTNER_COLOR} />
+                        <Text style={styles.companyChipText}>{isRTL && c.nameAr ? c.nameAr : c.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
                 </View>
               )}
-              ListEmptyComponent={
+
+              <Text style={[styles.sectionLabel, isRTL && styles.rtlText]}>{isRTL ? "طلباتي" : "Mes commandes"}</Text>
+              {companyOrdersLoading ? (
+                <ActivityIndicator size="small" color={PARTNER_COLOR} style={{ marginTop: 20 }} />
+              ) : companyOrders.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <MaterialCommunityIcons name="briefcase-outline" size={64} color={Colors.light.textTertiary} />
-                  <Text style={[styles.emptyTitle, isRTL && styles.rtlText]}>{isRTL ? "لا توجد رسائل B2B بعد" : "Aucun message B2B"}</Text>
-                  <Text style={[styles.emptySub, isRTL && styles.rtlText]}>{isRTL ? "أرسل طلبية أو استفساراً للبدء" : "Envoyez une commande ou une demande pour commencer"}</Text>
+                  <MaterialCommunityIcons name="domain" size={48} color={Colors.light.textTertiary} />
+                  <Text style={[styles.emptyTitle, isRTL && styles.rtlText]}>{isRTL ? "لا توجد طلبات بعد" : "Aucune commande"}</Text>
+                  <Text style={[styles.emptySub, isRTL && styles.rtlText]}>{isRTL ? "اضغط على إرسال لبدء طلب جديد" : "Appuyez sur envoyer pour une nouvelle commande"}</Text>
                 </View>
-              }
-            />
+              ) : companyOrders.map(order => (
+                <View key={order.id} style={styles.companyOrderCard}>
+                  <View style={[styles.orderCardHeader, isRTL && styles.rtlRow]}>
+                    <View style={[styles.orderCardIcon, { backgroundColor: order.status === "responded" ? Colors.accent + "15" : PARTNER_COLOR + "12" }]}>
+                      <MaterialCommunityIcons name="package-variant" size={18} color={order.status === "responded" ? Colors.accent : PARTNER_COLOR} />
+                    </View>
+                    <View style={[{ flex: 1 }, isRTL && { alignItems: "flex-end" }]}>
+                      <Text style={[styles.drugName, isRTL && styles.rtlText]}>{order.drugName}</Text>
+                      {order.companyName && <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{order.companyName}</Text>}
+                    </View>
+                    <View style={[styles.orderStatusBadge, { backgroundColor: order.status === "responded" ? Colors.accent + "18" : Colors.warning + "18" }]}>
+                      <Text style={[styles.orderStatusText, { color: order.status === "responded" ? Colors.accent : Colors.warning }]}>
+                        {order.status === "responded" ? (isRTL ? "مُجاب" : "Répondu") : (isRTL ? "انتظار" : "En attente")}
+                      </Text>
+                    </View>
+                  </View>
+                  {order.companyResponse && (
+                    <View style={[styles.companyResponseBox, isRTL && { alignItems: "flex-end" }]}>
+                      <Text style={[styles.responseLabel, isRTL && styles.rtlText]}>{isRTL ? "رد الشركة:" : "Réponse:"}</Text>
+                      <Text style={[styles.responseText, isRTL && styles.rtlText]}>{order.companyResponse}</Text>
+                    </View>
+                  )}
+                  <Text style={styles.requestTime}>{formatTime(order.createdAt, language)}</Text>
+                </View>
+              ))}
+            </ScrollView>
           )}
         </View>
+      )}
+
+      {activeTab === "ads" && (
+        adsLoading ? (
+          <View style={styles.centered}><ActivityIndicator size="large" color={PARTNER_COLOR} /></View>
+        ) : (
+          <FlatList
+            data={announcements}
+            keyExtractor={i => i.id}
+            contentContainerStyle={[styles.list, announcements.length === 0 && styles.emptyList, { paddingBottom: insets.bottom + 20 }]}
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={false} onRefresh={fetchAnnouncements} tintColor={PARTNER_COLOR} />}
+            renderItem={({ item }) => (
+              <View style={styles.adCard}>
+                <View style={[styles.adCardHeader, isRTL && styles.rtlRow]}>
+                  <View style={styles.adIcon}><MaterialCommunityIcons name="bullhorn" size={20} color={Colors.warning} /></View>
+                  <View style={[{ flex: 1 }, isRTL && { alignItems: "flex-end" }]}>
+                    <Text style={[styles.drugName, isRTL && styles.rtlText]}>{item.drugName}</Text>
+                    <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{item.companyName}</Text>
+                  </View>
+                  {item.price != null && (
+                    <Text style={styles.adPrice}>{item.price} MRU{item.unit ? `/${item.unit}` : ""}</Text>
+                  )}
+                </View>
+                {item.notes && <Text style={[styles.adNotes, isRTL && styles.rtlText]}>{item.notes}</Text>}
+                <Text style={styles.requestTime}>{formatTime(item.createdAt, language)}</Text>
+              </View>
+            )}
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <MaterialCommunityIcons name="bullhorn-outline" size={64} color={Colors.light.textTertiary} />
+                <Text style={[styles.emptyTitle, isRTL && styles.rtlText]}>{isRTL ? "لا توجد إعلانات من الشركاء" : "Aucune annonce des partenaires"}</Text>
+                <Text style={[styles.emptySub, isRTL && styles.rtlText]}>{isRTL ? "ستظهر هنا إعلانات شركات الأدوية" : "Les annonces des sociétés pharma apparaîtront ici"}</Text>
+              </View>
+            }
+          />
+        )
       )}
 
       <Modal visible={showRepeaterModal} transparent animationType="slide" onRequestClose={() => setShowRepeaterModal(false)}>
@@ -589,25 +685,43 @@ export default function PharmacyPortalScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={showB2bModal} transparent animationType="slide" onRequestClose={() => setShowB2bModal(false)}>
+      <Modal visible={showOrderModal} transparent animationType="slide" onRequestClose={() => setShowOrderModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
-              <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>{isRTL ? "إرسال رسالة B2B" : "Envoyer un message B2B"}</Text>
-              <View style={[styles.typeRow, isRTL && styles.rtlRow]}>
-                {(["order", "inquiry"] as const).map(t => (
-                  <TouchableOpacity key={t} style={[styles.typeBtn, b2bType === t && styles.typeBtnActive]} onPress={() => setB2bType(t)}>
-                    <Text style={[styles.typeBtnText, b2bType === t && styles.typeBtnTextActive]}>
-                      {t === "order" ? (isRTL ? "طلبية" : "Commande") : (isRTL ? "استفسار" : "Demande")}
+              <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>{isRTL ? "إرسال طلب لشركة" : "Envoyer une commande"}</Text>
+
+              <Text style={[styles.modalLabel, isRTL && styles.rtlText]}>{isRTL ? "الشركة" : "Société"}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 16 }}>
+                <TouchableOpacity style={[styles.companyPickBtn, !selectedCompany && styles.companyPickBtnActive]} onPress={() => setSelectedCompany(null)} activeOpacity={0.8}>
+                  <Text style={[styles.companyPickText, !selectedCompany && styles.companyPickTextActive]}>{isRTL ? "كل الشركاء" : "Tous"}</Text>
+                </TouchableOpacity>
+                {companies.map(c => (
+                  <TouchableOpacity key={c.id} style={[styles.companyPickBtn, selectedCompany?.id === c.id && styles.companyPickBtnActive]} onPress={() => setSelectedCompany(c)} activeOpacity={0.8}>
+                    <Text style={[styles.companyPickText, selectedCompany?.id === c.id && styles.companyPickTextActive]}>{isRTL && c.nameAr ? c.nameAr : c.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <Text style={[styles.modalLabel, isRTL && styles.rtlText]}>{isRTL ? "نوع الطلب" : "Type"}</Text>
+              <View style={[styles.typeRow, isRTL && styles.rtlRow, { marginBottom: 10 }]}>
+                {(["order", "inquiry", "promotion"] as const).map(tp => (
+                  <TouchableOpacity key={tp} style={[styles.typeBtn, orderType === tp && { ...styles.typeBtnActive, backgroundColor: PARTNER_COLOR + "18", borderColor: PARTNER_COLOR + "60" }]} onPress={() => setOrderType(tp)}>
+                    <Text style={[styles.typeBtnText, orderType === tp && { color: PARTNER_COLOR }]}>
+                      {tp === "order" ? (isRTL ? "طلبية" : "Commande") : tp === "inquiry" ? (isRTL ? "استفسار" : "Demande") : (isRTL ? "عرض" : "Offre")}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
-              <TextInput style={[styles.modalInput, styles.textArea, isRTL && styles.rtlInput, { marginBottom: 16 }]} placeholder={isRTL ? "اكتب طلبيتك أو استفسارك..." : "Rédigez votre commande ou demande..."} placeholderTextColor={Colors.light.textTertiary} value={b2bText} onChangeText={setB2bText} multiline numberOfLines={5} />
-              <TouchableOpacity style={[styles.loginBtn, { backgroundColor: "#7C3AED" }, (!b2bText.trim() || b2bSending) && styles.loginBtnDisabled]} onPress={handleSendB2b} disabled={!b2bText.trim() || b2bSending} activeOpacity={0.85}>
-                {b2bSending ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="send" size={18} color="#fff" /><Text style={styles.loginBtnText}>{isRTL ? "إرسال" : "Envoyer"}</Text></>}
+
+              <TextInput style={[styles.modalInput, isRTL && styles.rtlInput, { marginBottom: 8 }]} placeholder={isRTL ? "اسم الدواء *" : "Médicament *"} placeholderTextColor={Colors.light.textTertiary} value={orderDrug} onChangeText={setOrderDrug} textAlign={isRTL ? "right" : "left"} />
+              <TextInput style={[styles.modalInput, isRTL && styles.rtlInput, { marginBottom: 8 }]} placeholder={isRTL ? "الكمية (اختياري)" : "Quantité (optionnel)"} placeholderTextColor={Colors.light.textTertiary} value={orderQty} onChangeText={setOrderQty} textAlign={isRTL ? "right" : "left"} />
+              <TextInput style={[styles.modalInput, styles.textArea, isRTL && styles.rtlInput, { marginBottom: 16 }]} placeholder={isRTL ? "ملاحظات إضافية..." : "Notes supplémentaires..."} placeholderTextColor={Colors.light.textTertiary} value={orderMsg} onChangeText={setOrderMsg} multiline numberOfLines={3} textAlign={isRTL ? "right" : "left"} />
+
+              <TouchableOpacity style={[styles.loginBtn, { backgroundColor: PARTNER_COLOR }, (!orderDrug.trim() || orderSending) && styles.loginBtnDisabled]} onPress={handleSendOrder} disabled={!orderDrug.trim() || orderSending} activeOpacity={0.85}>
+                {orderSending ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="send" size={18} color="#fff" /><Text style={styles.loginBtnText}>{isRTL ? "إرسال" : "Envoyer"}</Text></>}
               </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowB2bModal(false)}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowOrderModal(false)}>
                 <Text style={styles.cancelText}>{isRTL ? "إلغاء" : "Annuler"}</Text>
               </TouchableOpacity>
             </View>
@@ -647,75 +761,94 @@ const styles = StyleSheet.create({
   searchWrap: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: Colors.light.inputBackground, borderRadius: 12, margin: 16, marginBottom: 4, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: Colors.light.border },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.light.text },
   pharmacyPickCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: Colors.light.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: Colors.light.border },
-  pharmacyPickIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary + "12", alignItems: "center", justifyContent: "center" },
+  pharmacyPickIcon: { width: 46, height: 46, borderRadius: 12, backgroundColor: Colors.primary + "12", alignItems: "center", justifyContent: "center" },
   pharmacyPickInfo: { flex: 1 },
   pharmacyPickName: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.light.text, marginBottom: 2 },
   pharmacyPickAddress: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary },
-  regionBadge: { marginTop: 4, backgroundColor: Colors.primary + "12", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, alignSelf: "flex-start" },
-  regionBadgeText: { fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.primary },
+  regionBadge: { backgroundColor: Colors.primary + "15", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginTop: 4, alignSelf: "flex-start" },
+  regionBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: Colors.primary },
 
-  pharmacyBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: Colors.primary + "0D", marginHorizontal: 16, marginTop: 12, borderRadius: 12, padding: 12 },
-  bannerText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.light.text },
+  pharmacyBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: Colors.primary + "08", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.light.border },
+  bannerText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.light.textSecondary },
 
-  tabBar: { flexGrow: 0, marginTop: 12 },
-  tabBarContent: { paddingHorizontal: 16, gap: 8 },
+  tabBar: { maxHeight: 52, backgroundColor: Colors.light.background },
+  tabBarContent: { paddingHorizontal: 16, gap: 8, alignItems: "center", paddingVertical: 8 },
   tabBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.light.inputBackground, borderWidth: 1, borderColor: Colors.light.border },
-  tabBtnActive: { backgroundColor: Colors.primary + "14", borderColor: Colors.primary + "40" },
+  tabBtnActive: { backgroundColor: Colors.primary + "10", borderColor: Colors.primary + "40" },
   tabBtnText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.light.textTertiary },
   tabBtnTextActive: { color: Colors.primary, fontFamily: "Inter_600SemiBold" },
 
-  respondedBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: Colors.warning + "14", borderRadius: 12, padding: 12, marginBottom: 12 },
-  respondedBannerText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.warning },
+  list: { padding: 16, gap: 10 },
+  emptyList: { flexGrow: 1, justifyContent: "center" },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
 
-  list: { padding: 16, gap: 10, paddingTop: 12 },
-  emptyList: { flex: 1 },
-  requestCard: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2, borderWidth: 1, borderColor: Colors.light.border },
-  requestCardDone: { borderColor: Colors.warning + "40", backgroundColor: Colors.warning + "06" },
-  requestCardHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
-  pillIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.accent + "18", alignItems: "center", justifyContent: "center" },
+  respondedBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: Colors.warning + "15", padding: 12, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: Colors.warning + "30" },
+  respondedBannerText: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: Colors.warning },
+
+  requestCard: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: Colors.light.border, gap: 12 },
+  requestCardDone: { opacity: 0.7, borderColor: Colors.warning + "50" },
+  requestCardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  pillIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: Colors.accent + "12", alignItems: "center", justifyContent: "center" },
   requestInfo: { flex: 1 },
-  drugName: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: Colors.light.text },
-  requestTime: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, marginTop: 2 },
-  pendingAdminBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: Colors.warning + "18", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  pendingAdminText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: Colors.warning },
-
-  availableBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: Colors.accent, shadowColor: Colors.accent, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 4 },
+  drugName: { fontSize: 16, fontFamily: "Inter_700Bold", color: Colors.light.text, marginBottom: 3 },
+  requestTime: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary },
+  pendingAdminBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: Colors.warning + "15", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  pendingAdminText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: Colors.warning },
+  availableBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: Colors.accent, borderRadius: 12, paddingVertical: 12, shadowColor: Colors.accent, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 4 },
   availableBtnText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 15 },
 
-  centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
-  emptyState: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 60, gap: 12, paddingHorizontal: 32 },
-  emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary, textAlign: "center" },
-  emptySub: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary, textAlign: "center", lineHeight: 19 },
-
-  bellAlertBtn: { position: "relative", padding: 4 },
-  bellAlertDot: { position: "absolute", top: 2, right: 2, width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.warning, borderWidth: 1, borderColor: "#fff" },
-
-  repeaterHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4 },
+  repeaterHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.light.border },
   repeaterHeaderInfo: { flex: 1 },
-  repeaterTitle: { fontSize: 15, fontFamily: "Inter_700Bold", color: Colors.light.text },
-  repeaterSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, marginTop: 2 },
-  addRepeaterBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.accent, alignItems: "center", justifyContent: "center", shadowColor: Colors.accent, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4 },
+  repeaterTitle: { fontSize: 15, fontFamily: "Inter_700Bold", color: Colors.light.text, marginBottom: 2 },
+  repeaterSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, lineHeight: 17 },
+  addRepeaterBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: Colors.primary, alignItems: "center", justifyContent: "center", marginLeft: 12, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 3 },
 
   inventoryCard: { backgroundColor: Colors.light.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.light.border },
   inventoryRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  inventoryIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: Colors.accent + "18", alignItems: "center", justifyContent: "center" },
+  inventoryIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: Colors.accent + "12", alignItems: "center", justifyContent: "center" },
   inventoryInfo: { flex: 1 },
 
-  b2bCard: { backgroundColor: Colors.light.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#7C3AED20" },
-  b2bTypeBadge: { fontSize: 10, fontFamily: "Inter_600SemiBold", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  b2bStatusBadge: { fontSize: 10, fontFamily: "Inter_600SemiBold", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  sectionLabel: { fontSize: 13, fontFamily: "Inter_700Bold", color: Colors.light.textSecondary, marginBottom: 8 },
+  companiesSection: { marginBottom: 8 },
+  companyChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: PARTNER_COLOR + "12", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: PARTNER_COLOR + "30" },
+  companyChipText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: PARTNER_COLOR },
 
-  modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
-  modalCard: { backgroundColor: Colors.light.background, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: Platform.OS === "ios" ? 40 : 24 },
-  modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.light.text, marginBottom: 16 },
-  modalInput: { backgroundColor: Colors.light.inputBackground, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.light.text, borderWidth: 1, borderColor: Colors.light.border },
-  textArea: { height: 100, textAlignVertical: "top" },
-  cancelBtn: { alignItems: "center", paddingVertical: 14, marginTop: 4 },
-  cancelText: { fontSize: 15, fontFamily: "Inter_500Medium", color: Colors.light.textSecondary },
+  companyOrderCard: { backgroundColor: Colors.light.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.light.border, gap: 8 },
+  orderCardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  orderCardIcon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  orderStatusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  orderStatusText: { fontSize: 11, fontFamily: "Inter_700Bold" },
+  companyResponseBox: { backgroundColor: Colors.accent + "10", borderRadius: 8, padding: 10 },
+  responseLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: Colors.accent, marginBottom: 2 },
+  responseText: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.light.text },
 
-  typeRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
-  typeBtn: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 12, backgroundColor: Colors.light.inputBackground, borderWidth: 1, borderColor: Colors.light.border },
-  typeBtnActive: { backgroundColor: "#7C3AED14", borderColor: "#7C3AED60" },
-  typeBtnText: { fontSize: 14, fontFamily: "Inter_500Medium", color: Colors.light.textSecondary },
-  typeBtnTextActive: { color: "#7C3AED", fontFamily: "Inter_700Bold" },
+  adCard: { backgroundColor: Colors.light.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.warning + "30", gap: 6 },
+  adCardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  adIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: Colors.warning + "12", alignItems: "center", justifyContent: "center" },
+  adPrice: { fontSize: 14, fontFamily: "Inter_700Bold", color: PARTNER_COLOR },
+  adNotes: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, marginTop: 2 },
+
+  bellAlertBtn: { position: "relative", padding: 4 },
+  bellAlertDot: { position: "absolute", top: 2, right: 2, width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.danger },
+
+  emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingTop: 48 },
+  emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary, textAlign: "center" },
+  emptySub: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary, textAlign: "center" },
+
+  modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
+  modalCard: { backgroundColor: Colors.light.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 4 },
+  modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.light.text, textAlign: "center", marginBottom: 12 },
+  modalLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary, marginBottom: 6, paddingHorizontal: 2 },
+  modalInput: { backgroundColor: Colors.light.inputBackground, borderRadius: 12, paddingHorizontal: 16, height: 50, fontSize: 15, fontFamily: "Inter_400Regular", color: Colors.light.text, borderWidth: 1, borderColor: Colors.light.border },
+  textArea: { height: 90, textAlignVertical: "top", paddingVertical: 12 },
+  typeRow: { flexDirection: "row", gap: 8 },
+  typeBtn: { flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: "center", backgroundColor: Colors.light.inputBackground, borderWidth: 1, borderColor: Colors.light.border },
+  typeBtnActive: { borderColor: Colors.primary + "60", backgroundColor: Colors.primary + "12" },
+  typeBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary },
+  companyPickBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.inputBackground },
+  companyPickBtnActive: { backgroundColor: PARTNER_COLOR + "15", borderColor: PARTNER_COLOR + "50" },
+  companyPickText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.light.textSecondary },
+  companyPickTextActive: { color: PARTNER_COLOR, fontFamily: "Inter_700Bold" },
+  cancelBtn: { alignItems: "center", paddingVertical: 14 },
+  cancelText: { fontSize: 15, fontFamily: "Inter_500Medium", color: Colors.light.textTertiary },
 });

@@ -7,8 +7,10 @@ import {
   notificationsTable,
   pharmacyInventoryTable,
   b2bMessagesTable,
+  companyOrdersTable,
+  companiesTable,
 } from "@workspace/db";
-import { eq, like, or, and } from "drizzle-orm";
+import { eq, like, or, and, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "DEWAYA_ADMIN_2026";
@@ -249,6 +251,55 @@ router.patch("/pharmacy/:id/b2b", async (req, res) => {
     const { enabled } = req.body;
     await db.update(pharmaciesTable).set({ b2bEnabled: !!enabled }).where(eq(pharmaciesTable.id, req.params.id));
     res.json({ success: true });
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+router.patch("/pharmacy/:id/subscription", async (req, res) => {
+  try {
+    if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }
+    const { active } = req.body;
+    await db.update(pharmaciesTable).set({ subscriptionActive: !!active }).where(eq(pharmaciesTable.id, req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+router.post("/company-order", async (req, res) => {
+  try {
+    const { pharmacyId, pharmacyName, companyId, companyName, drugName, quantity, message, type } = req.body;
+    if (!pharmacyId || !pharmacyName || !drugName) { res.status(400).json({ error: "Champs requis" }); return; }
+    const id = generateId();
+    const [order] = await db.insert(companyOrdersTable).values({
+      id, pharmacyId, pharmacyName,
+      companyId: companyId || null, companyName: companyName || null,
+      drugName: drugName.trim(), quantity: quantity || null,
+      message: message || null, type: type || "order", status: "pending",
+    }).returning();
+    res.status(201).json({ ...order, createdAt: order.createdAt.toISOString(), respondedAt: null });
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+router.get("/company-orders/:pharmacyId", async (req, res) => {
+  try {
+    const orders = await db.select().from(companyOrdersTable)
+      .where(eq(companyOrdersTable.pharmacyId, req.params.pharmacyId))
+      .orderBy(desc(companyOrdersTable.createdAt));
+    res.json(orders.map(o => ({ ...o, createdAt: o.createdAt.toISOString(), respondedAt: o.respondedAt?.toISOString() ?? null })));
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+router.get("/companies-list", async (_req, res) => {
+  try {
+    const companies = await db.select({ id: companiesTable.id, name: companiesTable.name, nameAr: companiesTable.nameAr, contact: companiesTable.contact, subscriptionActive: companiesTable.subscriptionActive })
+      .from(companiesTable).where(and(eq(companiesTable.isActive, true), eq(companiesTable.subscriptionActive, true)));
+    res.json(companies);
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Erreur serveur" });
   }

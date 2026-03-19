@@ -49,6 +49,7 @@ export const pharmaciesTable = pgTable("pharmacies", {
   portalPin: text("portal_pin"),
   isActive: boolean("is_active").notNull().default(true),
   b2bEnabled: boolean("b2b_enabled").notNull().default(false),
+  subscriptionActive: boolean("subscription_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -176,3 +177,57 @@ export const doctorsTable = pgTable("doctors", {
 export const insertDoctorSchema = createInsertSchema(doctorsTable).omit({ createdAt: true });
 export type InsertDoctor = z.infer<typeof insertDoctorSchema>;
 export type Doctor = typeof doctorsTable.$inferSelect;
+
+export const companiesTable = pgTable("companies", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  nameAr: text("name_ar"),
+  code: text("code").notNull(),
+  contact: text("contact"),
+  subscriptionActive: boolean("subscription_active").notNull().default(true),
+  isActive: boolean("is_active").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertCompanySchema = createInsertSchema(companiesTable).omit({ createdAt: true });
+export type InsertCompany = z.infer<typeof insertCompanySchema>;
+export type Company = typeof companiesTable.$inferSelect;
+
+export const companyOrdersTable = pgTable("company_orders", {
+  id: text("id").primaryKey(),
+  pharmacyId: text("pharmacy_id").notNull(),
+  pharmacyName: text("pharmacy_name").notNull(),
+  companyId: text("company_id"),
+  companyName: text("company_name"),
+  drugName: text("drug_name").notNull(),
+  quantity: text("quantity"),
+  message: text("message"),
+  type: text("type").notNull().default("order"),
+  status: text("status").notNull().default("pending"),
+  companyResponse: text("company_response"),
+  respondedAt: timestamp("responded_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertCompanyOrderSchema = createInsertSchema(companyOrdersTable).omit({ createdAt: true, respondedAt: true });
+export type InsertCompanyOrder = z.infer<typeof insertCompanyOrderSchema>;
+export type CompanyOrder = typeof companyOrdersTable.$inferSelect;
+
+export const companyInventoryTable = pgTable("company_inventory", {
+  id: text("id").primaryKey(),
+  companyId: text("company_id").notNull(),
+  companyName: text("company_name").notNull(),
+  drugName: text("drug_name").notNull(),
+  drugNameLower: text("drug_name_lower").notNull(),
+  price: real("price"),
+  unit: text("unit"),
+  notes: text("notes"),
+  isAd: boolean("is_ad").notNull().default(false),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertCompanyInventorySchema = createInsertSchema(companyInventoryTable).omit({ createdAt: true });
+export type InsertCompanyInventory = z.infer<typeof insertCompanyInventorySchema>;
+export type CompanyInventory = typeof companyInventoryTable.$inferSelect;

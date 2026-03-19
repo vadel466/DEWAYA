@@ -13,7 +13,6 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **API framework**: Express 5
 - **Database**: PostgreSQL + Drizzle ORM
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 - **Mobile**: Expo + Expo Router (file-based routing)
 
@@ -25,11 +24,7 @@ artifacts-monorepo/
 │   ├── api-server/         # Express API server
 │   └── pharma-finder/      # Expo mobile pharmacy finder app
 ├── lib/                    # Shared libraries
-│   ├── api-spec/           # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/   # Generated React Query hooks
-│   ├── api-zod/            # Generated Zod schemas from OpenAPI
 │   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts
 ├── pnpm-workspace.yaml
 ├── tsconfig.base.json
 ├── tsconfig.json
@@ -44,93 +39,117 @@ A bilingual **Arabic/French** (RTL-aware) mobile app for finding pharmacies in M
 
 **App Name**: "أدْواَيَ" (Arabic) / "DEWAYA" (French)
 
+**Auth & Security:**
+- Admin panel: 5-second long-press on logo → PIN modal → `2026`
+- Admin API secret header: `x-admin-secret: DEWAYA_ADMIN_2026`
+- Pharmacy portal code: `DV2026` (universal → pharmacy picker → dashboard)
+- Company portal code: `DAHA2024` (universal → company picker → dashboard)
+
 **Features:**
-- Search for medicine by name or box photo (camera + gallery via expo-image-picker)
-- Submit request → notification flow (5s polling)
-- Locked notifications requiring 10 MRU payment to unlock
+- Search for medicine by name or box photo (camera + gallery)
+- Submit request → notification flow with 10 MRU fee
+- Locked notifications requiring payment to unlock
 - Payment methods: مصرفي (20479725), بنكيلي (46576659), بيم بنك (46576659)
 - Reference codes: `DW-XXXXXX` format
-- **Nearest pharmacy** — GPS location + haversine distance sort + Linking directions
-- **Duty pharmacies** — Date-selectable list for on-duty pharmacies by region
-- **Pharmacy portal** — PIN-protected screen for pharmacy staff to mark drugs available
-- **Admin panel** — PIN-gated (default: DEWAYA26, set via EXPO_PUBLIC_ADMIN_PIN)
-  - Manage drug requests (pending/responded)
-  - Confirm payments and unlock notifications
-  - View pharmacy portal responses and forward to users
-  - Manage pharmacy directory (add/edit/delete with GPS coordinates + portal PIN)
-  - Manage duty pharmacy schedule (add/edit/delete per region + date)
+- **Nearest pharmacy** — GPS location + haversine distance sort
+- **Duty pharmacies** — Date-selectable list by region with images
+- **Pharmacy portal (DV2026)**: 4 tabs:
+  - Requests: incoming drug requests + bell alert polling
+  - Répéteur: inventory/stock announcements
+  - Partenaires: direct company orders (DIRECT — no admin mediation)
+  - Annonces: company announcements/ads feed
+- **Company portal (DAHA2024)**: 3 tabs:
+  - Orders: incoming pharmacy orders + respond
+  - My Stock: manage inventory items
+  - My Announcements: publish ads visible to pharmacies
+- **Admin panel** (PIN `2026`): 9 sub-tabs:
+  - Pending requests, Payments, Portal responses, Pharmacies, Duty schedule, Drug prices, Doctors, B2B (legacy), Companies (CRUD + subscription toggle + B2B monitoring)
 - Language switcher (Arabic/French, RTL support)
-- Custom bilingual header logo (stethoscope + pill + hospital-box icons)
-- Region selector with GPS detection
 
 **Screens (tabs):**
-- `app/(tabs)/index.tsx` — Home screen with search, camera, region, 4-card grid
-- `app/(tabs)/notifications.tsx` — User notifications with lock/unlock + payment flow
-- `app/(tabs)/admin.tsx` — PIN-gated admin panel with 5 sub-tabs
+- `app/(tabs)/index.tsx` — Home screen with search, camera, region, 4-card grid + dual portal links
+- `app/(tabs)/admin.tsx` — PIN-gated admin panel (9 sub-tabs including companies)
 
 **Full-page Screens (Stack):**
-- `app/nearest-pharmacy.tsx` — GPS nearest pharmacy list with call + directions
-- `app/duty-pharmacies.tsx` — 7-day date picker + duty pharmacy cards by region
-- `app/pharmacy-portal.tsx` — PIN login for pharmacies to respond to drug requests
+- `app/nearest-pharmacy.tsx` — GPS nearest pharmacy list
+- `app/duty-pharmacies.tsx` — 7-day date picker + duty pharmacy cards
+- `app/pharmacy-portal.tsx` — DV2026 portal (4 tabs: requests/repeater/partners/ads)
+- `app/company-portal.tsx` — DAHA2024 portal (3 tabs: orders/inventory/announcements)
+- `app/find-doctor.tsx` — Doctor finder
+- `app/duty-and-price.tsx` — Drug price lookup + duty pharmacies
 
 **Context:** `context/AppContext.tsx` — Language, userId, translations (ar/fr), locked notification count, region
 
 ### API Server
 
-Express 5 API server with the following endpoints:
+Express 5 API server. All admin routes protected by `x-admin-secret: DEWAYA_ADMIN_2026`.
 
-- `GET /api/healthz` — Health check
-- `GET /api/requests` — List all drug requests (admin)
-- `POST /api/requests` — Submit drug search request
-- `POST /api/requests/:id/respond` — Admin responds with pharmacy info (creates locked notification)
-- `GET /api/notifications/admin/pending-payments` — Pending payment notifications (admin)
-- `GET /api/notifications/:userId` — Get user notifications
-- `POST /api/notifications/:id/request-unlock` — Initiate payment + get DW-XXXXXX reference code
-- `POST /api/notifications/:id/confirm-payment` — Admin confirms payment → unlocks notification
-- `GET /api/pharmacies` — List all pharmacies
-- `GET /api/pharmacies/nearest?lat&lon&region` — Nearest pharmacies sorted by haversine distance
-- `POST /api/pharmacies` — Add pharmacy (admin)
-- `PUT /api/pharmacies/:id` — Update pharmacy (admin)
-- `DELETE /api/pharmacies/:id` — Delete pharmacy (admin)
-- `GET /api/duty-pharmacies?region&date` — List active duty pharmacies by region/date
-- `GET /api/duty-pharmacies/all` — All duty pharmacies (admin)
-- `POST /api/duty-pharmacies` — Add duty pharmacy entry (admin)
-- `PUT /api/duty-pharmacies/:id` — Update duty pharmacy (admin)
-- `DELETE /api/duty-pharmacies/:id` — Delete duty pharmacy (admin)
-- `POST /api/pharmacy-portal/auth` — Authenticate pharmacy by PIN
-- `GET /api/pharmacy-portal/requests` — Get pending drug requests (for pharmacy portal)
-- `POST /api/pharmacy-portal/respond` — Pharmacy marks drug available
-- `GET /api/pharmacy-portal/responses` — Admin: view all pharmacy responses
-- `POST /api/pharmacy-portal/responses/:id/select` — Admin: mark response as selected
+**Pharmacy Portal endpoints** (`/api/pharmacy-portal/*`):
+- `POST /auth` — Authenticate with DV2026
+- `GET /requests` — Pending drug requests
+- `POST /respond` — Mark drug available
+- `GET /responses` — Admin: all responses
+- `GET /inventory/:pharmacyId` — Pharmacy inventory
+- `POST /inventory` — Add inventory item
+- `DELETE /inventory/:id` — Remove inventory item
+- `GET /b2b` — Legacy B2B messages (admin)
+- `PATCH /pharmacy/:id/b2b` — Toggle b2b flag (admin)
+- `PATCH /pharmacy/:id/subscription` — Toggle subscription (admin)
+- `POST /company-order` — Send order from pharmacy to company (DIRECT)
+- `GET /company-orders/:pharmacyId` — Get pharmacy's orders history
+- `GET /companies-list` — Active companies with subscription
+
+**Company Portal endpoints** (`/api/company-portal/*`):
+- `POST /auth` — Authenticate with DAHA2024 (or company-specific code)
+- `GET /orders/:companyId` — Get incoming orders for company
+- `GET /orders-all` — Admin: all orders
+- `POST /orders/:id/respond` — Company responds to order
+- `POST /inventory` — Add stock/announcement item
+- `GET /inventory/:companyId` — Company's inventory
+- `DELETE /inventory/:id` — Soft-delete inventory item
+- `GET /inventory-search?q=` — Search all inventory
+- `GET /announcements` — All ads (isAd=true) items
+- `GET /companies` — Admin: all companies
+- `POST /companies` — Admin: add company
+- `PATCH /companies/:id` — Admin: update company/subscription
+- `DELETE /companies/:id` — Admin: soft-delete company
 
 ## Database Schema
 
-- `drug_requests` — Drug search requests with status (pending/responded) and pharmacy response
-- `notifications` — Locked notifications sent to users after admin responds
-- `pharmacies` — Pharmacy directory with GPS coordinates, portal PIN, region
-- `duty_pharmacies` — Duty pharmacy schedule by region + date
-- `pharmacy_responses` — Pharmacy portal responses to drug requests
+- `drug_requests` — Drug search requests
+- `notifications` — Locked notifications
+- `pharmacies` — Pharmacy directory (with `subscriptionActive`)
+- `duty_pharmacies` — Duty schedule
+- `pharmacy_responses` — Pharmacy portal responses
+- `pharmacy_inventory` — Pharmacy repeater stock
+- `b2b_messages` — Legacy B2B messages
+- `drug_prices` — Drug price catalog
+- `doctors` — Doctor directory
+- `companies` — Company profiles (code, subscriptionActive)
+- `company_orders` — Direct pharmacy→company orders
+- `company_inventory` — Company stock + announcements (isAd flag)
+
+## Two-Portal Architecture
+
+- **DIRECT communication**: Pharmacy ↔ Company — no admin mediation
+- **Admin observes** B2B/company activity but does NOT intervene
+- **Subscription model**: `subscriptionActive` on both pharmacies and companies
+- Admin can toggle subscriptions per entity (future monetization gate)
+- Companies with `subscriptionActive=false` hidden from pharmacy partners list
 
 ## Admin Security
 
-- Admin tab protected by PIN gate (default: `DEWAYA26`)
-- Override PIN via env var: `EXPO_PUBLIC_ADMIN_PIN`
-- Admin PIN is NOT persisted (cleared on app restart for security)
+- Admin PIN: `2026` (5-second long-press on logo)
+- Admin API secret: `DEWAYA_ADMIN_2026` (header `x-admin-secret`)
+- Admin PIN is NOT persisted (cleared on app restart)
 
-## TypeScript & Composite Projects
+## Colors
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references.
-
-## Root Scripts
-
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
-
-## Codegen
-
-Run: `pnpm --filter @workspace/api-spec run codegen`
-
-After any OpenAPI spec change, re-run codegen before using generated types.
+- Primary: `#0A7EA4`
+- Accent: `#1BB580`
+- Warning: `#F59E0B`
+- Danger: `#E8404A`
+- Company/Partner: `#7C3AED`
 
 ## Database Migrations
 

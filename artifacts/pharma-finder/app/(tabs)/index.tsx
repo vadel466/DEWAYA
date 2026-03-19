@@ -476,18 +476,31 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* ─── PHARMACY PORTAL LINK ─── */}
-      <TouchableOpacity
-        style={[styles.portalLink, isRTL && styles.rowReverse]}
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/pharmacy-portal"); }}
-        activeOpacity={0.7}
-      >
-        <MaterialCommunityIcons name="shield-key-outline" size={14} color={Colors.light.textTertiary} />
-        <Text style={styles.portalLinkText}>
-          {isRTL ? "بوابة الصيدليات" : "Portail pharmacies"}
-        </Text>
-        <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color={Colors.light.textTertiary} />
-      </TouchableOpacity>
+      {/* ─── PORTAL LINKS ─── */}
+      <View style={[styles.portalRow, isRTL && styles.rowReverse]}>
+        <TouchableOpacity
+          style={[styles.portalLink, { flex: 1 }, isRTL && styles.rowReverse]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/pharmacy-portal"); }}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons name="shield-key-outline" size={14} color={Colors.light.textTertiary} />
+          <Text style={styles.portalLinkText}>
+            {isRTL ? "بوابة الصيدليات" : "Portail Pharmacies"}
+          </Text>
+          <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color={Colors.light.textTertiary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.portalLink, styles.portalLinkCompany, { flex: 1 }, isRTL && styles.rowReverse]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/company-portal"); }}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons name="domain" size={14} color="#7C3AED" />
+          <Text style={[styles.portalLinkText, { color: "#7C3AED" }]}>
+            {isRTL ? "بوابة الشركاء" : "Portail Partenaires"}
+          </Text>
+          <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#7C3AED" />
+        </TouchableOpacity>
+      </View>
 
       {/* ─── REGION PICKER MODAL ─── */}
       <Modal visible={showRegionPicker} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowRegionPicker(false)}>
@@ -1105,6 +1118,11 @@ const styles = StyleSheet.create({
   },
   menuCancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary },
 
+  portalRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 2,
+  },
   portalLink: {
     flexDirection: "row",
     alignItems: "center",
@@ -1112,6 +1130,13 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingVertical: 8,
     marginTop: 2,
+  },
+  portalLinkCompany: {
+    backgroundColor: "#7C3AED08",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: "#7C3AED18",
   },
   portalLinkText: {
     fontSize: 12,

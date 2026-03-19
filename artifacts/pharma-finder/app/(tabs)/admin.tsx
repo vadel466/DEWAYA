@@ -706,16 +706,30 @@ export default function AdminScreen() {
 
   const bellRotate = bellShake.interpolate({ inputRange: [-1, 0, 1], outputRange: ["-18deg", "0deg", "18deg"] });
 
+  const PHARMA_GROUP = ["pharmacies", "duty", "prices"] as const;
+  const B2B_GROUP = ["b2b", "companies"] as const;
+  const inPharmaGroup = (PHARMA_GROUP as readonly string[]).includes(activeTab);
+  const inB2bGroup = (B2B_GROUP as readonly string[]).includes(activeTab);
+  const b2bPendingCount = b2bMessages.filter(m => m.adminStatus === "pending").length;
+
   const TABS = [
     { id: "pending", label: isRTL ? `طلبات (${pendingRequests.length})` : `Attente (${pendingRequests.length})` },
     { id: "payments", label: isRTL ? `دفع${pendingPayments.length > 0 ? ` (${pendingPayments.length})` : ""}` : `Pmt${pendingPayments.length > 0 ? ` (${pendingPayments.length})` : ""}` },
     { id: "portal", label: isRTL ? `ردود${pendingPortalCount > 0 ? ` ⚡${pendingPortalCount}` : (portalResponses.length > 0 ? ` (${portalResponses.length})` : "")}` : `Portail${pendingPortalCount > 0 ? ` ⚡${pendingPortalCount}` : (portalResponses.length > 0 ? ` (${portalResponses.length})` : "")}` },
-    { id: "pharmacies", label: isRTL ? "صيدليات" : "Pharma" },
-    { id: "duty", label: isRTL ? "مداومة" : "Garde" },
-    { id: "prices", label: isRTL ? "أسعار" : "Prix" },
     { id: "doctors", label: isRTL ? "أطباء" : "Médecins" },
-    { id: "b2b", label: `B2B${b2bMessages.filter(m => m.adminStatus === "pending").length > 0 ? ` (${b2bMessages.filter(m => m.adminStatus === "pending").length})` : ""}` },
-    { id: "companies", label: isRTL ? "شركات" : "Sociétés" },
+    { id: "pharma-group", label: isRTL ? "الصيدليات" : "Officine" },
+    { id: "b2b-group", label: isRTL ? `الشركات${b2bPendingCount > 0 ? ` ⚡${b2bPendingCount}` : ""}` : `Sociétés${b2bPendingCount > 0 ? ` ⚡${b2bPendingCount}` : ""}` },
+  ];
+
+  const PHARMA_SUB_TABS = [
+    { id: "pharmacies", label: isRTL ? "الصيدليات" : "Pharmacies", icon: "business-outline" as const },
+    { id: "duty", label: isRTL ? "مداومة" : "Garde", icon: "moon-outline" as const },
+    { id: "prices", label: isRTL ? "أسعار الدواء" : "Prix méd.", icon: "pricetag-outline" as const },
+  ];
+
+  const B2B_SUB_TABS = [
+    { id: "b2b", label: `B2B${b2bPendingCount > 0 ? ` (${b2bPendingCount})` : ""}`, icon: "cube-outline" as const },
+    { id: "companies", label: isRTL ? "الشركات" : "Sociétés", icon: "briefcase-outline" as const },
   ];
 
   const isLoading =
@@ -1226,12 +1240,30 @@ export default function AdminScreen() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
         {TABS.map((tab) => {
           const isPending = tab.id === "pending";
-          const isActive = activeTab === tab.id;
+          const isGroupPharma = tab.id === "pharma-group";
+          const isGroupB2b = tab.id === "b2b-group";
+          const isActive = isGroupPharma ? inPharmaGroup : isGroupB2b ? inB2bGroup : activeTab === tab.id;
+          const hasAlert = (isGroupB2b && b2bPendingCount > 0 && !isActive);
           return (
             <TouchableOpacity
               key={tab.id}
-              style={[styles.tabBtn, isActive && styles.tabBtnActive, isPending && hasNewRequests && !isActive && styles.tabBtnAlert]}
-              onPress={() => setActiveTab(tab.id as typeof activeTab)}
+              style={[
+                styles.tabBtn,
+                isActive && styles.tabBtnActive,
+                isPending && hasNewRequests && !isActive && styles.tabBtnAlert,
+                hasAlert && styles.tabBtnAlert,
+                isGroupPharma && isActive && { backgroundColor: Colors.accent },
+                isGroupB2b && isActive && { backgroundColor: "#7C3AED" },
+              ]}
+              onPress={() => {
+                if (isGroupPharma) {
+                  if (!inPharmaGroup) setActiveTab("pharmacies");
+                } else if (isGroupB2b) {
+                  if (!inB2bGroup) setActiveTab("b2b");
+                } else {
+                  setActiveTab(tab.id as typeof activeTab);
+                }
+              }}
               activeOpacity={0.7}
             >
               {isPending ? (
@@ -1244,9 +1276,19 @@ export default function AdminScreen() {
                     />
                   </Animated.View>
                   <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab.label}</Text>
-                  {hasNewRequests && !isActive && (
-                    <View style={styles.bellDot} />
-                  )}
+                  {hasNewRequests && !isActive && <View style={styles.bellDot} />}
+                </View>
+              ) : isGroupPharma ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Ionicons name="business-outline" size={14} color={isActive ? "#fff" : Colors.accent} />
+                  <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab.label}</Text>
+                  <Ionicons name={inPharmaGroup ? "chevron-up" : "chevron-down"} size={12} color={isActive ? "#ffffffaa" : Colors.light.textTertiary} />
+                </View>
+              ) : isGroupB2b ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Ionicons name="briefcase-outline" size={14} color={isActive ? "#fff" : "#7C3AED"} />
+                  <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab.label}</Text>
+                  <Ionicons name={inB2bGroup ? "chevron-up" : "chevron-down"} size={12} color={isActive ? "#ffffffaa" : Colors.light.textTertiary} />
                 </View>
               ) : (
                 <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab.label}</Text>
@@ -1255,6 +1297,40 @@ export default function AdminScreen() {
           );
         })}
       </ScrollView>
+
+      {/* Sub-tabs for Officine group */}
+      {inPharmaGroup && (
+        <View style={[styles.subTabsRow, isRTL && styles.rtlRow]}>
+          {PHARMA_SUB_TABS.map(sub => (
+            <TouchableOpacity
+              key={sub.id}
+              style={[styles.subTabBtn, activeTab === sub.id && styles.subTabBtnActive]}
+              onPress={() => { setActiveTab(sub.id as typeof activeTab); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+              activeOpacity={0.75}
+            >
+              <Ionicons name={sub.icon} size={14} color={activeTab === sub.id ? Colors.accent : Colors.light.textSecondary} />
+              <Text style={[styles.subTabText, activeTab === sub.id && styles.subTabTextActive]}>{sub.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* Sub-tabs for B2B/Sociétés group */}
+      {inB2bGroup && (
+        <View style={[styles.subTabsRow, isRTL && styles.rtlRow]}>
+          {B2B_SUB_TABS.map(sub => (
+            <TouchableOpacity
+              key={sub.id}
+              style={[styles.subTabBtn, activeTab === sub.id && styles.subTabBtnActiveB2b]}
+              onPress={() => { setActiveTab(sub.id as typeof activeTab); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+              activeOpacity={0.75}
+            >
+              <Ionicons name={sub.icon} size={14} color={activeTab === sub.id ? "#7C3AED" : Colors.light.textSecondary} />
+              <Text style={[styles.subTabText, activeTab === sub.id && styles.subTabTextActiveB2b]}>{sub.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {activeTab === "duty" ? renderDutyAdminRegions() : isLoading ? (
         <View style={styles.centered}><ActivityIndicator size="large" color={Colors.primary} /><Text style={styles.loadingText}>{t("loading")}</Text></View>
@@ -1975,6 +2051,14 @@ const styles = StyleSheet.create({
   inlineConfirmBtns: { flexDirection: "row", gap: 8 },
   cancelInlineBtn: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10, backgroundColor: Colors.light.inputBackground, borderWidth: 1, borderColor: Colors.light.border, alignItems: "center", justifyContent: "center" },
   cancelInlineBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary },
+
+  subTabsRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: Colors.light.inputBackground, borderBottomWidth: 1, borderBottomColor: Colors.light.border },
+  subTabBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 8, paddingHorizontal: 6, borderRadius: 10, backgroundColor: Colors.light.background, borderWidth: 1, borderColor: Colors.light.border },
+  subTabBtnActive: { backgroundColor: Colors.accent + "15", borderColor: Colors.accent + "50" },
+  subTabBtnActiveB2b: { backgroundColor: "#7C3AED15", borderColor: "#7C3AED50" },
+  subTabText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary },
+  subTabTextActive: { color: Colors.accent },
+  subTabTextActiveB2b: { color: "#7C3AED" },
 
   b2bToggleBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: Colors.light.inputBackground, borderWidth: 1, borderColor: Colors.light.border, marginBottom: 4 },
   b2bToggleBtnOn: { backgroundColor: "#7C3AED18", borderColor: "#7C3AED50" },

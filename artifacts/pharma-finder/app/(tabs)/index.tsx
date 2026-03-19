@@ -522,10 +522,10 @@ export default function HomeScreen() {
               style={styles.doctorMaleImg}
               resizeMode="contain"
             />
-            <Text style={[styles.cardTitle, { color: DOCTOR_BLUE }, isRTL && styles.textRight]} numberOfLines={2}>
+            <Text style={[styles.cardTitle, { color: DOCTOR_BLUE, marginRight: 84 }, isRTL && styles.textRight]} numberOfLines={2}>
               {t("findDoctor")}
             </Text>
-            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
+            <Text style={[styles.cardDesc, { marginRight: 84 }, isRTL && styles.textRight]} numberOfLines={2}>
               {t("findDoctorDesc")}
             </Text>
           </TouchableOpacity>

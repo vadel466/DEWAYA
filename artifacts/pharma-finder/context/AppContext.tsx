@@ -34,7 +34,7 @@ const translations: Record<Language, Record<string, string>> = {
     drugPriceDesc: "اطّلع على سعر دوائك بسرعة",
     dutyPharmacies: "صيدليات المداومة",
     dutyPharmaciesDesc: "الصيدليات المناوبة في منطقتك",
-    dutyAndPrice: "مداومة وأسعار الأدوية",
+    dutyAndPrice: "صيدليات المداومة وسعر الدواء",
     dutyAndPriceDesc: "جداول المناوبة وقاعدة بيانات الأسعار",
     findDoctor: "ابحث عن طبيب",
     findDoctorDesc: "أطباء، مصحات، ومستشفيات",

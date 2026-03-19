@@ -39,7 +39,7 @@ const translations: Record<Language, Record<string, string>> = {
     findDoctor: "ابحث عن طبيب",
     findDoctorDesc: "أطباء، مصحات، ومستشفيات",
     otherServices: "خدمات أخرى",
-    otherServicesDesc: "سعر الدواء وخدمات إضافية",
+    otherServicesDesc: "خدمات متنوعة إضافية",
 
     regionLabel: "اختر منطقتك",
     regionPlaceholder: "حدد منطقتك...",

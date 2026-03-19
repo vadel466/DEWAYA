@@ -9,6 +9,7 @@ import pharmacyPortalRouter from "./pharmacy-portal";
 import drugPricesRouter from "./drug-prices";
 import doctorsRouter from "./doctors";
 import companyPortalRouter from "./company-portal";
+import otherServicesRouter from "./other-services";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use("/pharmacy-portal", pharmacyPortalRouter);
 router.use("/drug-prices", drugPricesRouter);
 router.use("/doctors", doctorsRouter);
 router.use("/company-portal", companyPortalRouter);
+router.use("/other-services", otherServicesRouter);
 
 export default router;

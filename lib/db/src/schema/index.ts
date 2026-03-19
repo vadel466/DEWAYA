@@ -282,3 +282,23 @@ export const companyInventoryTable = pgTable("company_inventory", {
 export const insertCompanyInventorySchema = createInsertSchema(companyInventoryTable).omit({ createdAt: true });
 export type InsertCompanyInventory = z.infer<typeof insertCompanyInventorySchema>;
 export type CompanyInventory = typeof companyInventoryTable.$inferSelect;
+
+export const otherServicesTable = pgTable("other_services", {
+  id: text("id").primaryKey(),
+  nameAr: text("name_ar").notNull(),
+  nameFr: text("name_fr").notNull(),
+  descAr: text("desc_ar"),
+  descFr: text("desc_fr"),
+  icon: text("icon").notNull().default("star-outline"),
+  color: text("color").notNull().default("#0A7EA4"),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("other_services_is_active_idx").on(table.isActive),
+  index("other_services_sort_order_idx").on(table.sortOrder),
+]);
+
+export const insertOtherServiceSchema = createInsertSchema(otherServicesTable).omit({ createdAt: true });
+export type InsertOtherService = z.infer<typeof insertOtherServiceSchema>;
+export type OtherService = typeof otherServicesTable.$inferSelect;

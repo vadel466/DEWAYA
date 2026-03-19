@@ -513,7 +513,7 @@ export default function HomeScreen() {
           {/* خدمات أخرى */}
           <TouchableOpacity
             style={[styles.card, { backgroundColor: SERVICES_LIGHT }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/drug-price"); }}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/other-services"); }}
             activeOpacity={0.82}
           >
             <View style={[styles.cardAccent, { backgroundColor: SERVICES_PURPLE }]} />

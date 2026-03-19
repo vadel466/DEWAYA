@@ -47,6 +47,7 @@ export default function PharmacyPortalScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [respondedIds, setRespondedIds] = useState<Set<string>>(new Set());
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [respondingId, setRespondingId] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<PortalTab>("requests");
@@ -229,14 +230,26 @@ export default function PharmacyPortalScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           isRTL ? "✅ تم الإرسال" : "✅ Signalé",
-          isRTL ? "تم إبلاغ الإدارة. ستتواصل مع المريض بعد موافقتها." : "L'administration est notifiée. Elle contactera le patient après validation."
+          isRTL ? "أُبلغت الإدارة برد صيدليتكم. ستتواصل مع المريض بعد المراجعة." : "L'administration est notifiée de votre réponse. Elle contactera le patient après validation."
         );
-      } else if ((await resp.json())?.error?.includes("Déjà")) {
-        Alert.alert(isRTL ? "تنبيه" : "Info", isRTL ? "لقد أبلغتم عن هذا الطلب مسبقاً" : "Vous avez déjà signalé cette demande");
+      } else {
+        const errData = await resp.json().catch(() => ({}));
+        if (errData?.error === "already_pending") {
+          // Mark as already responded locally too
+          setRespondedIds(prev => new Set([...prev, request.id]));
+          Alert.alert(isRTL ? "✋ في انتظار المراجعة" : "✋ En attente", isRTL ? "ردّكم على هذا الطلب في انتظار مراجعة الإدارة" : "Votre réponse est déjà en attente de validation");
+        } else {
+          Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل إرسال الرد، حاول مجدداً" : "Échec de l'envoi, réessayez");
+        }
       }
     } catch {
-      Alert.alert(isRTL ? "خطأ" : "Erreur");
+      Alert.alert(isRTL ? "خطأ في الاتصال" : "Erreur de connexion");
     } finally { setRespondingId(null); }
+  };
+
+  const handleDismiss = (id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setDismissedIds(prev => new Set([...prev, id]));
   };
 
   const handleRepeaterSave = async () => {
@@ -290,7 +303,7 @@ export default function PharmacyPortalScreen() {
   };
 
   const doLogout = () => {
-    setPharmacy(null); setPin(""); setRespondedIds(new Set()); stopBellAlert();
+    setPharmacy(null); setPin(""); setRespondedIds(new Set()); setDismissedIds(new Set()); stopBellAlert();
     prevPendingCountRef.current = -1; setStep("code"); setPharmacyList([]);
     setRequests([]); setInventory([]); setCompanyOrders([]); setAnnouncements([]); setActiveTab("requests");
   };
@@ -302,7 +315,7 @@ export default function PharmacyPortalScreen() {
     (p.region && p.region.toLowerCase().includes(pharmacySearch.toLowerCase()))
   );
 
-  const pendingRequests = requests.filter(r => r.status === "pending" && !respondedIds.has(r.id));
+  const pendingRequests = requests.filter(r => r.status === "pending" && !respondedIds.has(r.id) && !dismissedIds.has(r.id));
   const myResponded = requests.filter(r => respondedIds.has(r.id));
   const pendingOrders = companyOrders.filter(o => o.status === "pending");
 
@@ -485,17 +498,46 @@ export default function PharmacyPortalScreen() {
               return (
                 <View style={[styles.requestCard, alreadyDone && styles.requestCardDone]}>
                   <View style={[styles.requestCardHeader, isRTL && styles.rtlRow]}>
-                    <View style={styles.pillIcon}><MaterialCommunityIcons name="pill" size={20} color={alreadyDone ? Colors.warning : Colors.accent} /></View>
-                    <View style={[styles.requestInfo, isRTL && { alignItems: "flex-end" }]}>
+                    <View style={[styles.pillIcon, alreadyDone && { backgroundColor: Colors.warning + "18" }]}>
+                      <MaterialCommunityIcons name="pill" size={22} color={alreadyDone ? Colors.warning : Colors.accent} />
+                    </View>
+                    <View style={[styles.requestInfo, isRTL && { alignItems: "flex-end" }, { flex: 1 }]}>
                       <Text style={[styles.drugName, isRTL && styles.rtlText]}>{item.drugName}</Text>
                       <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{formatTime(item.createdAt, language)}</Text>
                     </View>
-                    {alreadyDone && <View style={styles.pendingAdminBadge}><Ionicons name="time-outline" size={12} color={Colors.warning} /><Text style={styles.pendingAdminText}>{isRTL ? "قيد المراجعة" : "En révision"}</Text></View>}
+                    {alreadyDone && (
+                      <View style={styles.pendingAdminBadge}>
+                        <Ionicons name="time-outline" size={12} color={Colors.warning} />
+                        <Text style={styles.pendingAdminText}>{isRTL ? "قيد المراجعة" : "En révision"}</Text>
+                      </View>
+                    )}
                   </View>
                   {!alreadyDone && (
-                    <TouchableOpacity style={[styles.availableBtn, isResponding && { opacity: 0.7 }]} onPress={() => handleRespond(item)} disabled={isResponding} activeOpacity={0.85}>
-                      {isResponding ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="checkmark-circle" size={18} color="#fff" /><Text style={styles.availableBtnText}>{isRTL ? "متوفر لدينا" : "Disponible chez nous"}</Text></>}
-                    </TouchableOpacity>
+                    <View style={[styles.requestActionRow, isRTL && styles.rtlRow]}>
+                      <TouchableOpacity
+                        style={[styles.availableBtn, isResponding && { opacity: 0.7 }]}
+                        onPress={() => handleRespond(item)}
+                        disabled={isResponding}
+                        activeOpacity={0.85}
+                      >
+                        {isResponding
+                          ? <ActivityIndicator color="#fff" size="small" />
+                          : <><Ionicons name="checkmark-circle" size={18} color="#fff" /><Text style={styles.availableBtnText}>{isRTL ? "✅ متوفر لدينا" : "✅ Disponible chez nous"}</Text></>
+                        }
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.dismissBtn}
+                        onPress={() => Alert.alert(
+                          isRTL ? "تجاهل الطلب؟" : "Ignorer la demande?",
+                          isRTL ? "سيُخفى هذا الطلب من القائمة" : "Cette demande sera masquée de votre liste",
+                          [{ text: isRTL ? "إلغاء" : "Annuler", style: "cancel" }, { text: isRTL ? "تجاهل" : "Ignorer", style: "destructive", onPress: () => handleDismiss(item.id) }]
+                        )}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="close-circle-outline" size={16} color={Colors.light.textSecondary} />
+                        <Text style={styles.dismissBtnText}>{isRTL ? "تجاهل" : "Ignorer"}</Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </View>
               );
@@ -827,8 +869,12 @@ const styles = StyleSheet.create({
   requestTime: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary },
   pendingAdminBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: Colors.warning + "15", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   pendingAdminText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: Colors.warning },
-  availableBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: Colors.accent, borderRadius: 12, paddingVertical: 12, shadowColor: Colors.accent, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 4 },
+  requestActionRow: { flexDirection: "row", gap: 10, marginTop: 12, alignItems: "stretch" },
+  availableBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 14, shadowColor: Colors.accent, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 4 },
   availableBtnText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 15 },
+  dismissBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: Colors.light.background, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1.5, borderColor: Colors.light.border },
+  dismissBtnText: { color: Colors.light.textSecondary, fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  dismissIconBtn: { padding: 2 },
 
   repeaterHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.light.border },
   repeaterHeaderInfo: { flex: 1 },

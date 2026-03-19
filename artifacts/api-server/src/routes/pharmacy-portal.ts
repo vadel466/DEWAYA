@@ -73,9 +73,14 @@ router.post("/respond", async (req, res) => {
     if (!requestId || !pharmacyName || !pharmacyAddress || !pharmacyPhone) {
       res.status(400).json({ error: "Champs obligatoires manquants" }); return;
     }
-    const existing = await db.select().from(pharmacyResponsesTable)
-      .where(and(eq(pharmacyResponsesTable.requestId, requestId), eq(pharmacyResponsesTable.adminStatus, "pending_admin")));
-    if (existing.length > 0) { res.status(409).json({ error: "Déjà signalé, en attente de validation admin" }); return; }
+    // Check if THIS specific pharmacy already has a pending_admin response for this request
+    const conditions: any[] = [
+      eq(pharmacyResponsesTable.requestId, requestId),
+      eq(pharmacyResponsesTable.adminStatus, "pending_admin"),
+    ];
+    if (pharmacyId) conditions.push(eq(pharmacyResponsesTable.pharmacyId, pharmacyId));
+    const existing = await db.select().from(pharmacyResponsesTable).where(and(...conditions));
+    if (existing.length > 0) { res.status(409).json({ error: "already_pending" }); return; }
 
     const id = generateId();
     const [response] = await db.insert(pharmacyResponsesTable)
@@ -89,10 +94,33 @@ router.post("/respond", async (req, res) => {
 
 router.get("/responses", async (req, res) => {
   try {
+    if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }
     const { adminStatus } = req.query;
-    let rows = await db.select().from(pharmacyResponsesTable);
-    if (adminStatus) rows = rows.filter(r => r.adminStatus === adminStatus);
-    res.json(rows.map(r => ({ ...r, createdAt: r.createdAt.toISOString() })));
+    // Join with drug requests to include drug name
+    const rows = await db
+      .select({
+        id: pharmacyResponsesTable.id,
+        requestId: pharmacyResponsesTable.requestId,
+        pharmacyId: pharmacyResponsesTable.pharmacyId,
+        pharmacyName: pharmacyResponsesTable.pharmacyName,
+        pharmacyAddress: pharmacyResponsesTable.pharmacyAddress,
+        pharmacyPhone: pharmacyResponsesTable.pharmacyPhone,
+        status: pharmacyResponsesTable.status,
+        adminStatus: pharmacyResponsesTable.adminStatus,
+        createdAt: pharmacyResponsesTable.createdAt,
+        drugName: drugRequestsTable.drugName,
+      })
+      .from(pharmacyResponsesTable)
+      .leftJoin(drugRequestsTable, eq(pharmacyResponsesTable.requestId, drugRequestsTable.id));
+
+    let filtered = adminStatus ? rows.filter(r => r.adminStatus === adminStatus) : rows;
+    // Sort: pending_admin first, then by date desc
+    filtered.sort((a, b) => {
+      if (a.adminStatus === "pending_admin" && b.adminStatus !== "pending_admin") return -1;
+      if (b.adminStatus === "pending_admin" && a.adminStatus !== "pending_admin") return 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+    res.json(filtered.map(r => ({ ...r, createdAt: r.createdAt.toISOString() })));
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Erreur serveur" });
   }

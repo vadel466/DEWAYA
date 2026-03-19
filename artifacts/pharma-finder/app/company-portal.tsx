@@ -363,14 +363,29 @@ export default function CompanyPortalScreen() {
             contentContainerStyle={[styles.list, orders.length === 0 && styles.emptyList, { paddingBottom: insets.bottom + 20 }]}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={ordersRefreshing} onRefresh={() => fetchOrders(true)} tintColor={COMPANY_COLOR} />}
-            ListHeaderComponent={pendingOrders.length > 0 ? (
-              <View style={[styles.alertBanner, { backgroundColor: COMPANY_LIGHT, borderColor: COMPANY_COLOR + "30" }]}>
-                <MaterialCommunityIcons name="package-variant" size={16} color={COMPANY_COLOR} />
-                <Text style={[styles.alertBannerText, { color: COMPANY_COLOR }]}>
-                  {isRTL ? `${pendingOrders.length} طلب جديد في انتظار الرد` : `${pendingOrders.length} commande(s) en attente de réponse`}
-                </Text>
+            ListHeaderComponent={
+              <View style={{ gap: 8, marginBottom: 4 }}>
+                <View style={[styles.b2bExplainBanner, isRTL && { alignItems: "flex-end" }]}>
+                  <View style={[{ flexDirection: "row", alignItems: "center", gap: 6 }, isRTL && { flexDirection: "row-reverse" }]}>
+                    <MaterialCommunityIcons name="swap-horizontal" size={15} color={COMPANY_COLOR} />
+                    <Text style={[styles.b2bTitle, isRTL && { textAlign: "right" }]}>{isRTL ? "طلبيات B2B المباشرة" : "Commandes B2B directes"}</Text>
+                  </View>
+                  <Text style={[styles.b2bSub, isRTL && { textAlign: "right" }]}>
+                    {isRTL
+                      ? "الصيدليات المشتركة في DEWAYA ترسل طلباتها مباشرة إليكم. ردوا على كل طلب بالتوفر والسعر."
+                      : "Les pharmacies DEWAYA vous envoient leurs commandes directement. Répondez avec disponibilité et prix."}
+                  </Text>
+                </View>
+                {pendingOrders.length > 0 && (
+                  <View style={[styles.alertBanner, { backgroundColor: COMPANY_LIGHT, borderColor: COMPANY_COLOR + "30" }]}>
+                    <MaterialCommunityIcons name="package-variant" size={16} color={COMPANY_COLOR} />
+                    <Text style={[styles.alertBannerText, { color: COMPANY_COLOR }]}>
+                      {isRTL ? `${pendingOrders.length} طلب جديد في انتظار ردكم` : `${pendingOrders.length} commande(s) en attente de votre réponse`}
+                    </Text>
+                  </View>
+                )}
               </View>
-            ) : null}
+            }
             renderItem={({ item }) => {
               const isPending = item.status === "pending";
               return (
@@ -677,4 +692,8 @@ const styles = StyleSheet.create({
   sendBtnText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 15 },
   cancelBtn: { alignItems: "center", paddingVertical: 12 },
   cancelBtnText: { fontSize: 14, fontFamily: "Inter_500Medium", color: Colors.light.textTertiary },
+
+  b2bExplainBanner: { backgroundColor: COMPANY_COLOR + "0C", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: COMPANY_COLOR + "25", gap: 5 },
+  b2bTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: COMPANY_COLOR },
+  b2bSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, lineHeight: 17 },
 });

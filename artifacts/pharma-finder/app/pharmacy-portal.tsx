@@ -561,14 +561,25 @@ export default function PharmacyPortalScreen() {
 
       {activeTab === "partners" && (
         <View style={{ flex: 1 }}>
+          <View style={[styles.b2bExplainBanner, isRTL && { alignItems: "flex-end" }]}>
+            <View style={[{ flexDirection: "row", alignItems: "center", gap: 6 }, isRTL && styles.rtlRow]}>
+              <MaterialCommunityIcons name="swap-horizontal" size={16} color={PARTNER_COLOR} />
+              <Text style={[styles.b2bExplainTitle, isRTL && styles.rtlText]}>{isRTL ? "قناة B2B المباشرة" : "Canal B2B Direct"}</Text>
+            </View>
+            <Text style={[styles.b2bExplainText, isRTL && styles.rtlText]}>
+              {isRTL
+                ? "اختر شركة دواء من القائمة وأرسل طلبيتك مباشرة. سترى رد الشركة هنا فور صدوره."
+                : "Choisissez une société pharmaceutique et envoyez votre commande directement. La réponse apparaît ici dès qu'elle est disponible."}
+            </Text>
+          </View>
           <View style={styles.repeaterHeader}>
             <View style={[styles.repeaterHeaderInfo, isRTL && { alignItems: "flex-end" }]}>
-              <Text style={[styles.repeaterTitle, isRTL && styles.rtlText]}>{isRTL ? "الشركاء — شركات الأدوية" : "Partenaires — Sociétés Pharma"}</Text>
+              <Text style={[styles.repeaterTitle, isRTL && styles.rtlText]}>{isRTL ? "الشركات المتاحة" : "Sociétés disponibles"}</Text>
               <Text style={[styles.repeaterSub, isRTL && styles.rtlText]}>
-                {isRTL ? "أرسل طلبات مباشرة لشركات الأدوية" : "Envoyez des commandes directement aux sociétés pharmaceutiques"}
+                {isRTL ? "اضغط على شركة لإرسال طلب مباشر" : "Appuyez sur une société pour envoyer une commande directe"}
               </Text>
             </View>
-            <TouchableOpacity style={[styles.addRepeaterBtn, { backgroundColor: PARTNER_COLOR }]} onPress={() => setShowOrderModal(true)} activeOpacity={0.85}>
+            <TouchableOpacity style={[styles.addRepeaterBtn, { backgroundColor: PARTNER_COLOR }]} onPress={() => { setSelectedCompany(null); setShowOrderModal(true); }} activeOpacity={0.85}>
               <Ionicons name="send" size={18} color="#fff" />
             </TouchableOpacity>
           </View>
@@ -689,21 +700,34 @@ export default function PharmacyPortalScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
-              <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>{isRTL ? "إرسال طلب لشركة" : "Envoyer une commande"}</Text>
+              <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>
+                {selectedCompany
+                  ? (isRTL ? `طلب إلى: ${selectedCompany.nameAr || selectedCompany.name}` : `Commande à: ${selectedCompany.name}`)
+                  : (isRTL ? "إرسال طلب مباشر" : "Envoyer une commande directe")}
+              </Text>
 
-              <Text style={[styles.modalLabel, isRTL && styles.rtlText]}>{isRTL ? "الشركة" : "Société"}</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 16 }}>
-                <TouchableOpacity style={[styles.companyPickBtn, !selectedCompany && styles.companyPickBtnActive]} onPress={() => setSelectedCompany(null)} activeOpacity={0.8}>
-                  <Text style={[styles.companyPickText, !selectedCompany && styles.companyPickTextActive]}>{isRTL ? "كل الشركاء" : "Tous"}</Text>
-                </TouchableOpacity>
-                {companies.map(c => (
-                  <TouchableOpacity key={c.id} style={[styles.companyPickBtn, selectedCompany?.id === c.id && styles.companyPickBtnActive]} onPress={() => setSelectedCompany(c)} activeOpacity={0.8}>
-                    <Text style={[styles.companyPickText, selectedCompany?.id === c.id && styles.companyPickTextActive]}>{isRTL && c.nameAr ? c.nameAr : c.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              <Text style={[styles.modalLabel, isRTL && styles.rtlText]}>
+                {isRTL ? "اختر الشركة *" : "Choisir la société *"}
+              </Text>
+              {companies.length === 0 ? (
+                <View style={[styles.noCompanyWarn, isRTL && { alignItems: "flex-end" }]}>
+                  <Ionicons name="warning-outline" size={16} color={Colors.warning} />
+                  <Text style={[styles.noCompanyWarnText, isRTL && styles.rtlText]}>
+                    {isRTL ? "لا توجد شركات مشتركة حالياً" : "Aucune société partenaire disponible"}
+                  </Text>
+                </View>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 2 }}>
+                  {companies.map(c => (
+                    <TouchableOpacity key={c.id} style={[styles.companyPickBtn, selectedCompany?.id === c.id && styles.companyPickBtnActive]} onPress={() => setSelectedCompany(c)} activeOpacity={0.8}>
+                      <MaterialCommunityIcons name="domain" size={13} color={selectedCompany?.id === c.id ? PARTNER_COLOR : Colors.light.textTertiary} />
+                      <Text style={[styles.companyPickText, selectedCompany?.id === c.id && styles.companyPickTextActive]}>{isRTL && c.nameAr ? c.nameAr : c.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
 
-              <Text style={[styles.modalLabel, isRTL && styles.rtlText]}>{isRTL ? "نوع الطلب" : "Type"}</Text>
+              <Text style={[styles.modalLabel, isRTL && styles.rtlText]}>{isRTL ? "نوع الطلب" : "Type de demande"}</Text>
               <View style={[styles.typeRow, isRTL && styles.rtlRow, { marginBottom: 10 }]}>
                 {(["order", "inquiry", "promotion"] as const).map(tp => (
                   <TouchableOpacity key={tp} style={[styles.typeBtn, orderType === tp && { ...styles.typeBtnActive, backgroundColor: PARTNER_COLOR + "18", borderColor: PARTNER_COLOR + "60" }]} onPress={() => setOrderType(tp)}>
@@ -714,14 +738,23 @@ export default function PharmacyPortalScreen() {
                 ))}
               </View>
 
-              <TextInput style={[styles.modalInput, isRTL && styles.rtlInput, { marginBottom: 8 }]} placeholder={isRTL ? "اسم الدواء *" : "Médicament *"} placeholderTextColor={Colors.light.textTertiary} value={orderDrug} onChangeText={setOrderDrug} textAlign={isRTL ? "right" : "left"} />
-              <TextInput style={[styles.modalInput, isRTL && styles.rtlInput, { marginBottom: 8 }]} placeholder={isRTL ? "الكمية (اختياري)" : "Quantité (optionnel)"} placeholderTextColor={Colors.light.textTertiary} value={orderQty} onChangeText={setOrderQty} textAlign={isRTL ? "right" : "left"} />
-              <TextInput style={[styles.modalInput, styles.textArea, isRTL && styles.rtlInput, { marginBottom: 16 }]} placeholder={isRTL ? "ملاحظات إضافية..." : "Notes supplémentaires..."} placeholderTextColor={Colors.light.textTertiary} value={orderMsg} onChangeText={setOrderMsg} multiline numberOfLines={3} textAlign={isRTL ? "right" : "left"} />
+              <TextInput style={[styles.modalInput, isRTL && styles.rtlInput, { marginBottom: 8 }]} placeholder={isRTL ? "اسم الدواء / المنتج *" : "Médicament / Produit *"} placeholderTextColor={Colors.light.textTertiary} value={orderDrug} onChangeText={setOrderDrug} textAlign={isRTL ? "right" : "left"} />
+              <TextInput style={[styles.modalInput, isRTL && styles.rtlInput, { marginBottom: 8 }]} placeholder={isRTL ? "الكمية المطلوبة (اختياري)" : "Quantité souhaitée (optionnel)"} placeholderTextColor={Colors.light.textTertiary} value={orderQty} onChangeText={setOrderQty} textAlign={isRTL ? "right" : "left"} keyboardType="numeric" />
+              <TextInput style={[styles.modalInput, styles.textArea, isRTL && styles.rtlInput, { marginBottom: 16 }]} placeholder={isRTL ? "ملاحظات للشركة..." : "Message à la société..."} placeholderTextColor={Colors.light.textTertiary} value={orderMsg} onChangeText={setOrderMsg} multiline numberOfLines={3} textAlign={isRTL ? "right" : "left"} />
 
-              <TouchableOpacity style={[styles.loginBtn, { backgroundColor: PARTNER_COLOR }, (!orderDrug.trim() || orderSending) && styles.loginBtnDisabled]} onPress={handleSendOrder} disabled={!orderDrug.trim() || orderSending} activeOpacity={0.85}>
-                {orderSending ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="send" size={18} color="#fff" /><Text style={styles.loginBtnText}>{isRTL ? "إرسال" : "Envoyer"}</Text></>}
+              <TouchableOpacity
+                style={[styles.loginBtn, { backgroundColor: PARTNER_COLOR }, (!orderDrug.trim() || !selectedCompany || orderSending) && styles.loginBtnDisabled]}
+                onPress={handleSendOrder}
+                disabled={!orderDrug.trim() || !selectedCompany || orderSending}
+                activeOpacity={0.85}
+              >
+                {orderSending
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <><Ionicons name="send" size={18} color="#fff" /><Text style={styles.loginBtnText}>{isRTL ? "إرسال للشركة" : "Envoyer à la société"}</Text></>
+                }
               </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowOrderModal(false)}>
+              {!selectedCompany && <Text style={[styles.requireCompanyHint, isRTL && styles.rtlText]}>{isRTL ? "* يجب اختيار شركة للإرسال" : "* Sélectionnez une société pour envoyer"}</Text>}
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowOrderModal(false); setSelectedCompany(null); }}>
                 <Text style={styles.cancelText}>{isRTL ? "إلغاء" : "Annuler"}</Text>
               </TouchableOpacity>
             </View>
@@ -851,4 +884,13 @@ const styles = StyleSheet.create({
   companyPickTextActive: { color: PARTNER_COLOR, fontFamily: "Inter_700Bold" },
   cancelBtn: { alignItems: "center", paddingVertical: 14 },
   cancelText: { fontSize: 15, fontFamily: "Inter_500Medium", color: Colors.light.textTertiary },
+
+  b2bExplainBanner: { backgroundColor: PARTNER_COLOR + "0C", borderBottomWidth: 1, borderBottomColor: PARTNER_COLOR + "25", paddingHorizontal: 16, paddingVertical: 12, gap: 5 },
+  b2bExplainTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: PARTNER_COLOR },
+  b2bExplainText: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, lineHeight: 17 },
+
+  noCompanyWarn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: Colors.warning + "12", borderRadius: 10, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: Colors.warning + "30" },
+  noCompanyWarnText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.warning },
+
+  requireCompanyHint: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary, textAlign: "center", marginTop: 4 },
 });

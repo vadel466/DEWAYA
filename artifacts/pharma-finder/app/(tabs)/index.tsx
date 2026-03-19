@@ -108,20 +108,42 @@ export default function HomeScreen() {
   const openCamera = async () => {
     setShowImgMenu(false);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
     if (Platform.OS === "web") {
-      const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
-      if (!r.canceled && r.assets[0]) setCapturedImage(r.assets[0].uri);
+      // Web: use <input capture="environment"> to open device camera directly
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      (input as any).capture = "environment";
+      input.onchange = (e: Event) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = () => setCapturedImage(reader.result as string);
+        reader.readAsDataURL(file);
+      };
+      input.click();
       return;
     }
+
+    // Native: request permission then launch camera app
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
         isRTL ? "إذن الكاميرا مرفوض" : "Permission caméra refusée",
-        isRTL ? "يُرجى السماح للتطبيق باستخدام الكاميرا" : "Veuillez autoriser la caméra"
+        isRTL
+          ? "يُرجى الذهاب إلى الإعدادات والسماح للتطبيق باستخدام الكاميرا"
+          : "Veuillez aller dans les paramètres et autoriser la caméra"
       );
       return;
     }
-    const r = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.8, allowsEditing: true, aspect: [4, 3] });
+    const r = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      quality: 0.85,
+      allowsEditing: true,
+      aspect: [4, 3],
+      exif: false,
+    });
     if (!r.canceled && r.assets[0]) {
       setCapturedImage(r.assets[0].uri);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -131,16 +153,44 @@ export default function HomeScreen() {
   const openGallery = async () => {
     setShowImgMenu(false);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    if (Platform.OS === "web") {
+      // Web: standard file picker — no capture attribute so it opens gallery/files
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.onchange = (e: Event) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = () => setCapturedImage(reader.result as string);
+        reader.readAsDataURL(file);
+      };
+      input.click();
+      return;
+    }
+
+    // Native: request media library permission then open gallery
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
         isRTL ? "إذن المعرض مرفوض" : "Permission galerie refusée",
-        isRTL ? "يُرجى السماح بالوصول إلى معرض الصور" : "Veuillez autoriser la galerie"
+        isRTL
+          ? "يُرجى الذهاب إلى الإعدادات والسماح بالوصول إلى معرض الصور"
+          : "Veuillez aller dans les paramètres et autoriser la galerie"
       );
       return;
     }
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
-    if (!r.canceled && r.assets[0]) setCapturedImage(r.assets[0].uri);
+    const r = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.85,
+      allowsEditing: true,
+      exif: false,
+    });
+    if (!r.canceled && r.assets[0]) {
+      setCapturedImage(r.assets[0].uri);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
   };
 
   const handleSearch = async () => {

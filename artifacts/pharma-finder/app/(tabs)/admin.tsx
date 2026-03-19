@@ -1058,7 +1058,10 @@ export default function AdminScreen() {
           <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{isRTL && item.addressAr ? item.addressAr : item.address}</Text>
           <View style={[styles.tagRow, isRTL && styles.rtlRow]}>
             {item.region && <View style={styles.tag}><Text style={styles.tagText}>{item.region}</Text></View>}
-            {item.portalPin && <View style={[styles.tag, { backgroundColor: Colors.accent + "15" }]}><Ionicons name="key" size={10} color={Colors.accent} /><Text style={[styles.tagText, { color: Colors.accent }]}>PIN</Text></View>}
+            {item.portalPin
+              ? <View style={[styles.tag, { backgroundColor: Colors.accent + "15" }]}><Ionicons name="key" size={10} color={Colors.accent} /><Text style={[styles.tagText, { color: Colors.accent }]}>{item.portalPin}</Text></View>
+              : <View style={[styles.tag, { backgroundColor: Colors.warning + "18", borderWidth: 1, borderColor: Colors.warning + "40" }]}><Ionicons name="warning-outline" size={10} color={Colors.warning} /><Text style={[styles.tagText, { color: Colors.warning }]}>{isRTL ? "بدون PIN" : "Sans PIN"}</Text></View>
+            }
             {item.lat && item.lon && <View style={[styles.tag, { backgroundColor: Colors.primary + "12" }]}><Ionicons name="location" size={10} color={Colors.primary} /><Text style={[styles.tagText, { color: Colors.primary }]}>GPS</Text></View>}
           </View>
         </View>

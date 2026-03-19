@@ -19,7 +19,6 @@ const PARTNER_COLOR = "#7C3AED";
 
 type DrugRequest = { id: string; userId: string; drugName: string; status: string; createdAt: string };
 type PharmacyInfo = { id: string; name: string; nameAr: string | null; address: string; phone: string; region: string | null; b2bEnabled: boolean; subscriptionActive?: boolean };
-type PharmacyListItem = { id: string; name: string; nameAr: string | null; address: string; region: string | null; phone: string; b2bEnabled: boolean };
 type InventoryItem = { id: string; pharmacyId: string; drugName: string; notes: string | null; createdAt: string };
 type Company = { id: string; name: string; nameAr: string | null; contact: string | null; subscriptionActive: boolean };
 type CompanyOrder = { id: string; pharmacyId: string; pharmacyName: string; companyId: string | null; companyName: string | null; drugName: string; quantity: string | null; message: string | null; type: string; status: string; companyResponse: string | null; respondedAt: string | null; createdAt: string };
@@ -37,11 +36,9 @@ export default function PharmacyPortalScreen() {
   const { language } = useApp();
   const isRTL = language === "ar";
 
-  const [step, setStep] = useState<"code" | "pick" | "dashboard">("code");
+  const [step, setStep] = useState<"code" | "dashboard">("code");
   const [pin, setPin] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
-  const [pharmacyList, setPharmacyList] = useState<PharmacyListItem[]>([]);
-  const [pharmacySearch, setPharmacySearch] = useState("");
   const [pharmacy, setPharmacy] = useState<PharmacyInfo | null>(null);
 
   const [requests, setRequests] = useState<DrugRequest[]>([]);
@@ -141,37 +138,28 @@ export default function PharmacyPortalScreen() {
         body: JSON.stringify({ pin: pin.trim() }),
       });
       if (!resp.ok) {
-        Alert.alert(isRTL ? "رمز غير صحيح" : "Code incorrect", isRTL ? "تأكد من الرمز وأعد المحاولة" : "Vérifiez le code et réessayez");
+        const errData = await resp.json().catch(() => ({}));
+        if (errData?.error === "Compte inactif") {
+          Alert.alert(
+            isRTL ? "الحساب غير نشط" : "Compte inactif",
+            isRTL ? "صيدليتكم غير مفعّلة. تواصلوا مع الإدارة." : "Votre pharmacie est désactivée. Contactez l'administration."
+          );
+        } else {
+          Alert.alert(
+            isRTL ? "رمز غير صحيح" : "Code incorrect",
+            isRTL ? "تأكد من الرمز الخاص بصيدليتكم وأعد المحاولة" : "Vérifiez le code propre à votre pharmacie et réessayez"
+          );
+        }
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         return;
       }
       const data = await resp.json();
-      if (data.pharmacyList) {
-        setPharmacyList(data.pharmacyList);
-        setStep("pick");
-      } else {
-        setPharmacy(data);
-        setStep("dashboard");
-      }
+      setPharmacy(data);
+      setStep("dashboard");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
       Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "خطأ في الاتصال" : "Erreur de connexion");
     } finally { setAuthLoading(false); }
-  };
-
-  const handlePickPharmacy = async (item: PharmacyListItem) => {
-    setAuthLoading(true);
-    try {
-      const resp = await fetch(`${API_BASE}/pharmacy-portal/auth`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin: pin.trim(), pharmacyId: item.id }),
-      });
-      if (!resp.ok) { Alert.alert(isRTL ? "خطأ" : "Erreur"); return; }
-      const data = await resp.json();
-      setPharmacy(data);
-      setStep("dashboard");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {} finally { setAuthLoading(false); }
   };
 
   const fetchRequests = async (isRefresh = false) => {
@@ -367,16 +355,9 @@ export default function PharmacyPortalScreen() {
 
   const doLogout = () => {
     setPharmacy(null); setPin(""); setRespondedIds(new Set()); setDismissedIds(new Set()); setMyResponsesStatus([]); stopBellAlert();
-    prevPendingCountRef.current = -1; setStep("code"); setPharmacyList([]);
+    prevPendingCountRef.current = -1; setStep("code");
     setRequests([]); setInventory([]); setCompanyOrders([]); setAnnouncements([]); setActiveTab("requests");
   };
-
-  const filteredPharmacies = pharmacyList.filter(p =>
-    !pharmacySearch.trim() ||
-    p.name.toLowerCase().includes(pharmacySearch.toLowerCase()) ||
-    (p.nameAr && p.nameAr.includes(pharmacySearch)) ||
-    (p.region && p.region.toLowerCase().includes(pharmacySearch.toLowerCase()))
-  );
 
   const pendingRequests = requests.filter(r => r.status === "pending" && !respondedIds.has(r.id) && !dismissedIds.has(r.id));
   const pendingOrders = companyOrders.filter(o => o.status === "pending");
@@ -405,13 +386,17 @@ export default function PharmacyPortalScreen() {
           </View>
           <Text style={[styles.loginTitle, isRTL && styles.rtlText]}>{isRTL ? "دخول الصيدليات" : "Accès Pharmacies"}</Text>
           <Text style={[styles.loginSub, isRTL && styles.rtlText]}>
-            {isRTL ? "أدخل رمز الصيدلية الموحد للوصول إلى لوحة التحكم" : "Entrez le code d'accès pharmacie pour accéder au tableau de bord"}
+            {isRTL
+              ? "أدخل الرمز السري الخاص بصيدليتكم للوصول إلى لوحة التحكم"
+              : "Entrez le code secret propre à votre pharmacie pour accéder au tableau de bord"}
           </Text>
 
-          <View style={styles.codeHintBox}>
-            <Ionicons name="information-circle" size={18} color={Colors.primary} />
-            <Text style={[styles.codeHintText, isRTL && styles.rtlText]}>
-              {isRTL ? "رمز الصيدلية: DV2026" : "Code pharmacie: DV2026"}
+          <View style={[styles.codeHintBox, { borderColor: Colors.accent + "40", backgroundColor: Colors.accent + "08" }]}>
+            <Ionicons name="lock-closed" size={16} color={Colors.accent} />
+            <Text style={[styles.codeHintText, isRTL && styles.rtlText, { color: Colors.accent }]}>
+              {isRTL
+                ? "كل صيدلية لها رمز خاص بها — لا يمكن الدخول بحساب صيدلية أخرى"
+                : "Chaque pharmacie a son propre code — aucun accès croisé n'est possible"}
             </Text>
           </View>
 
@@ -419,7 +404,7 @@ export default function PharmacyPortalScreen() {
             <MaterialCommunityIcons name="lock-outline" size={20} color={Colors.light.textSecondary} style={styles.pinIcon} />
             <TextInput
               style={[styles.pinInput, isRTL && styles.rtlText]}
-              placeholder={isRTL ? "رمز الصيدلية" : "Code pharmacie"}
+              placeholder={isRTL ? "الرمز السري لصيدليتكم" : "Code secret de votre pharmacie"}
               placeholderTextColor={Colors.light.textTertiary}
               value={pin} onChangeText={setPin}
               autoCapitalize="characters" keyboardType="default"
@@ -438,59 +423,10 @@ export default function PharmacyPortalScreen() {
             }
           </TouchableOpacity>
           <Text style={[styles.loginHint, isRTL && styles.rtlText]}>
-            {isRTL ? "رمز الدخول موحد لجميع الصيدليات المسجلة في DEWAYA" : "Code unique pour toutes les pharmacies enregistrées dans DEWAYA"}
+            {isRTL ? "الرمز السري يُحدَّد لكل صيدلية من قِبَل الإدارة" : "Le code est défini individuellement pour chaque pharmacie par l'administration"}
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
-    );
-  }
-
-  if (step === "pick") {
-    return (
-      <View style={[styles.container, { paddingTop: Platform.OS === "web" ? 67 : insets.top }]}>
-        <View style={[styles.header, isRTL && styles.rtlRow]}>
-          <TouchableOpacity onPress={() => setStep("code")} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Ionicons name={isRTL ? "chevron-forward" : "chevron-back"} size={24} color={Colors.light.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{isRTL ? "اختر صيدليتك" : "Choisissez votre pharmacie"}</Text>
-          <View style={{ width: 24 }} />
-        </View>
-        <View style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />
-          <TextInput
-            style={[styles.searchInput, isRTL && styles.rtlText]}
-            placeholder={isRTL ? "ابحث عن صيدليتك..." : "Rechercher votre pharmacie..."}
-            placeholderTextColor={Colors.light.textTertiary}
-            value={pharmacySearch} onChangeText={setPharmacySearch}
-          />
-        </View>
-        <FlatList
-          data={filteredPharmacies}
-          keyExtractor={i => i.id}
-          contentContainerStyle={{ padding: 16, gap: 10 }}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.pharmacyPickCard} onPress={() => handlePickPharmacy(item)} activeOpacity={0.82}>
-              <View style={styles.pharmacyPickIcon}>
-                <MaterialCommunityIcons name="hospital-building" size={22} color={Colors.primary} />
-              </View>
-              <View style={[styles.pharmacyPickInfo, isRTL && { alignItems: "flex-end" }]}>
-                <Text style={[styles.pharmacyPickName, isRTL && styles.rtlText]}>
-                  {isRTL && item.nameAr ? item.nameAr : item.name}
-                </Text>
-                <Text style={[styles.pharmacyPickAddress, isRTL && styles.rtlText]}>{item.address}</Text>
-                {item.region && <View style={styles.regionBadge}><Text style={styles.regionBadgeText}>{item.region}</Text></View>}
-              </View>
-              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={18} color={Colors.light.textTertiary} />
-            </TouchableOpacity>
-          )}
-          ListEmptyComponent={
-            <View style={styles.centered}>
-              <MaterialCommunityIcons name="hospital-off" size={48} color={Colors.light.textTertiary} />
-              <Text style={[styles.emptyTitle, isRTL && styles.rtlText]}>{isRTL ? "لا توجد صيدليات" : "Aucune pharmacie"}</Text>
-            </View>
-          }
-        />
-      </View>
     );
   }
 

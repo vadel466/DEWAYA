@@ -14,8 +14,6 @@ import { eq, like, or, and, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "DEWAYA_ADMIN_2026";
-const PORTAL_CODE = "DV2026";
-
 function generateId(): string {
   return crypto.randomUUID();
 }
@@ -24,33 +22,37 @@ function isAdmin(req: any): boolean {
   return req.headers["x-admin-secret"] === ADMIN_SECRET;
 }
 
+// Each pharmacy authenticates with its own unique portalPin (set by admin).
+// No shared/master portal code exists — this prevents any pharmacy from accessing another.
 router.post("/auth", async (req, res) => {
   try {
-    const { pin, pharmacyId } = req.body;
-    if (!pin) { res.status(400).json({ error: "Code requis" }); return; }
-
-    if (pin === PORTAL_CODE) {
-      if (pharmacyId) {
-        const [pharmacy] = await db.select().from(pharmaciesTable).where(eq(pharmaciesTable.id, pharmacyId));
-        if (!pharmacy || !pharmacy.isActive) { res.status(404).json({ error: "Pharmacie introuvable" }); return; }
-        res.json({
-          id: pharmacy.id, name: pharmacy.name, nameAr: pharmacy.nameAr,
-          address: pharmacy.address, phone: pharmacy.phone, region: pharmacy.region,
-          b2bEnabled: pharmacy.b2bEnabled,
-        });
-        return;
-      }
-      const pharmacies = await db.select().from(pharmaciesTable).where(eq(pharmaciesTable.isActive, true));
-      res.json({ pharmacyList: pharmacies.map(p => ({ id: p.id, name: p.name, nameAr: p.nameAr, address: p.address, region: p.region, phone: p.phone, b2bEnabled: p.b2bEnabled })) });
-      return;
+    const { pin } = req.body;
+    if (!pin || typeof pin !== "string" || pin.trim().length === 0) {
+      res.status(400).json({ error: "Code requis" }); return;
     }
 
-    const pharmacies = await db.select().from(pharmaciesTable).where(eq(pharmaciesTable.portalPin, pin));
-    if (pharmacies.length === 0) { res.status(401).json({ error: "Code incorrect" }); return; }
+    const pharmacies = await db
+      .select()
+      .from(pharmaciesTable)
+      .where(eq(pharmaciesTable.portalPin, pin.trim()));
+
+    if (pharmacies.length === 0) {
+      res.status(401).json({ error: "Code incorrect" }); return;
+    }
+
     const pharmacy = pharmacies[0];
+
+    if (!pharmacy.isActive) {
+      res.status(403).json({ error: "Compte inactif" }); return;
+    }
+
     res.json({
-      id: pharmacy.id, name: pharmacy.name, nameAr: pharmacy.nameAr,
-      address: pharmacy.address, phone: pharmacy.phone, region: pharmacy.region,
+      id: pharmacy.id,
+      name: pharmacy.name,
+      nameAr: pharmacy.nameAr,
+      address: pharmacy.address,
+      phone: pharmacy.phone,
+      region: pharmacy.region,
       b2bEnabled: pharmacy.b2bEnabled,
     });
   } catch (err) {

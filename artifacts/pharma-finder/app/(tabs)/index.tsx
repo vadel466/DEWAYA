@@ -437,13 +437,9 @@ export default function HomeScreen() {
               </TouchableOpacity>
             )}
 
-            {/* Camera — inside the bar, at the left end */}
-            <TouchableOpacity
-              style={styles.barCameraBtn}
-              onPress={() => setShowImgMenu(true)}
-              activeOpacity={0.75}
-              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-            >
+            {/* Divider + Camera chip — mirroring region chip on the other end */}
+            <View style={styles.barDivider} />
+            <TouchableOpacity style={styles.cameraChip} onPress={() => setShowImgMenu(true)} activeOpacity={0.75}>
               <Ionicons name="camera-outline" size={20} color={Colors.primary} />
             </TouchableOpacity>
           </View>
@@ -516,46 +512,26 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Row 2: صيدليات المداومة | سعر الدواء — two half-width cards */}
-        <View style={styles.gridRow}>
-          {/* صيدليات المداومة */}
-          <TouchableOpacity style={[styles.card, { backgroundColor: "#EEF1FD", overflow: "hidden" }]} onPress={goToDutyAndPrice} activeOpacity={0.82}>
-            <View style={[styles.cardAccent, { backgroundColor: "#3B5BDB" }]} />
-            <View style={[styles.cardIconCircle, { backgroundColor: "#3B5BDB1E" }]}>
-              <MaterialCommunityIcons name="moon-waning-crescent" size={22} color="#3B5BDB" />
+        {/* Row 2: صيدليات المداومة — full-width banner */}
+        <TouchableOpacity style={styles.dutyCard} onPress={goToDutyAndPrice} activeOpacity={0.82}>
+          <View style={[styles.cardAccent, { backgroundColor: "#3B5BDB" }]} />
+          <View style={[styles.dutyCardInner, isRTL && styles.rowReverse]}>
+            <View style={[styles.dutyIconCircle, { backgroundColor: "#3B5BDB15" }]}>
+              <MaterialCommunityIcons name="moon-waning-crescent" size={28} color="#3B5BDB" />
             </View>
-            <Text style={[styles.cardTitle, { color: "#3B5BDB" }, isRTL && styles.textRight]} numberOfLines={2}>
-              {isRTL ? "صيدليات\nالمداومة" : "Pharmacies\nde Garde"}
-            </Text>
-            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={1}>
-              {isRTL ? "مفتوحة الليل" : "Ouvertes la nuit"}
-            </Text>
-            <View style={[styles.cardChevron, { backgroundColor: "#3B5BDB14" }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.dutyCardTitle, { color: "#3B5BDB" }, isRTL && styles.textRight]} numberOfLines={1}>
+                {isRTL ? "صيدليات المداومة" : "Pharmacies de Garde"}
+              </Text>
+              <Text style={[styles.dutyCardDesc, isRTL && styles.textRight]} numberOfLines={1}>
+                {isRTL ? "صيدليات مفتوحة الليل وأيام العطل" : "Ouvertes la nuit et les jours fériés"}
+              </Text>
+            </View>
+            <View style={[styles.cardChevron, { backgroundColor: "#3B5BDB14", marginTop: 0 }]}>
               <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#3B5BDB" />
             </View>
-          </TouchableOpacity>
-
-          {/* سعر الدواء */}
-          <TouchableOpacity
-            style={[styles.card, { backgroundColor: "#FFF7EB", overflow: "hidden" }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/drug-price"); }}
-            activeOpacity={0.82}
-          >
-            <View style={[styles.cardAccent, { backgroundColor: "#E07B00" }]} />
-            <View style={[styles.cardIconCircle, { backgroundColor: "#E07B001E" }]}>
-              <MaterialCommunityIcons name="pill" size={22} color="#E07B00" />
-            </View>
-            <Text style={[styles.cardTitle, { color: "#B96200" }, isRTL && styles.textRight]} numberOfLines={2}>
-              {isRTL ? "سعر\nالدواء" : "Prix du\nMédicament"}
-            </Text>
-            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={1}>
-              {isRTL ? "قاعدة الأسعار" : "Tarifs officiels"}
-            </Text>
-            <View style={[styles.cardChevron, { backgroundColor: "#E07B0014" }]}>
-              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#E07B00" />
-            </View>
-          </TouchableOpacity>
-        </View>
+          </View>
+        </TouchableOpacity>
       </View>
 
       {/* ─── PORTAL LINKS ─── */}
@@ -1228,34 +1204,34 @@ const styles = StyleSheet.create({
   nurseCard: {
     backgroundColor: "#E0F5F1",
     overflow: "hidden",
+    justifyContent: "flex-start",
+    minHeight: 130,
   },
   nurseCardTitle: {
     fontFamily: "Inter_700Bold",
-    fontSize: 13,
-    color: "#0D7A6E",
+    fontSize: 12.5,
+    color: "#0A6B62",
     lineHeight: 18,
-    paddingLeft: 6,
-    paddingRight: 6,
-    marginBottom: 4,
-    zIndex: 2,
+    paddingLeft: 8,
+    paddingRight: 8,
+    marginTop: 8,
+    marginBottom: 0,
   },
   nurseImgFemale: {
     position: "absolute",
-    right: 24,
-    bottom: -6,
-    width: 68,
-    height: 68,
-    opacity: 0.92,
-    zIndex: 1,
+    right: 20,
+    bottom: -4,
+    width: 64,
+    height: 64,
+    opacity: 0.90,
   },
   nurseImgMale: {
     position: "absolute",
-    right: -8,
-    bottom: -6,
-    width: 60,
-    height: 60,
-    opacity: 0.85,
-    zIndex: 0,
+    right: -6,
+    bottom: -4,
+    width: 56,
+    height: 56,
+    opacity: 0.82,
   },
   nurseCardImg: {
     position: "absolute",

@@ -389,59 +389,66 @@ export default function HomeScreen() {
         <View style={styles.searchCard}>
           <Text style={[styles.searchCardLabel, isRTL && styles.textRight]}>{t("searchTitle")}</Text>
 
-          {/* ── Unified input bar: [📍 Region] | [Drug input] ── */}
-          <View style={[styles.unifiedBar, isRTL && styles.rowReverse, inputFocused && styles.unifiedBarFocused]}>
-            {/* Region chip */}
+          {/* ── Camera + Search bar row ── */}
+          <View style={[styles.searchBarRow, isRTL && styles.rowReverse]}>
+
+            {/* 📷 Camera square button — standalone, left of the bar */}
             <TouchableOpacity
-              style={[styles.regionChip, isRTL && styles.rowReverse]}
-              onPress={() => setShowRegionPicker(true)}
-              activeOpacity={0.75}
+              style={styles.cameraSqBtn}
+              onPress={() => setShowImgMenu(true)}
+              activeOpacity={0.80}
             >
-              <Ionicons name="location" size={13} color={Colors.primary} />
-              <Text style={[styles.regionChipText, !region && styles.regionChipPlaceholder]} numberOfLines={1}>
-                {region ? (language === "ar" ? region.ar : region.fr) : (isRTL ? "المنطقة" : "Région")}
-              </Text>
-              <Ionicons name="chevron-down" size={11} color={Colors.primary + "80"} />
+              <Ionicons name="camera" size={22} color={Colors.primary} />
             </TouchableOpacity>
 
-            {/* Divider */}
-            <View style={styles.barDivider} />
-
-            {/* Drug name input */}
-            {capturedImage ? (
-              <View style={[styles.thumbWrap, { marginLeft: 4, marginRight: 4 }]}>
-                <Image source={{ uri: capturedImage }} style={styles.thumb} />
-                <TouchableOpacity style={styles.thumbRemove} onPress={() => setCapturedImage(null)}>
-                  <Ionicons name="close-circle" size={16} color="#EF4444" />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TextInput
-                ref={inputRef}
-                style={[styles.textField, isRTL && styles.textRight]}
-                placeholder={isRTL ? "اكتب اسم الدواء..." : "Nom du médicament..."}
-                placeholderTextColor={Colors.light.textTertiary}
-                value={drugName}
-                onChangeText={setDrugName}
-                textAlign={isRTL ? "right" : "left"}
-                returnKeyType="search"
-                onSubmitEditing={handleSearch}
-                onFocus={() => setInputFocused(true)}
-                onBlur={() => setInputFocused(false)}
-              />
-            )}
-
-            {drugName.length > 0 && !capturedImage && (
-              <TouchableOpacity onPress={() => setDrugName("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
+            {/* Unified input bar: [📍 Region] | [Drug input] */}
+            <View style={[styles.unifiedBar, { flex: 1, marginBottom: 0 }, isRTL && styles.rowReverse, inputFocused && styles.unifiedBarFocused]}>
+              {/* Region chip */}
+              <TouchableOpacity
+                style={[styles.regionChip, isRTL && styles.rowReverse]}
+                onPress={() => setShowRegionPicker(true)}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="location" size={13} color={Colors.primary} />
+                <Text style={[styles.regionChipText, !region && styles.regionChipPlaceholder]} numberOfLines={1}>
+                  {region ? (language === "ar" ? region.ar : region.fr) : (isRTL ? "المنطقة" : "Région")}
+                </Text>
+                <Ionicons name="chevron-down" size={11} color={Colors.primary + "80"} />
               </TouchableOpacity>
-            )}
 
-            {/* Divider + Camera chip — mirroring region chip on the other end */}
-            <View style={styles.barDivider} />
-            <TouchableOpacity style={styles.cameraChip} onPress={() => setShowImgMenu(true)} activeOpacity={0.75}>
-              <Ionicons name="camera-outline" size={20} color={Colors.primary} />
-            </TouchableOpacity>
+              {/* Divider */}
+              <View style={styles.barDivider} />
+
+              {/* Drug name input or captured image thumb */}
+              {capturedImage ? (
+                <View style={[styles.thumbWrap, { marginLeft: 4, marginRight: 4 }]}>
+                  <Image source={{ uri: capturedImage }} style={styles.thumb} />
+                  <TouchableOpacity style={styles.thumbRemove} onPress={() => setCapturedImage(null)}>
+                    <Ionicons name="close-circle" size={16} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TextInput
+                  ref={inputRef}
+                  style={[styles.textField, isRTL && styles.textRight]}
+                  placeholder={isRTL ? "اكتب اسم الدواء..." : "Nom du médicament..."}
+                  placeholderTextColor={Colors.light.textTertiary}
+                  value={drugName}
+                  onChangeText={setDrugName}
+                  textAlign={isRTL ? "right" : "left"}
+                  returnKeyType="search"
+                  onSubmitEditing={handleSearch}
+                  onFocus={() => setInputFocused(true)}
+                  onBlur={() => setInputFocused(false)}
+                />
+              )}
+
+              {drugName.length > 0 && !capturedImage && (
+                <TouchableOpacity onPress={() => setDrugName("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           {/* Submit row */}
@@ -1065,6 +1072,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 2,
+  },
+  searchBarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  cameraSqBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary + "14",
+    borderWidth: 1.5,
+    borderColor: Colors.primary + "30",
+    flexShrink: 0,
   },
   searchActions: {
     flexDirection: "row",

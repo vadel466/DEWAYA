@@ -103,9 +103,13 @@ export default function DrugPriceScreen() {
   const renderResult = ({ item }: { item: DrugResult }) => {
     const displayName = isRTL && item.nameAr ? item.nameAr : item.name;
     const subName = isRTL ? item.name : (item.nameAr || null);
+    const priceNum = item.price;
+    const priceWhole = Math.floor(priceNum);
+    const priceDec = priceNum % 1 !== 0 ? `.${(priceNum % 1).toFixed(1).slice(2)}` : "";
     return (
     <View style={styles.resultCard}>
-      <View style={[styles.resultHeader, isRTL && styles.rowReverse]}>
+      {/* Top section: pill icon + names + price badge */}
+      <View style={[styles.resultCardTop, isRTL && styles.rowReverse]}>
         <View style={styles.pillIcon}>
           <MaterialCommunityIcons name="pill" size={22} color={Colors.primary} />
         </View>
@@ -125,13 +129,19 @@ export default function DrugPriceScreen() {
             />
           ) : null}
         </View>
+        {/* Price badge — teal background, large bold price */}
         <View style={styles.priceBadge}>
-          <Text style={styles.priceText}>{formatPrice(item.price)}</Text>
+          <Text style={styles.priceLabel}>{isRTL ? "السعر" : "PRIX"}</Text>
+          <Text style={styles.priceText}>
+            {priceWhole}{priceDec}
+          </Text>
+          <Text style={styles.priceUnit}>MRU</Text>
         </View>
       </View>
 
+      {/* Bottom meta chips */}
       {(item.unit || item.category || item.notes) && (
-        <View style={[styles.resultMeta, isRTL && styles.rowReverse]}>
+        <View style={[styles.resultCardBottom, isRTL && styles.rowReverse]}>
           {item.category && (
             <View style={[styles.metaChip, isRTL && styles.rowReverse]}>
               <Ionicons name="folder-outline" size={12} color={Colors.light.textSecondary} />
@@ -330,34 +340,48 @@ const styles = StyleSheet.create({
 
   resultCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 16,
+    borderRadius: 20,
+    padding: 0,
+    overflow: "hidden",
     borderWidth: 1,
-    borderColor: Colors.primary + "25",
-    borderLeftWidth: 5,
-    borderLeftColor: Colors.primary,
-    gap: 12,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
-    elevation: 7,
+    borderColor: Colors.primary + "20",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.13,
+    shadowRadius: 20,
+    elevation: 10,
   },
-  resultHeader: {
+  resultCardTop: {
+    backgroundColor: Colors.primary + "08",
+    borderLeftWidth: 6,
+    borderLeftColor: Colors.primary,
+    padding: 14,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
+  resultCardBottom: {
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
   pillIcon: {
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: Colors.primary + "14",
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: Colors.primary + "18",
     alignItems: "center", justifyContent: "center",
+    flexShrink: 0,
   },
   resultNames: { flex: 1, alignItems: "flex-start" },
   resultName: {
     fontFamily: "Inter_700Bold",
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.light.text,
+    lineHeight: 20,
   },
   highlight: {
     backgroundColor: "#FEF08A",
@@ -367,7 +391,7 @@ const styles = StyleSheet.create({
   },
   resultNameAr: {
     fontFamily: "Inter_400Regular",
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     marginTop: 2,
     textAlign: "right",
@@ -380,30 +404,44 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   priceBadge: {
-    backgroundColor: Colors.primary,
-    borderRadius: 14,
-    paddingHorizontal: 16,
+    backgroundColor: "#0D9488",
+    borderRadius: 16,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     alignItems: "center",
-    shadowColor: Colors.primary,
+    justifyContent: "center",
+    minWidth: 88,
+    shadowColor: "#0D9488",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOpacity: 0.40,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  priceLabel: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 9,
+    color: "rgba(255,255,255,0.8)",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    marginBottom: 1,
   },
   priceText: {
     fontFamily: "Inter_700Bold",
-    fontSize: 20,
+    fontSize: 22,
     color: "#fff",
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
+    lineHeight: 26,
+  },
+  priceUnit: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 11,
+    color: "rgba(255,255,255,0.85)",
+    marginTop: 1,
   },
   resultMeta: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
-    paddingTop: 4,
-    borderTopWidth: 1,
-    borderTopColor: Colors.light.border,
   },
   metaChip: {
     flexDirection: "row",

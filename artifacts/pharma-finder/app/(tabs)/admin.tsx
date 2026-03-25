@@ -126,6 +126,7 @@ export default function AdminScreen() {
   };
   const prevPendingCountRef = useRef<number>(-1);
   const vibrationActiveRef = useRef(false);
+  const webFileInputRef = useRef<any>(null);
   const bellShake = useRef(new Animated.Value(0)).current;
   const bellLoop = useRef<Animated.CompositeAnimation | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<DrugRequest | null>(null);
@@ -508,44 +509,41 @@ export default function AdminScreen() {
     );
   };
 
-  const pickAndParseExcel = async () => {
+  /* web: called by the hidden <input> onChange */
+  const handleWebFileChange = async (e: any) => {
+    const file = e?.target?.files?.[0];
+    if (!file) return;
     setFileImportLoading(true);
     try {
-      if (Platform.OS === "web") {
-        await new Promise<void>((resolve) => {
-          const input = document.createElement("input");
-          input.type = "file";
-          input.accept = ".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv";
-          input.onchange = async (e: Event) => {
-            const file = (e.target as HTMLInputElement).files?.[0];
-            if (!file) { resolve(); return; }
-            const reader = new FileReader();
-            reader.onloadend = async () => {
-              try {
-                const dataUrl = reader.result as string;
-                const base64 = dataUrl.split(",")[1];
-                await sendFileToApi(base64, file.type || "application/octet-stream", file.name);
-              } catch (err: any) {
-                console.error("[pickAndParseExcel web]", err);
-                Alert.alert(
-                  isRTL ? "خطأ" : "Erreur",
-                  isRTL ? "تعذّر معالجة الملف. تحقق من التنسيق وحاول مجدداً." : "Impossible de traiter le fichier. Vérifiez le format et réessayez."
-                );
-              }
-              resolve();
-            };
-            reader.onerror = () => {
-              Alert.alert(isRTL ? "خطأ في القراءة" : "Erreur de lecture", isRTL ? "تعذّر قراءة الملف" : "Impossible de lire le fichier");
-              resolve();
-            };
-            reader.readAsDataURL(file);
-          };
-          input.oncancel = () => resolve();
-          input.click();
-        });
-        return;
-      }
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      await sendFileToApi(base64, file.type || "application/octet-stream", file.name);
+    } catch (err: any) {
+      console.error("[handleWebFileChange]", err);
+      Alert.alert(
+        isRTL ? "خطأ في قراءة الملف" : "Erreur de lecture",
+        isRTL ? "تعذّر معالجة الملف. تأكد من التنسيق وحاول مجدداً." : "Impossible de lire le fichier."
+      );
+    } finally {
+      setFileImportLoading(false);
+      if (webFileInputRef.current) webFileInputRef.current.value = "";
+    }
+  };
 
+  const pickAndParseExcel = async () => {
+    if (Platform.OS === "web") {
+      webFileInputRef.current?.click();
+      return;
+    }
+    setFileImportLoading(true);
+    try {
       const { getDocumentAsync } = await import("expo-document-picker");
       const result = await getDocumentAsync({ type: ["*/*"], copyToCacheDirectory: true });
       if (result.canceled || !result.assets?.[0]) return;
@@ -1653,6 +1651,13 @@ export default function AdminScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: Platform.OS === "web" ? 67 : insets.top }]}>
+      {Platform.OS === "web" && React.createElement("input", {
+        ref: webFileInputRef,
+        type: "file",
+        accept: ".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv",
+        style: { display: "none", position: "absolute" },
+        onChange: handleWebFileChange,
+      })}
       <View style={styles.header}>
         <View style={[styles.headerLeft, isRTL && styles.rtlRow]}>
           <View style={styles.adminBadge}><Ionicons name="shield" size={18} color={Colors.primary} /></View>

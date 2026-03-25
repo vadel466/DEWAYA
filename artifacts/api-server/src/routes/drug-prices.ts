@@ -214,68 +214,82 @@ async function parsePdfBuffer(buffer: Buffer) {
     standardFontDataUrl: `file://${FONTS_PATH}`,
   }).promise;
 
-  /* Collect logical lines from each page using Y-coordinate grouping */
-  const logicalLines: string[] = [];
+  /* Pharmaceutical form keywords — stop the drug name before these */
+  const FORM_RE = /\b(sol(?:ution)?|comp(?:rimé)?|gél(?:ule)?|caps(?:ule)?|amp(?:oule)?|sach(?:et)?|crem|pdr|susp|sirop|inj|gel|oint|pom(?:made)?|gtt|lyoph|ef|sr|lp|mr|fl\b)/i;
+
+  const rows: { name: string; price: number; unit?: string }[] = [];
 
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p);
+    const viewport = page.getViewport({ scale: 1 });
+    const pageWidth = viewport.width || 595;
+    /* Name column occupies the left ~48% of the page width */
+    const NAME_X_MAX = pageWidth * 0.48;
+    /* Price column starts at ~78% — rightmost column(s) */
+    const PRICE_X_MIN = pageWidth * 0.78;
+
     const content = await page.getTextContent();
 
-    /* Group text items by approximate Y position (row = same visual line) */
+    /* Group items by Y position (same visual row) */
     const byY = new Map<number, Array<{ x: number; text: string }>>();
     for (const it of content.items as any[]) {
       const text = (it.str ?? "").trim();
       if (!text) continue;
       const tx = it.transform;
       if (!tx) continue;
-      const x = Math.round(tx[4]);
-      const y = Math.round(tx[5]);
-      /* Round Y to nearest 4px to group items on the same visual row */
+      const x = tx[4] as number;
+      const y = tx[5] as number;
       const yKey = Math.round(y / 4) * 4;
       if (!byY.has(yKey)) byY.set(yKey, []);
       byY.get(yKey)!.push({ x, text });
     }
 
-    /* Sort rows top-to-bottom (descending Y in PDF coords) then join left-to-right */
     const sortedY = [...byY.keys()].sort((a, b) => b - a);
+
     for (const yKey of sortedY) {
-      const cells = byY.get(yKey)!.sort((a, b) => a.x - b.x);
-      const line = cells.map(c => c.text).join(" ").replace(/\s{2,}/g, " ").trim();
-      if (line.length >= 3) logicalLines.push(line);
+      const cells = (byY.get(yKey)!).sort((a, b) => a.x - b.x);
+
+      /* ── Extract price from the rightmost column ── */
+      const priceCells = cells.filter(c => c.x >= PRICE_X_MIN);
+      const priceSource = priceCells.length > 0
+        ? priceCells.map(c => c.text).join(" ")
+        : cells.map(c => c.text).join(" ");   /* fallback: scan full row */
+
+      const priceMatches = [...priceSource.matchAll(/\b(\d{2,6}(?:[.,]\d{1,2})?)\b/g)];
+      if (priceMatches.length === 0) continue;
+      const priceStr = priceMatches[priceMatches.length - 1][1];
+      const price = parseFloat(priceStr.replace(",", "."));
+      if (isNaN(price) || price < 5 || price > 500_000) continue;
+
+      /* ── Extract name from the leftmost column ── */
+      const nameCells = cells.filter(c => c.x < NAME_X_MAX);
+      /* If the name zone is empty, try the full row but stop before the first number */
+      let rawName = nameCells.length > 0
+        ? nameCells.map(c => c.text).join(" ")
+        : cells.map(c => c.text).join(" ");
+
+      /* Strip leading row index like "1 " or "123." */
+      rawName = rawName.replace(/^\d{1,4}[\.\-\)\s]+/, "").trim();
+
+      /* Truncate at first pharmaceutical form keyword (Sol, Comp, Gel, etc.) */
+      const formMatch = FORM_RE.exec(rawName);
+      let name = formMatch && formMatch.index > 2
+        ? rawName.slice(0, formMatch.index).trim()
+        : rawName;
+
+      /* Truncate at first dosage-like token: number followed by mg/ml/g/% */
+      name = name.replace(/\s*\d+[\.,]?\d*\s*(mg|ml|g|ui|mcg|%|iu)\b.*/i, "").trim();
+
+      /* Final cleanup */
+      name = name.replace(/\s{2,}/g, " ").replace(/[\/\\\[\]_]+$/, "").trim();
+
+      /* Skip headers, empty names, pure numbers */
+      if (name.length < 2) continue;
+      if (/^\d+$/.test(name)) continue;
+      if (/^(n°|num|nom|prix|forme|dosage|répertoire|page|total|rubrique|désignation|dci)/i.test(name)) continue;
+
+      rows.push({ name, price });
     }
-  }
-
-  const rows: { name: string; price: number; unit?: string }[] = [];
-
-  for (const line of logicalLines) {
-    /* Must contain at least one number that could be a price */
-    const priceMatches = [...line.matchAll(/\b(\d{2,6}(?:[.,]\d{1,2})?)\b/g)];
-    if (priceMatches.length === 0) continue;
-
-    /* Prefer rightmost number as price (typical table: name ... price) */
-    const lastMatch = priceMatches[priceMatches.length - 1];
-    const price = parseFloat(lastMatch[1].replace(",", "."));
-    if (isNaN(price) || price < 5 || price > 500_000) continue;
-
-    /* Name = everything before the price number, stripped of row indices */
-    const beforePrice = line.slice(0, lastMatch.index ?? 0).trim();
-    const name = beforePrice
-      .replace(/^\d{1,4}[\.\-\s]+/, "")  /* strip leading "1." or "123 " row number */
-      .replace(/\s{2,}/g, " ")
-      .trim();
-
-    /* Skip lines that are clearly headers or noise */
-    if (name.length < 2) continue;
-    if (/^\d+$/.test(name)) continue;
-    if (/^(n°|num|nom|prix|forme|dosage|répertoire|page|total|rubrique)/i.test(name)) continue;
-
-    /* Optional unit = text appearing after the price number */
-    const afterPrice = line.slice((lastMatch.index ?? 0) + lastMatch[1].length).trim();
-    const unit = afterPrice.length > 1 && afterPrice.length < 50
-      ? afterPrice.replace(/[^a-zA-ZÀ-ÿ0-9\s\/\.]/g, "").trim().split(/\s{2,}/)[0].trim()
-      : undefined;
-
-    rows.push({ name, price, unit: unit || undefined });
   }
 
   /* Deduplicate by normalised name (keep first occurrence) */

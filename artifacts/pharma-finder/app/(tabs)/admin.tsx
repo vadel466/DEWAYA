@@ -924,6 +924,21 @@ export default function AdminScreen() {
 
   const usePortalResponseMutation = { isPending: false };
 
+  const deleteNursingMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`${API_BASE}/nursing/requests/${id}`, {
+        method: "DELETE",
+        headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-nursing-requests"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: (e: any) => Alert.alert(isRTL ? "خطأ في الحذف" : "Erreur", String(e?.message || e)),
+  });
+
   const resetPharmacyForm = () => { setPName(""); setPNameAr(""); setPAddress(""); setPAddressAr(""); setPPhone(""); setPLat(""); setPLon(""); setPRegion(""); setPPin(""); setEditingPharmacy(null); };
 
   const openEditPharmacy = (p: Pharmacy) => {
@@ -1540,6 +1555,16 @@ export default function AdminScreen() {
               </Text>
             ) : null}
           </View>
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={() => confirmDelete(
+              isRTL ? "حذف الطلب؟" : "Supprimer cette demande ?",
+              () => deleteNursingMutation.mutate(item.id)
+            )}
+            disabled={deleteNursingMutation.isPending}
+          >
+            <MaterialCommunityIcons name="trash-can-outline" size={20} color="#ef4444" />
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -2298,6 +2323,7 @@ const styles = StyleSheet.create({
 
   requestCard: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2, borderWidth: 1, borderColor: Colors.light.border, marginBottom: 2 },
   respondedCard: { opacity: 0.85 },
+  deleteBtn: { padding: 8, borderRadius: 8, alignSelf: "flex-start", alignItems: "center", justifyContent: "center" },
   pharmCard: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2, borderWidth: 1, borderColor: Colors.light.border, marginBottom: 2 },
   portalCard: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.primary + "25", marginBottom: 2 },
   drugNameBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: Colors.accent + "12", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, alignSelf: "flex-start", marginBottom: 5 },

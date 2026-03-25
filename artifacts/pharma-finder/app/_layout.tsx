@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useState } from "react";
-import { StyleSheet } from "react-native";
+import { Image, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -85,7 +85,17 @@ export default function RootLayout() {
 
   const handleIntroFinish = useCallback(() => setShowIntro(false), []);
 
-  if (!ready) return null;
+  if (!ready) {
+    return (
+      <View style={styles.splash}>
+        <Image
+          source={require("../assets/images/splash-icon.png")}
+          style={styles.splashIcon}
+          resizeMode="contain"
+        />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaProvider>
@@ -107,4 +117,6 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  splash: { flex: 1, backgroundColor: "#0D9488", justifyContent: "center", alignItems: "center" },
+  splashIcon: { width: 140, height: 140 },
 });

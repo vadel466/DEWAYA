@@ -1073,7 +1073,7 @@ export default function AdminScreen() {
 
   const bellRotate = bellShake.interpolate({ inputRange: [-1, 0, 1], outputRange: ["-18deg", "0deg", "18deg"] });
 
-  const PHARMA_GROUP = ["pharmacies", "duty", "prices"] as const;
+  const PHARMA_GROUP = ["pharmacies", "duty"] as const;
   const B2B_GROUP = ["b2b", "companies"] as const;
   const inPharmaGroup = (PHARMA_GROUP as readonly string[]).includes(activeTab);
   const inB2bGroup = (B2B_GROUP as readonly string[]).includes(activeTab);
@@ -1085,13 +1085,13 @@ export default function AdminScreen() {
     { id: "portal", label: isRTL ? `ردود${pendingPortalCount > 0 ? ` ⚡${pendingPortalCount}` : (portalResponses.length > 0 ? ` (${portalResponses.length})` : "")}` : `Portail${pendingPortalCount > 0 ? ` ⚡${pendingPortalCount}` : (portalResponses.length > 0 ? ` (${portalResponses.length})` : "")}` },
     { id: "pharma-group", label: isRTL ? "الصيدليات" : "Officine" },
     { id: "b2b-group", label: isRTL ? `الشركات${b2bPendingCount > 0 ? ` ⚡${b2bPendingCount}` : ""}` : `Sociétés${b2bPendingCount > 0 ? ` ⚡${b2bPendingCount}` : ""}` },
-    { id: "nursing", label: isRTL ? "التمريض" : "Soins infirmiers" },
+    { id: "nursing", label: isRTL ? "التمريض" : "Soins" },
+    { id: "prices", label: isRTL ? "الأدوية" : "Base méd." },
   ];
 
   const PHARMA_SUB_TABS = [
     { id: "pharmacies", label: isRTL ? "الصيدليات" : "Pharmacies", icon: "business-outline" as const },
     { id: "duty", label: isRTL ? "مداومة" : "Garde", icon: "moon-outline" as const },
-    { id: "prices", label: isRTL ? "أسعار الدواء" : "Prix méd.", icon: "pricetag-outline" as const },
   ];
 
   const B2B_SUB_TABS = [
@@ -1573,20 +1573,16 @@ export default function AdminScreen() {
             {item.category ? <View style={styles.categoryBadge}><Text style={styles.categoryText}>{item.category}</Text></View> : null}
           </View>
         </View>
-        <View style={{ flexDirection: "column", gap: 6, alignItems: "center" }}>
-          <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); openEditPrice(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="pencil-outline" size={18} color={Colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => confirmDelete(isRTL ? `حذف "${item.name}"؟` : `Supprimer "${item.name}" ?`, () => deletePriceMutation.mutate(item.id))}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            disabled={deletePriceMutation.isPending}
-          >
-            {deletePriceMutation.isPending
-              ? <ActivityIndicator size="small" color={Colors.danger} />
-              : <Ionicons name="trash-outline" size={18} color={Colors.danger} />}
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          onPress={() => confirmDelete(isRTL ? `حذف "${item.name}"؟` : `Supprimer "${item.name}" ?`, () => deletePriceMutation.mutate(item.id))}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          disabled={deletePriceMutation.isPending}
+          style={{ padding: 8 }}
+        >
+          {deletePriceMutation.isPending
+            ? <ActivityIndicator size="small" color={Colors.danger} />
+            : <Ionicons name="trash-outline" size={20} color={Colors.danger} />}
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -1650,7 +1646,7 @@ export default function AdminScreen() {
     );
   };
 
-  const isAddTab = activeTab === "pharmacies" || activeTab === "prices" || activeTab === "companies";
+  const isAddTab = activeTab === "pharmacies" || activeTab === "companies";
   const currentData: any[] =
     activeTab === "pending" ? pendingRequests :
     activeTab === "responded" ? respondedRequests :
@@ -1736,6 +1732,7 @@ export default function AdminScreen() {
                 hasAlert && styles.tabBtnAlert,
                 isGroupPharma && isActive && { backgroundColor: Colors.accent },
                 isGroupB2b && isActive && { backgroundColor: "#7C3AED" },
+                tab.id === "prices" && isActive && { backgroundColor: "#D97706" },
               ]}
               onPress={() => {
                 if (isGroupPharma) {
@@ -1771,6 +1768,11 @@ export default function AdminScreen() {
                   <Ionicons name="briefcase-outline" size={14} color={isActive ? "#fff" : "#7C3AED"} />
                   <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab.label}</Text>
                   <Ionicons name={inB2bGroup ? "chevron-up" : "chevron-down"} size={12} color={isActive ? "#ffffffaa" : Colors.light.textTertiary} />
+                </View>
+              ) : tab.id === "prices" ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <MaterialCommunityIcons name="pill" size={14} color={isActive ? "#fff" : "#D97706"} />
+                  <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab.label}</Text>
                 </View>
               ) : (
                 <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab.label}</Text>
@@ -1834,30 +1836,46 @@ export default function AdminScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={!!isRefetching} onRefresh={onRefresh} tintColor={Colors.primary} />}
           ListHeaderComponent={
-            isAddTab ? (
-              activeTab === "prices" ? (
-                <View>
-                  <TouchableOpacity style={[styles.addBtn, { backgroundColor: "#059669", marginBottom: 8 }]} onPress={pickAndParseExcel} disabled={fileImportLoading} activeOpacity={0.85}>
-                    {fileImportLoading
-                      ? <ActivityIndicator color="#fff" size="small" />
-                      : <><MaterialCommunityIcons name="file-upload-outline" size={20} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "رفع ملف Excel أو PDF لتحديث قاعدة الأدوية" : "Importer Excel ou PDF (base de prix)"}</Text></>}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.addBtn, { backgroundColor: "#7C3AED", marginBottom: 8 }]}
-                    onPress={() => confirmDelete(
-                      isRTL ? "إضافة ~55 دواء تجريبي بمختلف الفئات إلى القاعدة؟" : "Ajouter ~55 médicaments de démonstration dans toutes les catégories ?",
-                      () => seedDemoMutation.mutate()
-                    )}
-                    disabled={seedDemoMutation.isPending}
-                    activeOpacity={0.85}
-                  >
-                    {seedDemoMutation.isPending
-                      ? <ActivityIndicator color="#fff" size="small" />
-                      : <><MaterialCommunityIcons name="database-plus-outline" size={18} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "إضافة بيانات تجريبية (55 دواء)" : "Ajouter données de démo (55 méd.)"}</Text></>}
-                  </TouchableOpacity>
+            activeTab === "prices" ? (
+              <View>
+                {/* Stats banner */}
+                {allDrugPrices.length > 0 && (
+                  <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#FEF3C7", borderRadius: 12, marginBottom: 10, paddingHorizontal: 14, paddingVertical: 10, gap: 6, borderWidth: 1, borderColor: "#D9770630" }}>
+                    <MaterialCommunityIcons name="pill" size={20} color="#D97706" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontFamily: "Inter_700Bold", fontSize: 14, color: "#D97706" }}>
+                        {isRTL ? `${allDrugPrices.length} دواء مسجّل` : `${allDrugPrices.length} médicament(s) enregistrés`}
+                      </Text>
+                      {(() => {
+                        const cats = [...new Set(allDrugPrices.map(d => d.category).filter(Boolean))];
+                        return cats.length > 0 ? (
+                          <Text style={{ fontFamily: "Inter_400Regular", fontSize: 11, color: "#92400E", marginTop: 1 }}>
+                            {isRTL ? `${cats.length} فئة` : `${cats.length} catégorie(s)`}
+                          </Text>
+                        ) : null;
+                      })()}
+                    </View>
+                    <View style={{ backgroundColor: "#D97706", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                      <Text style={{ fontFamily: "Inter_700Bold", fontSize: 12, color: "#fff" }}>
+                        {isRTL ? "محدّثة" : "À jour"}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+                {/* Upload button — only way to add data */}
+                <TouchableOpacity style={[styles.addBtn, { backgroundColor: "#059669", marginBottom: 8 }]} onPress={pickAndParseExcel} disabled={fileImportLoading} activeOpacity={0.85}>
+                  {fileImportLoading
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <><MaterialCommunityIcons name="file-upload-outline" size={20} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "رفع ملف Excel أو PDF لتحديث قاعدة الأدوية" : "Importer Excel ou PDF — mettre à jour la base"}</Text></>}
+                </TouchableOpacity>
+                {/* Clear all */}
+                {allDrugPrices.length > 0 && (
                   <TouchableOpacity style={[styles.addBtn, { backgroundColor: Colors.danger, marginBottom: 8 }]} onPress={handleClearAllPrices} disabled={clearAllPricesMutation.isPending} activeOpacity={0.85}>
-                    {clearAllPricesMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><MaterialCommunityIcons name="delete-sweep-outline" size={18} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "مسح كل الأدوية" : "Effacer toute la base"}</Text></>}
+                    {clearAllPricesMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><MaterialCommunityIcons name="delete-sweep-outline" size={18} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "مسح قاعدة البيانات بالكامل" : "Effacer toute la base"}</Text></>}
                   </TouchableOpacity>
+                )}
+                {/* Search */}
+                {allDrugPrices.length > 0 && (
                   <View style={styles.searchBarWrap}>
                     <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />
                     <TextInput
@@ -1874,9 +1892,13 @@ export default function AdminScreen() {
                       </TouchableOpacity>
                     )}
                   </View>
+                )}
+                {allDrugPrices.length > 0 && (
                   <Text style={[styles.countLabel, isRTL && styles.rtlText]}>{isRTL ? `${filteredDrugPrices.length} دواء` : `${filteredDrugPrices.length} médicament(s)`}</Text>
-                </View>
-              ) : activeTab === "companies" ? (
+                )}
+              </View>
+            ) : isAddTab ? (
+              activeTab === "companies" ? (
                 <View>
                   <TouchableOpacity style={[styles.addBtn, { backgroundColor: "#7C3AED" }]} onPress={() => {
                     setEditingCompany(null); setCoName(""); setCoNameAr(""); setCoCode(""); setCoContact(""); setCoNotes("");
@@ -2170,39 +2192,6 @@ export default function AdminScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Drug Price Modal */}
-      <Modal visible={showPriceModal} transparent animationType="slide" onRequestClose={() => setShowPriceModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalCard}>
-              <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>
-                {editingPrice ? (isRTL ? "تعديل الدواء" : "Modifier le médicament") : (isRTL ? "إضافة دواء" : "Ajouter un médicament")}
-              </Text>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "الاسم بالفرنسية *" : "Nom en français *"}</Text>
-                <TextInput style={[styles.modalInput, isRTL && styles.rtlInput]} value={dpName} onChangeText={setDpName} placeholder={isRTL ? "مثال: Paracetamol" : "Ex: Paracetamol"} placeholderTextColor={Colors.light.textTertiary} />
-                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "الاسم بالعربية" : "Nom en arabe"}</Text>
-                <TextInput style={[styles.modalInput, isRTL && styles.rtlInput]} value={dpNameAr} onChangeText={setDpNameAr} placeholder={isRTL ? "اختياري" : "Optionnel"} placeholderTextColor={Colors.light.textTertiary} />
-                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "السعر (MRU) *" : "Prix (MRU) *"}</Text>
-                <TextInput style={[styles.modalInput, isRTL && styles.rtlInput]} value={dpPrice} onChangeText={setDpPrice} placeholder="0.00" placeholderTextColor={Colors.light.textTertiary} keyboardType="decimal-pad" />
-                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "الوحدة" : "Unité"}</Text>
-                <TextInput style={[styles.modalInput, isRTL && styles.rtlInput]} value={dpUnit} onChangeText={setDpUnit} placeholder={isRTL ? "مثال: بوكس، حبة..." : "Ex: boîte, comprimé..."} placeholderTextColor={Colors.light.textTertiary} />
-                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "الفئة" : "Catégorie"}</Text>
-                <TextInput style={[styles.modalInput, isRTL && styles.rtlInput]} value={dpCategory} onChangeText={setDpCategory} placeholder={isRTL ? "مثال: مضاد حيوي..." : "Ex: Antibiotique..."} placeholderTextColor={Colors.light.textTertiary} />
-                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "ملاحظات" : "Notes"}</Text>
-                <TextInput style={[styles.modalInput, styles.textArea, isRTL && styles.rtlInput]} value={dpNotes} onChangeText={setDpNotes} placeholder={isRTL ? "اختياري" : "Optionnel"} placeholderTextColor={Colors.light.textTertiary} multiline numberOfLines={3} />
-                <TouchableOpacity style={[styles.sendButton, (!dpName.trim() || !dpPrice.trim()) && styles.sendButtonDisabled]} onPress={submitPrice} disabled={!dpName.trim() || !dpPrice.trim() || savePriceMutation.isPending} activeOpacity={0.85}>
-                  {savePriceMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="save-outline" size={18} color="#fff" /><Text style={styles.sendButtonText}>{isRTL ? "حفظ" : "Enregistrer"}</Text></>}
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.cancelButton} onPress={() => setShowPriceModal(false)} activeOpacity={0.7}>
-                  <Text style={styles.cancelText}>{t("cancel")}</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
       {/* File (Excel/PDF) Import Preview Modal */}
       <Modal visible={showFileImportModal} transparent animationType="slide" onRequestClose={() => { if (!importProgress.running) { setShowFileImportModal(false); setExcelRows([]); setImportProgress({ current: 0, total: 0, running: false, done: false }); } }}>
         <View style={styles.modalOverlay}>
@@ -2280,39 +2269,6 @@ export default function AdminScreen() {
         </View>
       </Modal>
 
-      {/* CSV Import Modal */}
-      <Modal visible={showImportModal} transparent animationType="slide" onRequestClose={() => setShowImportModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalCard}>
-              <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>{isRTL ? "استيراد CSV" : "Import CSV"}</Text>
-              <Text style={[styles.fieldLabel, { marginBottom: 8 }, isRTL && styles.rtlText]}>
-                {isRTL ? "صيغة: الاسم, السعر, الاسم عربي, الوحدة, الفئة (سطر لكل دواء)" : "Format: Nom, Prix, NomArabe, Unité, Catégorie (une ligne par médicament)"}
-              </Text>
-              <View style={[styles.csvHintBox, isRTL && { alignItems: "flex-end" }]}>
-                <Text style={styles.csvHintCode}>{"Paracetamol, 45.00, باراسيتامول, boîte\nAmoxicilline, 120.00, أموكسيسيلين, gélule, Antibiotique"}</Text>
-              </View>
-              <TextInput
-                style={[styles.modalInput, styles.csvArea, isRTL && styles.rtlInput]}
-                value={csvText}
-                onChangeText={setCsvText}
-                placeholder={isRTL ? "ألصق البيانات هنا..." : "Collez vos données ici..."}
-                placeholderTextColor={Colors.light.textTertiary}
-                multiline
-                numberOfLines={8}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <TouchableOpacity style={[styles.sendButton, !csvText.trim() && styles.sendButtonDisabled]} onPress={parseAndImportCSV} disabled={!csvText.trim() || bulkImportMutation.isPending} activeOpacity={0.85}>
-                {bulkImportMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="cloud-upload-outline" size={18} color="#fff" /><Text style={styles.sendButtonText}>{isRTL ? "استيراد" : "Importer"}</Text></>}
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelButton} onPress={() => setShowImportModal(false)} activeOpacity={0.7}>
-                <Text style={styles.cancelText}>{t("cancel")}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
 
       {/* Company add/edit modal */}
       <Modal visible={showCompanyModal} transparent animationType="slide" onRequestClose={() => setShowCompanyModal(false)}>

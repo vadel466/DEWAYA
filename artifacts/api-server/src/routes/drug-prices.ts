@@ -197,6 +197,89 @@ function parseCsvText(text: string) {
   return rows;
 }
 
+/* ─── Helper: parse PDF buffer using pdfjs-dist ───────────────── */
+async function parsePdfBuffer(buffer: Buffer) {
+  const PDFJS_PATH = "/home/runner/workspace/node_modules/.pnpm/pdfjs-dist@5.4.296/node_modules/pdfjs-dist/legacy/build/pdf.mjs";
+  const pdfjsLib = await import(PDFJS_PATH as any) as any;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+
+  const uint8 = new Uint8Array(buffer);
+  const doc = await pdfjsLib.getDocument({ data: uint8, useWorkerFetch: false, isEvalSupported: false, useSystemFonts: true }).promise;
+
+  /* Collect logical lines from each page using Y-coordinate grouping */
+  const logicalLines: string[] = [];
+
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const content = await page.getTextContent();
+
+    /* Group text items by approximate Y position (row = same visual line) */
+    const byY = new Map<number, Array<{ x: number; text: string }>>();
+    for (const it of content.items as any[]) {
+      const text = (it.str ?? "").trim();
+      if (!text) continue;
+      const tx = it.transform;
+      if (!tx) continue;
+      const x = Math.round(tx[4]);
+      const y = Math.round(tx[5]);
+      /* Round Y to nearest 4px to group items on the same visual row */
+      const yKey = Math.round(y / 4) * 4;
+      if (!byY.has(yKey)) byY.set(yKey, []);
+      byY.get(yKey)!.push({ x, text });
+    }
+
+    /* Sort rows top-to-bottom (descending Y in PDF coords) then join left-to-right */
+    const sortedY = [...byY.keys()].sort((a, b) => b - a);
+    for (const yKey of sortedY) {
+      const cells = byY.get(yKey)!.sort((a, b) => a.x - b.x);
+      const line = cells.map(c => c.text).join(" ").replace(/\s{2,}/g, " ").trim();
+      if (line.length >= 3) logicalLines.push(line);
+    }
+  }
+
+  const rows: { name: string; price: number; unit?: string }[] = [];
+
+  for (const line of logicalLines) {
+    /* Must contain at least one number that could be a price */
+    const priceMatches = [...line.matchAll(/\b(\d{2,6}(?:[.,]\d{1,2})?)\b/g)];
+    if (priceMatches.length === 0) continue;
+
+    /* Prefer rightmost number as price (typical table: name ... price) */
+    const lastMatch = priceMatches[priceMatches.length - 1];
+    const price = parseFloat(lastMatch[1].replace(",", "."));
+    if (isNaN(price) || price < 5 || price > 500_000) continue;
+
+    /* Name = everything before the price number, stripped of row indices */
+    const beforePrice = line.slice(0, lastMatch.index ?? 0).trim();
+    const name = beforePrice
+      .replace(/^\d{1,4}[\.\-\s]+/, "")  /* strip leading "1." or "123 " row number */
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    /* Skip lines that are clearly headers or noise */
+    if (name.length < 2) continue;
+    if (/^\d+$/.test(name)) continue;
+    if (/^(n°|num|nom|prix|forme|dosage|répertoire|page|total|rubrique)/i.test(name)) continue;
+
+    /* Optional unit = text appearing after the price number */
+    const afterPrice = line.slice((lastMatch.index ?? 0) + lastMatch[1].length).trim();
+    const unit = afterPrice.length > 1 && afterPrice.length < 50
+      ? afterPrice.replace(/[^a-zA-ZÀ-ÿ0-9\s\/\.]/g, "").trim().split(/\s{2,}/)[0].trim()
+      : undefined;
+
+    rows.push({ name, price, unit: unit || undefined });
+  }
+
+  /* Deduplicate by normalised name (keep first occurrence) */
+  const seen = new Set<string>();
+  return rows.filter(r => {
+    const k = r.name.toLowerCase().replace(/\s+/g, " ").trim();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
 /* ─── ADMIN: upload file → parse → save in ONE step ──────────── */
 router.post("/upload-and-save", async (req, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: "Forbidden" });
@@ -207,11 +290,14 @@ router.post("/upload-and-save", async (req, res) => {
     const buffer = Buffer.from(fileData, "base64");
     const lowerName = (fileName ?? "").toLowerCase();
     const isCSV = fileType?.includes("csv") || lowerName.endsWith(".csv");
+    const isPDF = fileType?.includes("pdf") || lowerName.endsWith(".pdf");
 
     let rows: { name: string; price: number; nameAr?: string; unit?: string; category?: string; notes?: string }[];
 
     if (isCSV) {
       rows = parseCsvText(buffer.toString("utf8"));
+    } else if (isPDF) {
+      rows = await parsePdfBuffer(buffer);
     } else {
       rows = await parseExcelBuffer(buffer);
     }
@@ -219,7 +305,7 @@ router.post("/upload-and-save", async (req, res) => {
     if (rows.length === 0) {
       return res.status(422).json({
         error: "Aucun médicament valide trouvé dans le fichier",
-        errorAr: "لم يُعثر على أدوية صالحة في الملف — تأكد من الصيغة: الاسم | السعر | الاسم عربي | الوحدة | الفئة",
+        errorAr: "لم يُعثر على أدوية صالحة في الملف — تأكد من صيغة الملف (Excel أو CSV أو PDF بجدول منظّم)",
       });
     }
 
@@ -230,18 +316,18 @@ router.post("/upload-and-save", async (req, res) => {
     const dbRows = rows.map(it => ({
       id: randomUUID(),
       name: it.name,
-      nameAr: it.nameAr ?? null,
+      nameAr: (it as any).nameAr ?? null,
       nameLower: it.name.toLowerCase(),
       price: it.price,
       unit: it.unit ?? null,
-      category: it.category ?? null,
-      notes: it.notes ?? null,
+      category: (it as any).category ?? null,
+      notes: (it as any).notes ?? null,
       isActive: true,
     }));
 
     await db.insert(drugPricesTable).values(dbRows);
-    console.log(`[upload-and-save] Imported ${dbRows.length} drugs from ${isCSV ? "csv" : "excel"}`);
-    return res.json({ imported: dbRows.length, source: isCSV ? "csv" : "excel" });
+    console.log(`[upload-and-save] Imported ${dbRows.length} drugs from ${isPDF ? "pdf" : isCSV ? "csv" : "excel"}`);
+    return res.json({ imported: dbRows.length, source: isPDF ? "pdf" : isCSV ? "csv" : "excel" });
   } catch (e: any) {
     console.error("[upload-and-save]", e?.message);
     return res.status(500).json({

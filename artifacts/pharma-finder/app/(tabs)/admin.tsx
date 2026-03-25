@@ -1654,7 +1654,7 @@ export default function AdminScreen() {
       {Platform.OS === "web" && React.createElement("input", {
         ref: webFileInputRef,
         type: "file",
-        accept: ".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv",
+        accept: ".xlsx,.xls,.csv,.pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,application/pdf",
         style: { display: "none", position: "absolute" },
         onChange: handleWebFileChange,
       })}
@@ -1864,7 +1864,7 @@ export default function AdminScreen() {
                 <TouchableOpacity style={[styles.addBtn, { backgroundColor: "#059669", marginBottom: 8 }]} onPress={pickAndParseExcel} disabled={fileImportLoading} activeOpacity={0.85}>
                   {fileImportLoading
                     ? <ActivityIndicator color="#fff" size="small" />
-                    : <><MaterialCommunityIcons name="file-upload-outline" size={20} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "رفع ملف Excel أو CSV لتحديث قاعدة الأدوية" : "Importer Excel ou CSV — mettre à jour la base"}</Text></>}
+                    : <><MaterialCommunityIcons name="file-upload-outline" size={20} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "رفع ملف (Excel أو CSV أو PDF) لتحديث قاعدة الأدوية" : "Importer Excel / CSV / PDF — mettre à jour la base"}</Text></>}
                 </TouchableOpacity>
                 {/* Clear all */}
                 {allDrugPrices.length > 0 && (

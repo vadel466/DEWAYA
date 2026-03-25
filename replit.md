@@ -177,7 +177,7 @@ Express 5 API server. All admin routes protected by `x-admin-secret: DEWAYA_ADMI
 
 - API: `GET /api/drug-prices/search?q=...` — public search (no auth)
 - API: `GET /api/drug-prices/stats` — public stats (returns `{total, categories}`)
-- API: `POST /api/drug-prices/upload-and-save` — admin: upload Excel (.xlsx/.xls) or CSV, parse + save in one step, returns `{imported, source}`
+- API: `POST /api/drug-prices/upload-and-save` — admin: upload Excel (.xlsx/.xls), CSV, **or PDF**, parse + save in one step, returns `{imported, source}`. PDF uses pdfjs-dist (coordinate-aware row grouping by Y position).
 - API: `POST /api/drug-prices/parse-file` — admin: legacy parse-only (returns rows without saving)
 - API: `DELETE /api/drug-prices/clear-all` — admin: delete all drugs from DB
 - User screen: `artifacts/pharma-finder/app/drug-price.tsx` — search-only UI (no categories, no stats display)

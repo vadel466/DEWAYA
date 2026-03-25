@@ -62,8 +62,9 @@ A bilingual **Arabic/French** (RTL-aware) mobile app for finding pharmacies in M
   - Orders: incoming pharmacy orders + respond
   - My Stock: manage inventory items
   - My Announcements: publish ads visible to pharmacies
-- **Admin panel** (PIN `2026`): 9 sub-tabs:
-  - Pending requests, Payments, Portal responses, Pharmacies, Duty schedule, Drug prices, Doctors, B2B (legacy), Companies (CRUD + subscription toggle + B2B monitoring)
+- **Admin panel** (PIN `2026`): 8 sub-tabs:
+  - Pending requests (with delete), Payments, Portal responses, Pharmacies (with delete), Duty schedule, Drug prices (Excel upload only + clear all + per-item delete), B2B (legacy), Companies (CRUD + subscription toggle + B2B monitoring)
+  - Doctors section removed completely
 - Language switcher (Arabic/French, RTL support)
 
 **Screens (tabs):**
@@ -75,7 +76,7 @@ A bilingual **Arabic/French** (RTL-aware) mobile app for finding pharmacies in M
 - `app/duty-pharmacies.tsx` — 7-day date picker + duty pharmacy cards
 - `app/pharmacy-portal.tsx` — DV2026 portal (4 tabs: requests/repeater/partners/ads)
 - `app/company-portal.tsx` — DAHA2024 portal (3 tabs: orders/inventory/announcements)
-- `app/find-doctor.tsx` — Doctor finder
+- `app/find-doctor.tsx` — Nursing/home care screen
 - `app/duty-and-price.tsx` — Drug price lookup + duty pharmacies
 
 **Context:** `context/AppContext.tsx` — Language, userId, translations (ar/fr), locked notification count, region
@@ -124,7 +125,7 @@ Express 5 API server. All admin routes protected by `x-admin-secret: DEWAYA_ADMI
 - `pharmacy_inventory` — Pharmacy repeater stock
 - `b2b_messages` — Legacy B2B messages
 - `drug_prices` — Drug price catalog
-- `doctors` — Doctor directory
+- `doctors` — Doctor directory (table kept in DB, admin UI removed)
 - `companies` — Company profiles (code, subscriptionActive)
 - `company_orders` — Direct pharmacy→company orders
 - `company_inventory` — Company stock + announcements (isAd flag)

@@ -82,15 +82,6 @@ type DrugPrice = {
   price: number; unit: string | null; category: string | null;
   notes: string | null; isActive: boolean; createdAt: string;
 };
-type Doctor = {
-  id: string; doctorName: string; doctorNameAr: string | null;
-  specialty: string | null; specialtyAr: string | null;
-  clinicName: string; clinicNameAr: string | null;
-  address: string; addressAr: string | null;
-  phone: string; scheduleText: string | null; scheduleAr: string | null;
-  imageData: string | null; imageMimeType: string | null;
-  region: string | null; isActive: boolean; createdAt: string;
-};
 
 function formatTime(dateStr: string, lang = "ar") {
   return new Date(dateStr).toLocaleString(lang === "ar" ? "ar-SA" : "fr-FR", {
@@ -108,7 +99,7 @@ export default function AdminScreen() {
   const { playAlertBell } = useBell("alert");
 
 
-  const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal" | "prices" | "doctors" | "b2b" | "companies" | "services">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal" | "prices" | "b2b" | "companies" | "services">("pending");
   const [hasNewRequests, setHasNewRequests] = useState(false);
   const prevPendingCountRef = useRef<number>(-1);
   const vibrationActiveRef = useRef(false);
@@ -160,18 +151,6 @@ export default function AdminScreen() {
   const [fileImportLoading, setFileImportLoading] = useState(false);
   const [fileImportSource, setFileImportSource] = useState<"excel" | "pdf" | "csv">("excel");
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0, running: false, done: false });
-
-  const [showDoctorModal, setShowDoctorModal] = useState(false);
-  const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null);
-  const [drSearch, setDrSearch] = useState("");
-  const [drName, setDrName] = useState(""); const [drNameAr, setDrNameAr] = useState("");
-  const [drSpecialty, setDrSpecialty] = useState(""); const [drSpecialtyAr, setDrSpecialtyAr] = useState("");
-  const [drClinic, setDrClinic] = useState(""); const [drClinicAr, setDrClinicAr] = useState("");
-  const [drAddress, setDrAddress] = useState(""); const [drAddressAr, setDrAddressAr] = useState("");
-  const [drPhone, setDrPhone] = useState(""); const [drSchedule, setDrSchedule] = useState("");
-  const [drScheduleAr, setDrScheduleAr] = useState(""); const [drRegion, setDrRegion] = useState("");
-  const [drImageBase64, setDrImageBase64] = useState(""); const [drImageMime, setDrImageMime] = useState("image/jpeg");
-  const [pickingDrImage, setPickingDrImage] = useState(false);
 
   const [showCompanyModal, setShowCompanyModal] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
@@ -262,24 +241,6 @@ export default function AdminScreen() {
   const filteredDrugPrices = prSearch.trim()
     ? allDrugPrices.filter(p => p.name.toLowerCase().includes(prSearch.toLowerCase()) || (p.nameAr && p.nameAr.includes(prSearch)))
     : allDrugPrices;
-
-  const { data: allDoctors = [], isLoading: doctorLoading, refetch: refetchDoctors, isRefetching: doctorRefetching } = useQuery<Doctor[]>({
-    queryKey: ["admin-doctors"],
-    queryFn: async () => {
-      const r = await fetch(`${API_BASE}/doctors/admin`, { headers: { "x-admin-secret": ADMIN_SECRET } });
-      if (!r.ok) throw new Error(); return r.json();
-    },
-    enabled: isAdmin && activeTab === "doctors",
-  });
-
-  const filteredDoctors = drSearch.trim()
-    ? allDoctors.filter(d =>
-        d.doctorName.toLowerCase().includes(drSearch.toLowerCase()) ||
-        (d.doctorNameAr && d.doctorNameAr.includes(drSearch)) ||
-        d.clinicName.toLowerCase().includes(drSearch.toLowerCase()) ||
-        (d.specialty && d.specialty.toLowerCase().includes(drSearch.toLowerCase()))
-      )
-    : allDoctors;
 
   const { data: allServices = [], isLoading: servicesLoading, refetch: refetchServices, isRefetching: servicesRefetching } = useQuery<OtherService[]>({
     queryKey: ["admin-services"],
@@ -372,6 +333,17 @@ export default function AdminScreen() {
     onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل الاستيراد" : "Échec de l'import"),
   });
 
+  const deleteRequestMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`${API_BASE}/requests/${id}`, {
+        method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      if (!r.ok) throw new Error();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-requests"] }); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); },
+    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل الحذف" : "Échec de la suppression"),
+  });
+
   const clearAllPricesMutation = useMutation({
     mutationFn: async () => {
       const r = await fetch(`${API_BASE}/drug-prices/clear-all`, {
@@ -387,86 +359,6 @@ export default function AdminScreen() {
     },
     onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل المسح" : "Échec de la suppression"),
   });
-
-  const saveDoctorMutation = useMutation({
-    mutationFn: async (body: object) => {
-      const url = editingDoctor ? `${API_BASE}/doctors/${editingDoctor.id}` : `${API_BASE}/doctors`;
-      const r = await fetch(url, {
-        method: editingDoctor ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
-        body: JSON.stringify(body),
-      });
-      if (!r.ok) throw new Error(); return r.json();
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin-doctors"] });
-      setShowDoctorModal(false); setEditingDoctor(null);
-      resetDoctorForm();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    },
-    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل الحفظ" : "Échec de la sauvegarde"),
-  });
-
-  const deleteDoctorMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const r = await fetch(`${API_BASE}/doctors/${id}`, {
-        method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET },
-      });
-      if (!r.ok) throw new Error();
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-doctors"] }); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); },
-  });
-
-  const resetDoctorForm = () => {
-    setDrName(""); setDrNameAr(""); setDrSpecialty(""); setDrSpecialtyAr("");
-    setDrClinic(""); setDrClinicAr(""); setDrAddress(""); setDrAddressAr("");
-    setDrPhone(""); setDrSchedule(""); setDrScheduleAr(""); setDrRegion("");
-    setDrImageBase64(""); setDrImageMime("image/jpeg");
-  };
-
-  const openAddDoctor = () => {
-    setEditingDoctor(null); resetDoctorForm(); setShowDoctorModal(true);
-  };
-
-  const openEditDoctor = (d: Doctor) => {
-    setEditingDoctor(d);
-    setDrName(d.doctorName); setDrNameAr(d.doctorNameAr ?? "");
-    setDrSpecialty(d.specialty ?? ""); setDrSpecialtyAr(d.specialtyAr ?? "");
-    setDrClinic(d.clinicName); setDrClinicAr(d.clinicNameAr ?? "");
-    setDrAddress(d.address); setDrAddressAr(d.addressAr ?? "");
-    setDrPhone(d.phone); setDrSchedule(d.scheduleText ?? ""); setDrScheduleAr(d.scheduleAr ?? "");
-    setDrRegion(d.region ?? ""); setDrImageBase64(""); setDrImageMime(d.imageMimeType ?? "image/jpeg");
-    setShowDoctorModal(true);
-  };
-
-  const submitDoctor = () => {
-    if (!drName.trim() || !drClinic.trim() || !drAddress.trim() || !drPhone.trim()) {
-      Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "يرجى ملء الحقول الإلزامية" : "Champs obligatoires manquants"); return;
-    }
-    const body: any = {
-      doctorName: drName.trim(), doctorNameAr: drNameAr.trim() || null,
-      specialty: drSpecialty.trim() || null, specialtyAr: drSpecialtyAr.trim() || null,
-      clinicName: drClinic.trim(), clinicNameAr: drClinicAr.trim() || null,
-      address: drAddress.trim(), addressAr: drAddressAr.trim() || null,
-      phone: drPhone.trim(), scheduleText: drSchedule.trim() || null,
-      scheduleAr: drScheduleAr.trim() || null, region: drRegion.trim() || null,
-    };
-    if (drImageBase64) { body.imageData = drImageBase64; body.imageMimeType = drImageMime; }
-    saveDoctorMutation.mutate(body);
-  };
-
-  const pickDoctorImage = async () => {
-    setPickingDrImage(true);
-    try {
-      const { launchImageLibraryAsync, MediaTypeOptions } = await import("expo-image-picker");
-      const result = await launchImageLibraryAsync({ mediaTypes: MediaTypeOptions.Images, quality: 0.7, base64: true });
-      if (!result.canceled && result.assets?.[0]?.base64) {
-        setDrImageBase64(result.assets[0].base64);
-        const uri = result.assets[0].uri ?? "";
-        setDrImageMime(uri.endsWith(".png") ? "image/png" : "image/jpeg");
-      }
-    } catch {} finally { setPickingDrImage(false); }
-  };
 
   const openAddPrice = () => {
     setEditingPrice(null);
@@ -1003,7 +895,6 @@ export default function AdminScreen() {
     { id: "pending", label: isRTL ? `طلبات (${pendingRequests.length})` : `Attente (${pendingRequests.length})` },
     { id: "payments", label: isRTL ? `دفع${pendingPayments.length > 0 ? ` (${pendingPayments.length})` : ""}` : `Pmt${pendingPayments.length > 0 ? ` (${pendingPayments.length})` : ""}` },
     { id: "portal", label: isRTL ? `ردود${pendingPortalCount > 0 ? ` ⚡${pendingPortalCount}` : (portalResponses.length > 0 ? ` (${portalResponses.length})` : "")}` : `Portail${pendingPortalCount > 0 ? ` ⚡${pendingPortalCount}` : (portalResponses.length > 0 ? ` (${portalResponses.length})` : "")}` },
-    { id: "doctors", label: isRTL ? "أطباء" : "Médecins" },
     { id: "pharma-group", label: isRTL ? "الصيدليات" : "Officine" },
     { id: "b2b-group", label: isRTL ? `الشركات${b2bPendingCount > 0 ? ` ⚡${b2bPendingCount}` : ""}` : `Sociétés${b2bPendingCount > 0 ? ` ⚡${b2bPendingCount}` : ""}` },
     { id: "services", label: isRTL ? "خدماتي" : "Services" },
@@ -1025,7 +916,6 @@ export default function AdminScreen() {
     activeTab === "pharmacies" ? pharmaLoading :
     activeTab === "portal" ? portalLoading :
     activeTab === "prices" ? priceLoading :
-    activeTab === "doctors" ? doctorLoading :
     activeTab === "b2b" ? b2bLoading :
     activeTab === "companies" ? companyLoading :
     activeTab === "services" ? servicesLoading :
@@ -1036,7 +926,6 @@ export default function AdminScreen() {
     activeTab === "pharmacies" ? pharmaRefetching :
     activeTab === "portal" ? portalRefetching :
     activeTab === "prices" ? priceRefetching :
-    activeTab === "doctors" ? doctorRefetching :
     activeTab === "b2b" ? b2bRefetching :
     activeTab === "companies" ? companyRefetching :
     activeTab === "services" ? servicesRefetching :
@@ -1047,7 +936,6 @@ export default function AdminScreen() {
     else if (activeTab === "pharmacies") refetchPharma();
     else if (activeTab === "portal") refetchPortal();
     else if (activeTab === "prices") refetchPrices();
-    else if (activeTab === "doctors") refetchDoctors();
     else if (activeTab === "b2b") refetchB2b();
     else if (activeTab === "companies") refetchCompanies();
     else if (activeTab === "services") refetchServices();
@@ -1075,7 +963,16 @@ export default function AdminScreen() {
             </View>
           )}
         </View>
-        {item.status === "pending" && <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />}
+        <View style={{ flexDirection: "column", gap: 8, alignItems: "center" }}>
+          {item.status === "pending" && <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />}
+          <TouchableOpacity
+            onPress={(e) => { e.stopPropagation(); confirmDelete(isRTL ? "حذف هذا الطلب نهائياً؟" : "Supprimer définitivement cette demande?", () => deleteRequestMutation.mutate(item.id)); }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            disabled={deleteRequestMutation.isPending}
+          >
+            <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+          </TouchableOpacity>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -1474,42 +1371,6 @@ export default function AdminScreen() {
     </View>
   );
 
-  const renderDoctor = ({ item }: { item: Doctor }) => (
-    <View style={styles.pharmCard}>
-      <View style={[styles.cardRow, isRTL && styles.rtlRow]}>
-        <View style={[styles.requestIcon, { backgroundColor: "#1BB58015" }]}>
-          <MaterialCommunityIcons name="doctor" size={22} color="#1BB580" />
-        </View>
-        <View style={[styles.requestInfo, isRTL && styles.rtlInfo]}>
-          <Text style={[styles.drugName, isRTL && styles.rtlText]}>
-            {isRTL && item.doctorNameAr ? item.doctorNameAr : item.doctorName}
-          </Text>
-          {item.specialty && (
-            <Text style={[styles.userId, isRTL && styles.rtlText]}>
-              {isRTL && item.specialtyAr ? item.specialtyAr : item.specialty}
-            </Text>
-          )}
-          <Text style={[styles.requestTime, isRTL && styles.rtlText]}>
-            {isRTL && item.clinicNameAr ? item.clinicNameAr : item.clinicName} • {item.phone}
-          </Text>
-          <View style={[styles.tagRow, isRTL && styles.rtlRow]}>
-            {item.region && <View style={styles.tag}><Text style={styles.tagText}>{item.region}</Text></View>}
-            {item.scheduleText && <View style={[styles.tag, { backgroundColor: "#1BB58015" }]}><Ionicons name="calendar" size={10} color="#1BB580" /><Text style={[styles.tagText, { color: "#1BB580" }]}>{isRTL ? "جدول" : "Horaire"}</Text></View>}
-            {item.imageData && <View style={[styles.tag, { backgroundColor: Colors.primary + "15" }]}><Ionicons name="image" size={10} color={Colors.primary} /><Text style={[styles.tagText, { color: Colors.primary }]}>{isRTL ? "صورة" : "Image"}</Text></View>}
-          </View>
-        </View>
-        <View style={styles.actionIcons}>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => openEditDoctor(item)} activeOpacity={0.8}>
-            <Ionicons name="create-outline" size={18} color={Colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: Colors.danger + "10" }]} onPress={() => confirmDelete(isRTL ? "حذف هذا الطبيب؟" : "Supprimer ce médecin?", () => deleteDoctorMutation.mutate(item.id))} activeOpacity={0.8}>
-            <Ionicons name="trash-outline" size={18} color={Colors.danger} />
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
-
   const renderService = ({ item }: { item: OtherService }) => (
     <View style={styles.requestCard}>
       <View style={[styles.cardRow, isRTL && styles.rtlRow]}>
@@ -1549,14 +1410,13 @@ export default function AdminScreen() {
     </View>
   );
 
-  const isAddTab = activeTab === "pharmacies" || activeTab === "prices" || activeTab === "doctors" || activeTab === "companies" || activeTab === "services";
+  const isAddTab = activeTab === "pharmacies" || activeTab === "prices" || activeTab === "companies" || activeTab === "services";
   const currentData: any[] =
     activeTab === "pending" ? pendingRequests :
     activeTab === "responded" ? respondedRequests :
     activeTab === "payments" ? pendingPayments :
     activeTab === "pharmacies" ? pharmacies :
     activeTab === "prices" ? filteredDrugPrices :
-    activeTab === "doctors" ? filteredDoctors :
     activeTab === "b2b" ? b2bMessages :
     activeTab === "companies" ? filteredCompanies :
     activeTab === "services" ? allServices :
@@ -1715,7 +1575,6 @@ export default function AdminScreen() {
             activeTab === "payments" ? renderPayment :
             activeTab === "portal" ? renderPortalResponse :
             activeTab === "prices" ? renderDrugPrice :
-            activeTab === "doctors" ? renderDoctor :
             activeTab === "b2b" ? renderB2b :
             activeTab === "companies" ? renderCompany :
             activeTab === "services" ? renderService :
@@ -1728,24 +1587,14 @@ export default function AdminScreen() {
             isAddTab ? (
               activeTab === "prices" ? (
                 <View>
-                  <View style={{ flexDirection: "row", gap: 8, marginBottom: 6 }}>
-                    <TouchableOpacity style={[styles.addBtn, { flex: 1 }]} onPress={() => { openAddPrice(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} activeOpacity={0.85}>
-                      <Ionicons name="add-circle-outline" size={18} color="#fff" />
-                      <Text style={styles.addBtnText}>{isRTL ? "إضافة دواء" : "Ajouter"}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.addBtn, { flex: 1, backgroundColor: "#059669" }]} onPress={pickAndParseExcel} disabled={fileImportLoading} activeOpacity={0.85}>
-                      {fileImportLoading ? <ActivityIndicator color="#fff" size="small" /> : <><MaterialCommunityIcons name="file-excel-outline" size={18} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "رفع ملف" : "Importer fichier"}</Text></>}
-                    </TouchableOpacity>
-                  </View>
-                  <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
-                    <TouchableOpacity style={[styles.addBtn, { flex: 1, backgroundColor: Colors.accent }]} onPress={() => setShowImportModal(true)} activeOpacity={0.85}>
-                      <Ionicons name="code-outline" size={18} color="#fff" />
-                      <Text style={styles.addBtnText}>{isRTL ? "استيراد CSV" : "Import CSV"}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.addBtn, { flex: 1, backgroundColor: Colors.danger }]} onPress={handleClearAllPrices} disabled={clearAllPricesMutation.isPending} activeOpacity={0.85}>
-                      {clearAllPricesMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><MaterialCommunityIcons name="delete-sweep-outline" size={18} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "مسح الكل" : "Tout effacer"}</Text></>}
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity style={[styles.addBtn, { backgroundColor: "#059669", marginBottom: 8 }]} onPress={pickAndParseExcel} disabled={fileImportLoading} activeOpacity={0.85}>
+                    {fileImportLoading
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <><MaterialCommunityIcons name="file-excel-outline" size={20} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "رفع ملف Excel لتحديث قاعدة الأدوية" : "Importer un fichier Excel"}</Text></>}
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.addBtn, { backgroundColor: Colors.danger, marginBottom: 8 }]} onPress={handleClearAllPrices} disabled={clearAllPricesMutation.isPending} activeOpacity={0.85}>
+                    {clearAllPricesMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><MaterialCommunityIcons name="delete-sweep-outline" size={18} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "مسح كل الأدوية" : "Effacer toute la base"}</Text></>}
+                  </TouchableOpacity>
                   <View style={styles.searchBarWrap}>
                     <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />
                     <TextInput
@@ -1763,29 +1612,6 @@ export default function AdminScreen() {
                     )}
                   </View>
                   <Text style={[styles.countLabel, isRTL && styles.rtlText]}>{isRTL ? `${filteredDrugPrices.length} دواء` : `${filteredDrugPrices.length} médicament(s)`}</Text>
-                </View>
-              ) : activeTab === "doctors" ? (
-                <View>
-                  <TouchableOpacity style={[styles.addBtn, { backgroundColor: "#1BB580" }]} onPress={() => { openAddDoctor(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} activeOpacity={0.85}>
-                    <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                    <Text style={styles.addBtnText}>{isRTL ? "إضافة طبيب/مصحة" : "Ajouter un médecin"}</Text>
-                  </TouchableOpacity>
-                  <View style={[styles.searchBarWrap, { marginTop: 8 }]}>
-                    <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />
-                    <TextInput
-                      style={[styles.searchBarInput, isRTL && styles.rtlText]}
-                      placeholder={isRTL ? "بحث عن طبيب..." : "Rechercher un médecin..."}
-                      placeholderTextColor={Colors.light.textTertiary}
-                      value={drSearch}
-                      onChangeText={setDrSearch}
-                    />
-                    {drSearch.length > 0 && (
-                      <TouchableOpacity onPress={() => setDrSearch("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                  <Text style={[styles.countLabel, isRTL && styles.rtlText]}>{isRTL ? `${filteredDoctors.length} طبيب` : `${filteredDoctors.length} médecin(s)`}</Text>
                 </View>
               ) : activeTab === "companies" ? (
                 <View>
@@ -1846,7 +1672,6 @@ export default function AdminScreen() {
                 {activeTab === "pharmacies" ? (isRTL ? "لا توجد صيدليات مسجلة" : "Aucune pharmacie enregistrée") :
                  activeTab === "portal" ? (isRTL ? "لا توجد ردود من الصيدليات" : "Aucune réponse de pharmacie") :
                  activeTab === "prices" ? (isRTL ? "لا توجد أسعار مسجلة" : "Aucun médicament enregistré") :
-                 activeTab === "doctors" ? (isRTL ? "لا يوجد أطباء مسجلون" : "Aucun médecin enregistré") :
                  activeTab === "b2b" ? (isRTL ? "لا توجد رسائل B2B" : "Aucun message B2B") :
                  activeTab === "companies" ? (isRTL ? "لا توجد شركات مسجلة" : "Aucune société enregistrée") :
                  activeTab === "services" ? (isRTL ? "لا توجد خدمات مضافة" : "Aucun service ajouté") :
@@ -2084,77 +1909,6 @@ export default function AdminScreen() {
                   {savePriceMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="save-outline" size={18} color="#fff" /><Text style={styles.sendButtonText}>{isRTL ? "حفظ" : "Enregistrer"}</Text></>}
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.cancelButton} onPress={() => setShowPriceModal(false)} activeOpacity={0.7}>
-                  <Text style={styles.cancelText}>{t("cancel")}</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Doctor Add/Edit Modal */}
-      <Modal visible={showDoctorModal} transparent animationType="slide" onRequestClose={() => setShowDoctorModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalCard}>
-              <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>
-                {editingDoctor ? (isRTL ? "تعديل الطبيب" : "Modifier le médecin") : (isRTL ? "إضافة طبيب/مصحة" : "Ajouter un médecin")}
-              </Text>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {[
-                  { label: isRTL ? "اسم الطبيب (فرنسي) *" : "Nom du médecin (fr) *", value: drName, setter: setDrName, placeholder: "Dr. Mohamed" },
-                  { label: isRTL ? "اسم الطبيب (عربي)" : "Nom en arabe", value: drNameAr, setter: setDrNameAr, placeholder: isRTL ? "د. محمد" : "Optionnel" },
-                  { label: isRTL ? "التخصص (فرنسي)" : "Spécialité (fr)", value: drSpecialty, setter: setDrSpecialty, placeholder: isRTL ? "مثال: Cardiologie" : "Ex: Cardiologie" },
-                  { label: isRTL ? "التخصص (عربي)" : "Spécialité (ar)", value: drSpecialtyAr, setter: setDrSpecialtyAr, placeholder: isRTL ? "مثال: طب القلب" : "Optionnel" },
-                  { label: isRTL ? "اسم المصحة/المستشفى (فرنسي) *" : "Clinique/Hôpital (fr) *", value: drClinic, setter: setDrClinic, placeholder: "Clinique Al Shifa" },
-                  { label: isRTL ? "اسم المصحة (عربي)" : "Clinique (ar)", value: drClinicAr, setter: setDrClinicAr, placeholder: isRTL ? "مصحة الشفاء" : "Optionnel" },
-                  { label: isRTL ? "العنوان (فرنسي) *" : "Adresse (fr) *", value: drAddress, setter: setDrAddress, placeholder: isRTL ? "العنوان الكامل" : "Adresse complète" },
-                  { label: isRTL ? "العنوان (عربي)" : "Adresse (ar)", value: drAddressAr, setter: setDrAddressAr, placeholder: isRTL ? "اختياري" : "Optionnel" },
-                  { label: isRTL ? "رقم السكرتاريا *" : "Téléphone secrétariat *", value: drPhone, setter: setDrPhone, placeholder: "22 XX XX XX", keyboardType: "phone-pad" as const },
-                  { label: isRTL ? "المنطقة" : "Région", value: drRegion, setter: setDrRegion, placeholder: isRTL ? "مثال: نواكشوط" : "Ex: Nouakchott" },
-                ].map((f) => (
-                  <View key={f.label} style={{ marginBottom: 10 }}>
-                    <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{f.label}</Text>
-                    <TextInput
-                      style={[styles.modalInput, isRTL && styles.rtlInput]}
-                      value={f.value} onChangeText={f.setter}
-                      placeholder={f.placeholder} placeholderTextColor={Colors.light.textTertiary}
-                      keyboardType={f.keyboardType}
-                    />
-                  </View>
-                ))}
-                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "جدول الدوام (نص)" : "Horaires (texte)"}</Text>
-                <TextInput style={[styles.modalInput, styles.textArea, isRTL && styles.rtlInput]} value={drSchedule} onChangeText={setDrSchedule} placeholder={isRTL ? "مثال: السبت-الأربعاء 9ص-5م" : "Ex: Sam-Mer 9h-17h"} placeholderTextColor={Colors.light.textTertiary} multiline numberOfLines={3} />
-                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "جدول الدوام (عربي)" : "Horaires (ar)"}</Text>
-                <TextInput style={[styles.modalInput, styles.textArea, isRTL && styles.rtlInput]} value={drScheduleAr} onChangeText={setDrScheduleAr} placeholder={isRTL ? "اختياري" : "Optionnel"} placeholderTextColor={Colors.light.textTertiary} multiline numberOfLines={2} />
-                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "صورة جدول الدوام" : "Image des horaires"}</Text>
-                <TouchableOpacity
-                  style={[styles.imagePicker, drImageBase64 && styles.imagePickerHasImg]}
-                  onPress={pickDoctorImage} activeOpacity={0.8} disabled={pickingDrImage}
-                >
-                  {pickingDrImage ? (
-                    <ActivityIndicator color="#1BB580" size="large" />
-                  ) : drImageBase64 ? (
-                    <View style={{ alignItems: "center", gap: 8 }}>
-                      <Image source={{ uri: `data:${drImageMime};base64,${drImageBase64}` }} style={styles.previewImg} resizeMode="cover" />
-                      <Text style={{ fontSize: 12, color: Colors.light.textSecondary, fontFamily: "Inter_400Regular" }}>{isRTL ? "اضغط لتغيير الصورة" : "Appuyer pour changer"}</Text>
-                    </View>
-                  ) : (
-                    <View style={{ alignItems: "center", gap: 10 }}>
-                      <Ionicons name="camera-outline" size={36} color="#1BB580" />
-                      <Text style={[styles.imagePickerText, isRTL && styles.rtlText]}>{isRTL ? "اضغط لاختيار صورة الجدول" : "Choisir une image"}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.sendButton, { backgroundColor: "#1BB580" }, (!drName.trim() || !drClinic.trim() || !drAddress.trim() || !drPhone.trim()) && styles.sendButtonDisabled]}
-                  onPress={submitDoctor}
-                  disabled={!drName.trim() || !drClinic.trim() || !drAddress.trim() || !drPhone.trim() || saveDoctorMutation.isPending}
-                  activeOpacity={0.85}
-                >
-                  {saveDoctorMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="save-outline" size={18} color="#fff" /><Text style={styles.sendButtonText}>{isRTL ? "حفظ" : "Enregistrer"}</Text></>}
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.cancelButton} onPress={() => setShowDoctorModal(false)} activeOpacity={0.7}>
                   <Text style={styles.cancelText}>{t("cancel")}</Text>
                 </TouchableOpacity>
               </ScrollView>

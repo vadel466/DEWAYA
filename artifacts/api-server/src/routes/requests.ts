@@ -75,6 +75,21 @@ router.post("/", async (req, res) => {
   }
 });
 
+router.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminSecret = process.env.ADMIN_SECRET ?? "DEWAYA_ADMIN_2026";
+    if (req.headers["x-admin-secret"] !== adminSecret) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    await db.delete(drugRequestsTable).where(eq(drugRequestsTable.id, id));
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.post("/:id/respond", async (req, res) => {
   try {
     const { id } = req.params;

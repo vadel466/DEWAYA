@@ -185,6 +185,23 @@ export default function CompanyPortalScreen() {
   };
 
   const pickInvDocument = async () => {
+    if (Platform.OS === "web") {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      input.onchange = (e: any) => {
+        const file = e.target?.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(",")[1];
+          setInvAttachment({ data: base64, type: file.type || "application/pdf", name: file.name });
+        };
+        reader.readAsDataURL(file);
+      };
+      input.click();
+      return;
+    }
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ["application/pdf", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
@@ -200,7 +217,7 @@ export default function CompanyPortalScreen() {
   };
 
   const handleAddInventory = async () => {
-    if (!company || !invDrug.trim()) return;
+    if (!company) return;
     setInvSaving(true);
     try {
       const resp = await fetch(`${API_BASE}/company-portal/inventory`, {
@@ -208,7 +225,7 @@ export default function CompanyPortalScreen() {
         headers: { "Content-Type": "application/json", "x-company-code": company.code },
         body: JSON.stringify({
           companyId: company.id, companyName: company.nameAr || company.name,
-          drugName: invDrug.trim(), price: invPrice.trim() || null, unit: invUnit.trim() || null,
+          drugName: invDrug.trim() || "—", price: invPrice.trim() || null, unit: invUnit.trim() || null,
           notes: invNotes.trim() || null, isAd: invIsAd,
           attachmentData: invAttachment?.data || null,
           attachmentType: invAttachment?.type || null,
@@ -655,8 +672,8 @@ export default function CompanyPortalScreen() {
                 </Text>
               </TouchableOpacity>
               <View style={styles.modalBtns}>
-                <TouchableOpacity style={[styles.sendBtn, { backgroundColor: COMPANY_COLOR }, (!invDrug.trim() || invSaving) && { opacity: 0.6 }]}
-                  onPress={handleAddInventory} disabled={!invDrug.trim() || invSaving} activeOpacity={0.85}>
+                <TouchableOpacity style={[styles.sendBtn, { backgroundColor: COMPANY_COLOR }, invSaving && { opacity: 0.6 }]}
+                  onPress={handleAddInventory} disabled={invSaving} activeOpacity={0.85}>
                   {invSaving ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="add" size={16} color="#fff" /><Text style={styles.sendBtnText}>{isRTL ? "حفظ" : "Enregistrer"}</Text></>}
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowInvModal(false); setInvAttachment(null); }} activeOpacity={0.7}>

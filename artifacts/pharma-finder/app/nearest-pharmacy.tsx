@@ -129,6 +129,17 @@ export default function NearestPharmacyScreen() {
     detectLocation();
   }, []);
 
+  const openAllGoogleMaps = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    let url: string;
+    if (userLat && userLon) {
+      url = `https://www.google.com/maps/search/pharmacies/@${userLat},${userLon},14z`;
+    } else {
+      url = `https://www.google.com/maps/search/pharmacies+nouakchott/`;
+    }
+    Linking.openURL(url);
+  };
+
   const callPharmacy = (phone: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Linking.openURL(`tel:${phone}`);
@@ -211,6 +222,13 @@ export default function NearestPharmacyScreen() {
           )}
         </View>
         <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.gpsBtn}
+            onPress={openAllGoogleMaps}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="google-maps" size={20} color="#34A853" />
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.gpsBtn, showMap && { backgroundColor: Colors.primary + "20" }]}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowMap((v) => !v); }}

@@ -318,13 +318,13 @@ export default function PharmacyPortalScreen() {
   };
 
   const handleRepeaterSave = async () => {
-    if (!pharmacy || !repeaterDrug.trim()) return;
+    if (!pharmacy) return;
     setRepeaterSaving(true);
     try {
       const resp = await fetch(`${API_BASE}/pharmacy-portal/inventory`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-pharmacy-pin": pin },
-        body: JSON.stringify({ pharmacyId: pharmacy.id, pharmacyName: pharmacy.nameAr || pharmacy.name, pharmacyAddress: pharmacy.address, pharmacyPhone: pharmacy.phone, drugName: repeaterDrug.trim(), notes: repeaterNotes.trim() || null }),
+        body: JSON.stringify({ pharmacyId: pharmacy.id, pharmacyName: pharmacy.nameAr || pharmacy.name, pharmacyAddress: pharmacy.address, pharmacyPhone: pharmacy.phone, drugName: repeaterDrug.trim() || "—", notes: repeaterNotes.trim() || null }),
       });
       if (resp.ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -416,7 +416,7 @@ export default function PharmacyPortalScreen() {
   };
 
   const handleSendOrder = async () => {
-    if (!pharmacy || !orderDrug.trim()) return;
+    if (!pharmacy) return;
     setOrderSending(true);
     try {
       const resp = await fetch(`${API_BASE}/pharmacy-portal/company-order`, {
@@ -430,7 +430,7 @@ export default function PharmacyPortalScreen() {
           pharmacyRegion: pharmacy.region,
           companyId: selectedCompany?.id || null,
           companyName: selectedCompany ? (selectedCompany.nameAr || selectedCompany.name) : null,
-          drugName: orderDrug.trim(),
+          drugName: orderDrug.trim() || "—",
           quantity: orderQty.trim() || null,
           message: orderMsg.trim() || null,
           type: orderType,
@@ -845,9 +845,9 @@ export default function PharmacyPortalScreen() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
               <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>{isRTL ? "إضافة دواء للريبتير" : "Ajouter un médicament"}</Text>
-              <TextInput style={[styles.modalInput, isRTL && styles.rtlInput, { marginBottom: 10 }]} placeholder={isRTL ? "اسم الدواء *" : "Nom du médicament *"} placeholderTextColor={Colors.light.textTertiary} value={repeaterDrug} onChangeText={setRepeaterDrug} />
+              <TextInput style={[styles.modalInput, isRTL && styles.rtlInput, { marginBottom: 10 }]} placeholder={isRTL ? "اسم الدواء (اختياري)" : "Nom du médicament (optionnel)"} placeholderTextColor={Colors.light.textTertiary} value={repeaterDrug} onChangeText={setRepeaterDrug} />
               <TextInput style={[styles.modalInput, styles.textArea, isRTL && styles.rtlInput, { marginBottom: 16 }]} placeholder={isRTL ? "ملاحظات (اختياري)" : "Notes (optionnel)"} placeholderTextColor={Colors.light.textTertiary} value={repeaterNotes} onChangeText={setRepeaterNotes} multiline numberOfLines={3} />
-              <TouchableOpacity style={[styles.loginBtn, (!repeaterDrug.trim() || repeaterSaving) && styles.loginBtnDisabled]} onPress={handleRepeaterSave} disabled={!repeaterDrug.trim() || repeaterSaving} activeOpacity={0.85}>
+              <TouchableOpacity style={[styles.loginBtn, repeaterSaving && styles.loginBtnDisabled]} onPress={handleRepeaterSave} disabled={repeaterSaving} activeOpacity={0.85}>
                 {repeaterSaving ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="checkmark" size={18} color="#fff" /><Text style={styles.loginBtnText}>{isRTL ? "حفظ" : "Enregistrer"}</Text></>}
               </TouchableOpacity>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowRepeaterModal(false)}>
@@ -869,7 +869,7 @@ export default function PharmacyPortalScreen() {
               </Text>
 
               <Text style={[styles.modalLabel, isRTL && styles.rtlText]}>
-                {isRTL ? "اختر الشركة *" : "Choisir la société *"}
+                {isRTL ? "اختر الشركة (اختياري)" : "Choisir la société (optionnel)"}
               </Text>
               {companies.length === 0 ? (
                 <View style={[styles.noCompanyWarn, isRTL && { alignItems: "flex-end" }]}>
@@ -900,7 +900,7 @@ export default function PharmacyPortalScreen() {
                 ))}
               </View>
 
-              <TextInput style={[styles.modalInput, isRTL && styles.rtlInput, { marginBottom: 8 }]} placeholder={isRTL ? "اسم الدواء / المنتج *" : "Médicament / Produit *"} placeholderTextColor={Colors.light.textTertiary} value={orderDrug} onChangeText={setOrderDrug} textAlign={isRTL ? "right" : "left"} />
+              <TextInput style={[styles.modalInput, isRTL && styles.rtlInput, { marginBottom: 8 }]} placeholder={isRTL ? "اسم الدواء / المنتج (اختياري)" : "Médicament / Produit (optionnel)"} placeholderTextColor={Colors.light.textTertiary} value={orderDrug} onChangeText={setOrderDrug} textAlign={isRTL ? "right" : "left"} />
               <TextInput style={[styles.modalInput, isRTL && styles.rtlInput, { marginBottom: 8 }]} placeholder={isRTL ? "الكمية المطلوبة (اختياري)" : "Quantité souhaitée (optionnel)"} placeholderTextColor={Colors.light.textTertiary} value={orderQty} onChangeText={setOrderQty} textAlign={isRTL ? "right" : "left"} keyboardType="numeric" />
               <TextInput style={[styles.modalInput, styles.textArea, isRTL && styles.rtlInput, { marginBottom: 12 }]} placeholder={isRTL ? "ملاحظات للشركة..." : "Message à la société..."} placeholderTextColor={Colors.light.textTertiary} value={orderMsg} onChangeText={setOrderMsg} multiline numberOfLines={3} textAlign={isRTL ? "right" : "left"} />
 
@@ -937,9 +937,9 @@ export default function PharmacyPortalScreen() {
               )}
 
               <TouchableOpacity
-                style={[styles.loginBtn, { backgroundColor: PARTNER_COLOR, marginTop: 12 }, (!orderDrug.trim() || !selectedCompany || orderSending) && styles.loginBtnDisabled]}
+                style={[styles.loginBtn, { backgroundColor: PARTNER_COLOR, marginTop: 12 }, orderSending && styles.loginBtnDisabled]}
                 onPress={handleSendOrder}
-                disabled={!orderDrug.trim() || !selectedCompany || orderSending}
+                disabled={orderSending}
                 activeOpacity={0.85}
               >
                 {orderSending
@@ -947,7 +947,6 @@ export default function PharmacyPortalScreen() {
                   : <><Ionicons name="send" size={18} color="#fff" /><Text style={styles.loginBtnText}>{isRTL ? "إرسال للشركة" : "Envoyer à la société"}</Text></>
                 }
               </TouchableOpacity>
-              {!selectedCompany && <Text style={[styles.requireCompanyHint, isRTL && styles.rtlText]}>{isRTL ? "* يجب اختيار شركة للإرسال" : "* Sélectionnez une société pour envoyer"}</Text>}
               <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowOrderModal(false); setSelectedCompany(null); setAttachment(null); }}>
                 <Text style={styles.cancelText}>{isRTL ? "إلغاء" : "Annuler"}</Text>
               </TouchableOpacity>

@@ -26,7 +26,7 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_DOMAIN": ""
+        "EXPO_PUBLIC_DOMAIN": "https://81bb56e1-76ee-465d-9ac0-34cb881be6ef-00-2pjv1kbjhqp7y.spock.replit.dev"
       }
     },
     "production": {

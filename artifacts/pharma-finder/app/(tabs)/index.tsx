@@ -438,19 +438,27 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* GPS + Camera + Submit row */}
+          {/* صورة الدواء + Camera + Submit row */}
           <View style={[styles.searchActions, isRTL && styles.rowReverse]}>
-            <TouchableOpacity style={[styles.gpsBtn, isRTL && styles.rowReverse]} onPress={detectLocation} activeOpacity={0.8} disabled={detectingLocation}>
+            {/* GPS icon-only — compact */}
+            <TouchableOpacity style={styles.gpsIconBtn} onPress={detectLocation} activeOpacity={0.8} disabled={detectingLocation}>
               {detectingLocation
                 ? <ActivityIndicator size="small" color={Colors.primary} />
-                : <>
-                    <Ionicons name="navigate" size={13} color={Colors.primary} />
-                    <Text style={styles.gpsBtnText}>{t("detectLocation")}</Text>
-                  </>
+                : <Ionicons name="navigate" size={16} color={Colors.primary} />
               }
             </TouchableOpacity>
 
-            {/* Camera button — to the LEFT of the search button */}
+            {/* صورة 💊 الدواء — goes to drug price search */}
+            <TouchableOpacity
+              style={[styles.drugPhotoBtn, isRTL && styles.rowReverse]}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/drug-price"); }}
+              activeOpacity={0.82}
+            >
+              <Text style={styles.drugPhotoBtnEmoji}>💊</Text>
+              <Text style={styles.drugPhotoBtnText}>{isRTL ? "صورة الدواء" : "Prix médicament"}</Text>
+            </TouchableOpacity>
+
+            {/* Camera button */}
             <TouchableOpacity
               style={styles.cameraActionBtn}
               onPress={() => setShowImgMenu(true)}
@@ -499,23 +507,26 @@ export default function HomeScreen() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.card, { backgroundColor: "#E8F7F4", overflow: "hidden" }]} onPress={goToFindDoctor} activeOpacity={0.82}>
+          <TouchableOpacity style={[styles.card, styles.nurseCard]} onPress={goToFindDoctor} activeOpacity={0.82}>
             <View style={[styles.cardAccent, { backgroundColor: "#0D9488" }]} />
-            {/* Nurse image — absolute positioned */}
+
+            {/* Title — elegant, on top of images */}
+            <Text style={[styles.nurseCardTitle, isRTL && styles.textRight]} numberOfLines={2}>
+              {isRTL ? "التمريض المنزلي\nوالرعاية الصحية" : "Soins à domicile\net infirmiers"}
+            </Text>
+
+            {/* Nurse images — female + male, side by side at bottom */}
             <Image
               source={require("@/assets/images/doctor-card.png")}
-              style={styles.nurseCardImg}
+              style={styles.nurseImgFemale}
               resizeMode="contain"
             />
-            <View style={[styles.cardIconCircle, { backgroundColor: "#0D94881E" }]}>
-              <MaterialCommunityIcons name="needle" size={22} color="#0D9488" />
-            </View>
-            <Text style={[styles.cardTitle, { color: "#0D9488" }, isRTL && styles.textRight]} numberOfLines={2}>
-              {t("findDoctor")}
-            </Text>
-            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
-              {t("findDoctorDesc")}
-            </Text>
+            <Image
+              source={require("@/assets/images/doctor-male-card.png")}
+              style={styles.nurseImgMale}
+              resizeMode="contain"
+            />
+
             <View style={[styles.cardChevron, { backgroundColor: "#0D948814" }]}>
               <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#0D9488" />
             </View>
@@ -1096,6 +1107,38 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary + "22",
   },
   gpsBtnText: { color: Colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 11 },
+  gpsIconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary + "10",
+    borderWidth: 1,
+    borderColor: Colors.primary + "28",
+  },
+  drugPhotoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flex: 1,
+    backgroundColor: "#FFF8E6",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1.5,
+    borderColor: "#F0A500" + "55",
+  },
+  drugPhotoBtnEmoji: {
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  drugPhotoBtnText: {
+    color: "#B87000",
+    fontFamily: "Inter_700Bold",
+    fontSize: 12,
+    letterSpacing: 0.2,
+  },
   thumbWrap: { position: "relative", width: 36, height: 36, borderRadius: 8, overflow: "visible" },
   thumb: { width: 36, height: 36, borderRadius: 8 },
   thumbRemove: { position: "absolute", top: -6, right: -6, backgroundColor: "#fff", borderRadius: 9 },
@@ -1172,6 +1215,38 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 13, fontFamily: "Inter_700Bold", marginBottom: 3, paddingLeft: 6 },
   cardDesc: { fontSize: 10, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, lineHeight: 14, paddingLeft: 6 },
+  nurseCard: {
+    backgroundColor: "#E0F5F1",
+    overflow: "hidden",
+  },
+  nurseCardTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 13,
+    color: "#0D7A6E",
+    lineHeight: 18,
+    paddingLeft: 6,
+    paddingRight: 6,
+    marginBottom: 4,
+    zIndex: 2,
+  },
+  nurseImgFemale: {
+    position: "absolute",
+    right: 24,
+    bottom: -6,
+    width: 68,
+    height: 68,
+    opacity: 0.92,
+    zIndex: 1,
+  },
+  nurseImgMale: {
+    position: "absolute",
+    right: -8,
+    bottom: -6,
+    width: 60,
+    height: 60,
+    opacity: 0.85,
+    zIndex: 0,
+  },
   nurseCardImg: {
     position: "absolute",
     right: -6,

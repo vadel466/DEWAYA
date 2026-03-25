@@ -4,6 +4,7 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   Modal,
   TextInput,
@@ -23,6 +24,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
+import * as ImagePicker from "expo-image-picker";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { REGIONS } from "@/constants/regions";
@@ -101,6 +103,27 @@ export default function AdminScreen() {
 
   const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal" | "prices" | "b2b" | "companies" | "services">("pending");
   const [hasNewRequests, setHasNewRequests] = useState(false);
+  const [diagTesting, setDiagTesting] = useState(false);
+
+  const runDiagnostic = async () => {
+    setDiagTesting(true);
+    try {
+      const url = `${API_BASE}/drug-prices?limit=1`;
+      console.log("[DIAG] Testing:", url);
+      const r = await fetch(url, { headers: { "x-admin-secret": ADMIN_SECRET } });
+      const body = await r.text();
+      console.log("[DIAG] Status:", r.status, "Body:", body.substring(0, 200));
+      Alert.alert(
+        `🔧 تشخيص — Status ${r.status}`,
+        `URL: ${url}\n\nResponse (${r.status}):\n${body.substring(0, 300)}`
+      );
+    } catch (err: any) {
+      console.error("[DIAG] Error:", err);
+      Alert.alert("🔴 خطأ في الاتصال", `URL: ${API_BASE}\n\nError: ${err?.message || String(err)}`);
+    } finally {
+      setDiagTesting(false);
+    }
+  };
   const prevPendingCountRef = useRef<number>(-1);
   const vibrationActiveRef = useRef(false);
   const bellShake = useRef(new Animated.Value(0)).current;
@@ -307,18 +330,25 @@ export default function AdminScreen() {
 
   const deletePriceMutation = useMutation({
     mutationFn: async (id: string) => {
+      console.log("[DELETE price]", `${API_BASE}/drug-prices/${id}`);
       const r = await fetch(`${API_BASE}/drug-prices/${id}`, {
         method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET },
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
+      console.log("[DELETE price] status:", r.status);
+      const text = await r.text();
+      console.log("[DELETE price] body:", text);
+      if (!r.ok) throw new Error(`HTTP ${r.status}: ${text}`);
+      return text ? JSON.parse(text) : {};
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-drug-prices"] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(isRTL ? "✅ تم الحذف" : "✅ Supprimé", isRTL ? "تم حذف الدواء بنجاح" : "Médicament supprimé");
     },
-    onError: (e: any) => Alert.alert(isRTL ? "خطأ في الحذف" : "Erreur", isRTL ? `فشل الحذف: ${e?.message || ""}` : `Échec: ${e?.message || ""}`),
+    onError: (e: any) => {
+      console.error("[DELETE price error]", e);
+      Alert.alert(isRTL ? "خطأ في الحذف" : "Erreur de suppression", String(e?.message || e));
+    },
   });
 
   const bulkImportMutation = useMutation({
@@ -341,17 +371,24 @@ export default function AdminScreen() {
 
   const deleteRequestMutation = useMutation({
     mutationFn: async (id: string) => {
+      console.log("[DELETE request]", `${API_BASE}/requests/${id}`);
       const r = await fetch(`${API_BASE}/requests/${id}`, {
         method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET },
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      console.log("[DELETE request] status:", r.status);
+      const text = await r.text();
+      console.log("[DELETE request] body:", text);
+      if (!r.ok) throw new Error(`HTTP ${r.status}: ${text}`);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-requests"] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(isRTL ? "✅ تم الحذف" : "✅ Supprimé", isRTL ? "تم حذف الطلب بنجاح" : "Demande supprimée");
     },
-    onError: (e: any) => Alert.alert(isRTL ? "خطأ في الحذف" : "Erreur", isRTL ? `فشل الحذف: ${e?.message || ""}` : `Échec: ${e?.message || ""}`),
+    onError: (e: any) => {
+      console.error("[DELETE request error]", e);
+      Alert.alert(isRTL ? "خطأ في الحذف" : "Erreur de suppression", String(e?.message || e));
+    },
   });
 
   const clearAllPricesMutation = useMutation({
@@ -559,15 +596,22 @@ export default function AdminScreen() {
 
   const deletePharmacyMutation = useMutation({
     mutationFn: async (id: string) => {
+      console.log("[DELETE pharmacy]", `${API_BASE}/pharmacies/${id}`);
       const r = await fetch(`${API_BASE}/pharmacies/${id}`, { method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET } });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      console.log("[DELETE pharmacy] status:", r.status);
+      const text = await r.text();
+      console.log("[DELETE pharmacy] body:", text);
+      if (!r.ok) throw new Error(`HTTP ${r.status}: ${text}`);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-pharmacies"] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(isRTL ? "✅ تم الحذف" : "✅ Supprimé", isRTL ? "تم حذف الصيدلية بنجاح" : "Pharmacie supprimée");
     },
-    onError: (e: any) => Alert.alert(isRTL ? "خطأ في الحذف" : "Erreur", isRTL ? `فشل الحذف: ${e?.message || ""}` : `Échec: ${e?.message || ""}`),
+    onError: (e: any) => {
+      console.error("[DELETE pharmacy error]", e);
+      Alert.alert(isRTL ? "خطأ في الحذف" : "Erreur de suppression", String(e?.message || e));
+    },
   });
 
   const uploadDutyImageMutation = useMutation({
@@ -600,32 +644,40 @@ export default function AdminScreen() {
   const pickDutyImage = async () => {
     setPickingImage(true);
     try {
-      const ImagePicker = await import("expo-image-picker");
       if (Platform.OS !== "web") {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== "granted") {
+        const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (permResult.status !== "granted") {
           Alert.alert(
             isRTL ? "إذن مطلوب" : "Permission requise",
-            isRTL ? "يُرجى السماح بالوصول إلى معرض الصور في إعدادات الجهاز" : "Veuillez autoriser l'accès à la galerie dans les paramètres"
+            isRTL ? "يُرجى السماح بالوصول إلى معرض الصور في الإعدادات" : "Veuillez autoriser l'accès à la galerie dans les paramètres",
+            [{ text: isRTL ? "حسناً" : "OK" }]
           );
           return;
         }
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        quality: 0.8,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.85,
         base64: true,
         allowsEditing: true,
+        aspect: [4, 3],
       });
-      if (!result.canceled && result.assets?.[0]?.base64) {
-        setUploadBase64(result.assets[0].base64);
-        const uri = result.assets[0].uri ?? "";
-        setUploadMimeType(uri.endsWith(".png") ? "image/png" : "image/jpeg");
-        Alert.alert(isRTL ? "✅ تم اختيار الصورة" : "✅ Image sélectionnée", isRTL ? "اضغط على 'رفع الصورة' لحفظها" : "Appuyez sur 'Télécharger' pour enregistrer");
+      if (!result.canceled && result.assets?.[0]) {
+        const asset = result.assets[0];
+        if (!asset.base64) {
+          Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "لم يتم الحصول على بيانات الصورة" : "Données d'image manquantes");
+          return;
+        }
+        setUploadBase64(asset.base64);
+        const uri = asset.uri ?? "";
+        setUploadMimeType(uri.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg");
       }
     } catch (err: any) {
       console.error("[pickDutyImage]", err);
-      Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "تعذّر فتح معرض الصور" : "Impossible d'ouvrir la galerie");
+      Alert.alert(
+        isRTL ? "خطأ في فتح الصور" : "Erreur",
+        isRTL ? `تعذّر فتح معرض الصور: ${err?.message || ""}` : `Impossible d'ouvrir la galerie: ${err?.message || ""}`
+      );
     } finally {
       setPickingImage(false);
     }
@@ -1005,16 +1057,19 @@ export default function AdminScreen() {
         </View>
         <View style={{ flexDirection: "column", gap: 8, alignItems: "center" }}>
           {item.status === "pending" && <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />}
-          <TouchableOpacity
-            onPress={() => confirmDelete(isRTL ? "حذف هذا الطلب نهائياً؟" : "Supprimer définitivement cette demande?", () => deleteRequestMutation.mutate(item.id))}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation?.();
+              confirmDelete(isRTL ? "حذف هذا الطلب نهائياً؟" : "Supprimer définitivement cette demande?", () => deleteRequestMutation.mutate(item.id));
+            }}
             disabled={deleteRequestMutation.isPending}
-            style={{ padding: 4 }}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={{ padding: 8 }}
           >
             {deleteRequestMutation.isPending
               ? <ActivityIndicator size="small" color={Colors.danger} />
-              : <Ionicons name="trash-outline" size={20} color={Colors.danger} />}
-          </TouchableOpacity>
+              : <Ionicons name="trash-outline" size={22} color={Colors.danger} />}
+          </Pressable>
         </View>
       </View>
     </TouchableOpacity>
@@ -1477,6 +1532,16 @@ export default function AdminScreen() {
             <Text style={styles.statsText}>{pendingPayments.length}</Text>
             <Text style={styles.statsLabel}>{isRTL ? "دفع" : "Pmt"}</Text>
           </View>
+          <TouchableOpacity
+            style={[styles.lockBtn, { backgroundColor: "#F59E0B18" }]}
+            onPress={runDiagnostic}
+            disabled={diagTesting}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            {diagTesting
+              ? <ActivityIndicator size="small" color="#F59E0B" />
+              : <Ionicons name="wifi-outline" size={18} color="#F59E0B" />}
+          </TouchableOpacity>
           <TouchableOpacity style={styles.lockBtn} onPress={() => adminLogout()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="lock-closed-outline" size={18} color={Colors.light.textSecondary} />
           </TouchableOpacity>

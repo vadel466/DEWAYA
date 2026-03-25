@@ -209,6 +209,32 @@ export default function DrugPriceScreen() {
         )}
       </View>
 
+      {/* ── Info banners ── */}
+      <View style={styles.bannerWrap}>
+        <View style={[
+          styles.bannerOfficial,
+          isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#D97706", flexDirection: "row-reverse" },
+        ]}>
+          <MaterialCommunityIcons name="shield-check-outline" size={15} color="#B45309" />
+          <Text style={[styles.bannerText, isRTL && { textAlign: "right" }]}>
+            {isRTL
+              ? "الأسعار المعروضة رسمية — أي ارتفاع ملحوظ قد يكون مؤشراً على الغش"
+              : "Prix officiels — toute hausse notable peut indiquer une malhonnêteté"}
+          </Text>
+        </View>
+        <View style={[
+          styles.bannerLang,
+          isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#3B82F6", flexDirection: "row-reverse" },
+        ]}>
+          <MaterialCommunityIcons name="translate" size={15} color="#1D4ED8" />
+          <Text style={[styles.bannerText, { color: "#1D4ED8" }, isRTL && { textAlign: "right" }]}>
+            {isRTL
+              ? "لعرض أسماء الأدوية بشكل صحيح، اضبط لغة هاتفك على الفرنسية"
+              : "Réglez la langue du téléphone en français pour afficher les noms correctement"}
+          </Text>
+        </View>
+      </View>
+
       {/* ── Content ── */}
       {query.trim().length < 2 ? (
 
@@ -400,6 +426,25 @@ const styles = StyleSheet.create({
   },
   priceNum: { fontFamily: "Inter_700Bold", fontSize: 18, color: Colors.warning },
   priceCur: { fontFamily: "Inter_400Regular", fontSize: 10, color: Colors.warning + "AA", marginTop: -1 },
+
+  /* info banners */
+  bannerWrap: { paddingHorizontal: 16, paddingBottom: 6, gap: 6 },
+  bannerOfficial: {
+    flexDirection: "row", alignItems: "flex-start", gap: 7,
+    backgroundColor: "#FEF3C7", borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderLeftWidth: 3, borderLeftColor: "#D97706",
+  },
+  bannerLang: {
+    flexDirection: "row", alignItems: "flex-start", gap: 7,
+    backgroundColor: "#EFF6FF", borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderLeftWidth: 3, borderLeftColor: "#3B82F6",
+  },
+  bannerText: {
+    flex: 1, fontFamily: "Inter_400Regular",
+    fontSize: 12, color: "#92400E", lineHeight: 17,
+  },
 
   /* load more */
   moreBtn: {

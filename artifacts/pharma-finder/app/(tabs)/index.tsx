@@ -270,11 +270,6 @@ export default function HomeScreen() {
     router.push("/nearest-pharmacy");
   };
 
-  const goToDutyAndPrice = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push("/duty-and-price");
-  };
-
   const goToDutyDirect = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push("/duty-pharmacies");
@@ -529,50 +524,39 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Row 2: بطاقة مزدوجة — المداومة + سعر الدواء */}
-        <View style={styles.dutyCard}>
-          {/* المداومة */}
-          <TouchableOpacity onPress={goToDutyDirect} activeOpacity={0.82}>
+        {/* Row 2: صيدليات المداومة | سعر الدواء */}
+        <View style={styles.gridRow}>
+          {/* صيدليات المداومة */}
+          <TouchableOpacity style={[styles.card, { backgroundColor: "#EEF4FD" }]} onPress={goToDutyDirect} activeOpacity={0.82}>
             <View style={[styles.cardAccent, { backgroundColor: "#3B5BDB" }]} />
-            <View style={[styles.dutyCardInner, isRTL && styles.rowReverse]}>
-              <View style={[styles.dutyIconCircle, { backgroundColor: "#3B5BDB15" }]}>
-                <MaterialCommunityIcons name="moon-waning-crescent" size={28} color="#3B5BDB" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.dutyCardTitle, { color: "#3B5BDB" }, isRTL && styles.textRight]} numberOfLines={1}>
-                  {isRTL ? "صيدليات المداومة" : "Pharmacies de Garde"}
-                </Text>
-                <Text style={[styles.dutyCardDesc, isRTL && styles.textRight]} numberOfLines={1}>
-                  {isRTL ? "صيدليات مفتوحة الليل وأيام العطل" : "Ouvertes la nuit et les jours fériés"}
-                </Text>
-              </View>
-              <View style={[styles.cardChevron, { backgroundColor: "#3B5BDB14", marginTop: 0 }]}>
-                <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#3B5BDB" />
-              </View>
+            <View style={[styles.cardIconCircle, { backgroundColor: "#3B5BDB1E" }]}>
+              <MaterialCommunityIcons name="moon-waning-crescent" size={22} color="#3B5BDB" />
+            </View>
+            <Text style={[styles.cardTitle, { color: "#3B5BDB" }, isRTL && styles.textRight]} numberOfLines={2}>
+              {isRTL ? "صيدليات المداومة" : "Pharmacies de Garde"}
+            </Text>
+            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
+              {isRTL ? "مفتوحة الليل وأيام العطل" : "Ouvertes la nuit et les jours fériés"}
+            </Text>
+            <View style={[styles.cardChevron, { backgroundColor: "#3B5BDB14" }]}>
+              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#3B5BDB" />
             </View>
           </TouchableOpacity>
 
-          {/* فاصل */}
-          <View style={styles.dutyDivider} />
-
           {/* سعر الدواء */}
-          <TouchableOpacity onPress={goToDrugPrice} activeOpacity={0.82}>
+          <TouchableOpacity style={[styles.card, { backgroundColor: "#FFF8ED" }]} onPress={goToDrugPrice} activeOpacity={0.82}>
             <View style={[styles.cardAccent, { backgroundColor: "#D97706" }]} />
-            <View style={[styles.dutyCardInner, isRTL && styles.rowReverse]}>
-              <View style={[styles.dutyIconCircle, { backgroundColor: "#D9770615" }]}>
-                <MaterialCommunityIcons name="tag-outline" size={28} color="#D97706" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.dutyCardTitle, { color: "#D97706" }, isRTL && styles.textRight]} numberOfLines={1}>
-                  {isRTL ? "سعر الدواء" : "Prix du médicament"}
-                </Text>
-                <Text style={[styles.dutyCardDesc, isRTL && styles.textRight]} numberOfLines={1}>
-                  {isRTL ? "ابحث في قاعدة بيانات الأسعار" : "Recherchez dans la base de prix"}
-                </Text>
-              </View>
-              <View style={[styles.cardChevron, { backgroundColor: "#D9770614", marginTop: 0 }]}>
-                <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#D97706" />
-              </View>
+            <View style={[styles.cardIconCircle, { backgroundColor: "#D977061E" }]}>
+              <MaterialCommunityIcons name="tag-outline" size={22} color="#D97706" />
+            </View>
+            <Text style={[styles.cardTitle, { color: "#D97706" }, isRTL && styles.textRight]} numberOfLines={2}>
+              {isRTL ? "سعر الدواء" : "Prix du médicament"}
+            </Text>
+            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
+              {isRTL ? "ابحث في قاعدة بيانات الأسعار" : "Recherchez dans la base de prix"}
+            </Text>
+            <View style={[styles.cardChevron, { backgroundColor: "#D9770614" }]}>
+              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#D97706" />
             </View>
           </TouchableOpacity>
         </View>
@@ -1327,54 +1311,6 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
-  },
-
-  /* DUTY+PRICE FULL-WIDTH BANNER CARD */
-  dutyCard: {
-    backgroundColor: "#EEF4FD",
-    borderRadius: 16,
-    paddingVertical: 0,
-    paddingHorizontal: 0,
-    borderWidth: 1,
-    borderColor: "#1565C022",
-    overflow: "hidden",
-    shadowColor: "#1565C0",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-    marginTop: 4,
-  },
-  dutyDivider: {
-    height: 1,
-    backgroundColor: "#00000010",
-    marginHorizontal: 14,
-  },
-  dutyCardInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 14,
-  },
-  dutyIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  dutyCardTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 15,
-    marginBottom: 3,
-  },
-  dutyCardDesc: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 11,
-    color: Colors.light.textSecondary,
-    lineHeight: 16,
   },
 
   /* SEARCH HINT */

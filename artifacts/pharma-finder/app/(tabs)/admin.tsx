@@ -1840,7 +1840,7 @@ export default function AdminScreen() {
                   <TouchableOpacity style={[styles.addBtn, { backgroundColor: "#059669", marginBottom: 8 }]} onPress={pickAndParseExcel} disabled={fileImportLoading} activeOpacity={0.85}>
                     {fileImportLoading
                       ? <ActivityIndicator color="#fff" size="small" />
-                      : <><MaterialCommunityIcons name="file-excel-outline" size={20} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "رفع ملف Excel لتحديث قاعدة الأدوية" : "Importer un fichier Excel"}</Text></>}
+                      : <><MaterialCommunityIcons name="file-upload-outline" size={20} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "رفع ملف Excel أو PDF لتحديث قاعدة الأدوية" : "Importer Excel ou PDF (base de prix)"}</Text></>}
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.addBtn, { backgroundColor: "#7C3AED", marginBottom: 8 }]}

@@ -75,30 +75,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.delete("/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const adminSecret = process.env.ADMIN_SECRET ?? "DEWAYA_ADMIN_2026";
-    const isAdmin = req.headers["x-admin-secret"] === adminSecret;
-    const pharmacyPin = req.headers["x-pharmacy-pin"] as string | undefined;
-    let isPharmacy = false;
-    if (!isAdmin && pharmacyPin) {
-      const pharmacies = await db.select({ id: pharmaciesTable.id, isActive: pharmaciesTable.isActive })
-        .from(pharmaciesTable)
-        .where(eq(pharmaciesTable.portalPin, pharmacyPin.trim()));
-      isPharmacy = pharmacies.length > 0 && pharmacies[0].isActive === true;
-    }
-    if (!isAdmin && !isPharmacy) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-    await db.delete(drugRequestsTable).where(eq(drugRequestsTable.id, id));
-    return res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Internal server error" });
-  }
-});
-
+/* ── bulk delete BEFORE /:id to avoid route shadowing ── */
 router.delete("/bulk/all-pharmacy/:pharmacyId", async (req, res) => {
   try {
     const adminSecret = process.env.ADMIN_SECRET ?? "DEWAYA_ADMIN_2026";
@@ -118,6 +95,30 @@ router.delete("/bulk/all-pharmacy/:pharmacyId", async (req, res) => {
     if (pharmacy?.region) {
       await db.delete(drugRequestsTable).where(eq(drugRequestsTable.region, pharmacy.region));
     }
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminSecret = process.env.ADMIN_SECRET ?? "DEWAYA_ADMIN_2026";
+    const isAdmin = req.headers["x-admin-secret"] === adminSecret;
+    const pharmacyPin = req.headers["x-pharmacy-pin"] as string | undefined;
+    let isPharmacy = false;
+    if (!isAdmin && pharmacyPin) {
+      const pharmacies = await db.select({ id: pharmaciesTable.id, isActive: pharmaciesTable.isActive })
+        .from(pharmaciesTable)
+        .where(eq(pharmaciesTable.portalPin, pharmacyPin.trim()));
+      isPharmacy = pharmacies.length > 0 && pharmacies[0].isActive === true;
+    }
+    if (!isAdmin && !isPharmacy) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    await db.delete(drugRequestsTable).where(eq(drugRequestsTable.id, id));
     return res.json({ ok: true });
   } catch (err) {
     console.error(err);

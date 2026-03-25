@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useState } from "react";
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -19,6 +19,21 @@ import IntroScreen from "@/components/IntroScreen";
 import { AppProvider } from "@/context/AppContext";
 
 SplashScreen.preventAutoHideAsync();
+
+if (Platform.OS === "web" && typeof window !== "undefined") {
+  window.addEventListener("unhandledrejection", (event: PromiseRejectionEvent) => {
+    const msg = event.reason?.message || String(event.reason ?? "");
+    if (
+      msg.includes("timeout") ||
+      msg.includes("Timeout") ||
+      msg.includes("6000") ||
+      msg.includes("FontFace") ||
+      msg.includes("font")
+    ) {
+      event.preventDefault();
+    }
+  });
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,17 +71,24 @@ export default function RootLayout() {
     Inter_700Bold,
   });
   const [showIntro, setShowIntro] = useState(true);
+  const [fontTimedOut, setFontTimedOut] = useState(false);
 
-  // Hide native splash as soon as fonts are ready — IntroScreen renders immediately after
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    const timer = setTimeout(() => setFontTimedOut(true), 4500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const ready = fontsLoaded || !!fontError || fontTimedOut;
+
+  useEffect(() => {
+    if (ready) {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [fontsLoaded, fontError]);
+  }, [ready]);
 
   const handleIntroFinish = useCallback(() => setShowIntro(false), []);
 
-  if (!fontsLoaded && !fontError) return null;
+  if (!ready) return null;
 
   return (
     <SafeAreaProvider>

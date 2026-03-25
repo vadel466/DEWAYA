@@ -311,3 +311,47 @@ export const otherServicesTable = pgTable("other_services", {
 export const insertOtherServiceSchema = createInsertSchema(otherServicesTable).omit({ createdAt: true });
 export type InsertOtherService = z.infer<typeof insertOtherServiceSchema>;
 export type OtherService = typeof otherServicesTable.$inferSelect;
+
+export const nursesTable = pgTable("nurses", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  phone: text("phone").notNull(),
+  email: text("email"),
+  region: text("region"),
+  specialty: text("specialty"),
+  isVerified: boolean("is_verified").notNull().default(false),
+  isActive: boolean("is_active").notNull().default(true),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("nurses_phone_idx").on(table.phone),
+  index("nurses_region_idx").on(table.region),
+  index("nurses_is_active_idx").on(table.isActive),
+]);
+
+export const insertNurseSchema = createInsertSchema(nursesTable).omit({ createdAt: true });
+export type InsertNurse = z.infer<typeof insertNurseSchema>;
+export type Nurse = typeof nursesTable.$inferSelect;
+
+export const nursingRequestsTable = pgTable("nursing_requests", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  phone: text("phone").notNull(),
+  region: text("region").notNull(),
+  careType: text("care_type").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("pending"),
+  nurseId: text("nurse_id"),
+  nurseName: text("nurse_name"),
+  nursePhone: text("nurse_phone"),
+  respondedAt: timestamp("responded_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("nursing_requests_status_idx").on(table.status),
+  index("nursing_requests_region_idx").on(table.region),
+  index("nursing_requests_created_at_idx").on(table.createdAt),
+]);
+
+export const insertNursingRequestSchema = createInsertSchema(nursingRequestsTable).omit({ createdAt: true, respondedAt: true });
+export type InsertNursingRequest = z.infer<typeof insertNursingRequestSchema>;
+export type NursingRequest = typeof nursingRequestsTable.$inferSelect;

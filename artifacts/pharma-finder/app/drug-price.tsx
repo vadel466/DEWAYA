@@ -20,6 +20,23 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : "/api";
 
+function HighlightedText({ text, query, style, highlightStyle }: { text: string; query: string; style?: any; highlightStyle?: any }) {
+  if (!query || query.trim().length === 0) {
+    return <Text style={style}>{text}</Text>;
+  }
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
+  return (
+    <Text style={style}>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase()
+          ? <Text key={i} style={[highlightStyle]}>{part}</Text>
+          : <Text key={i}>{part}</Text>
+      )}
+    </Text>
+  );
+}
+
 type DrugResult = {
   id: string;
   name: string;
@@ -83,25 +100,30 @@ export default function DrugPriceScreen() {
   const formatPrice = (price: number) =>
     price % 1 === 0 ? `${price} MRU` : `${price.toFixed(1)} MRU`;
 
-  const renderResult = ({ item }: { item: DrugResult }) => (
+  const renderResult = ({ item }: { item: DrugResult }) => {
+    const displayName = isRTL && item.nameAr ? item.nameAr : item.name;
+    const subName = isRTL ? item.name : (item.nameAr || null);
+    return (
     <View style={styles.resultCard}>
       <View style={[styles.resultHeader, isRTL && styles.rowReverse]}>
         <View style={styles.pillIcon}>
           <MaterialCommunityIcons name="pill" size={22} color={Colors.primary} />
         </View>
         <View style={[styles.resultNames, isRTL && { alignItems: "flex-end" }]}>
-          <Text style={[styles.resultName, isRTL && styles.rtlText]}>
-            {isRTL && item.nameAr ? item.nameAr : item.name}
-          </Text>
-          {item.nameAr && !isRTL && (
-            <Text style={styles.resultNameAr}>{item.nameAr}</Text>
-          )}
-          {!isRTL && item.nameAr && (
-            <Text style={styles.resultNameSub}>{item.name}</Text>
-          )}
-          {isRTL && (
-            <Text style={[styles.resultNameSub, styles.rtlText]}>{item.name}</Text>
-          )}
+          <HighlightedText
+            text={displayName}
+            query={query}
+            style={[styles.resultName, isRTL && styles.rtlText]}
+            highlightStyle={styles.highlight}
+          />
+          {subName ? (
+            <HighlightedText
+              text={subName}
+              query={query}
+              style={[styles.resultNameAr, isRTL && styles.rtlText]}
+              highlightStyle={styles.highlight}
+            />
+          ) : null}
         </View>
         <View style={styles.priceBadge}>
           <Text style={styles.priceText}>{formatPrice(item.price)}</Text>
@@ -131,6 +153,7 @@ export default function DrugPriceScreen() {
       )}
     </View>
   );
+  };
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -333,6 +356,12 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     fontSize: 16,
     color: Colors.light.text,
+  },
+  highlight: {
+    backgroundColor: "#FEF08A",
+    color: "#92400E",
+    fontFamily: "Inter_700Bold",
+    borderRadius: 3,
   },
   resultNameAr: {
     fontFamily: "Inter_400Regular",

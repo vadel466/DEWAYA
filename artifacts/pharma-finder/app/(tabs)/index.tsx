@@ -534,29 +534,20 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.gridRow}>
-          {/* جِدْ طبيبك */}
-          <TouchableOpacity style={[styles.card, { backgroundColor: DOCTOR_LIGHT }]} onPress={goToFindDoctor} activeOpacity={0.82}>
-            <View style={[styles.cardAccent, { backgroundColor: DOCTOR_BLUE }]} />
-            {/* Female doctor — slightly behind */}
-            <Image
-              source={require("@/assets/images/doctor-card.png")}
-              style={styles.doctorFemaleImg}
-              resizeMode="contain"
-            />
-            {/* Male doctor — front/primary */}
-            <Image
-              source={require("@/assets/images/doctor-male-card.png")}
-              style={styles.doctorMaleImg}
-              resizeMode="contain"
-            />
-            <Text style={[styles.cardTitle, { color: DOCTOR_BLUE, marginRight: 84 }, isRTL && styles.textRight]} numberOfLines={2}>
+          {/* التمريض المنزلي */}
+          <TouchableOpacity style={[styles.card, { backgroundColor: "#EBF9F4" }]} onPress={goToFindDoctor} activeOpacity={0.82}>
+            <View style={[styles.cardAccent, { backgroundColor: "#0D9488" }]} />
+            <View style={[styles.cardIconCircle, { backgroundColor: "#0D948820" }]}>
+              <MaterialCommunityIcons name="needle" size={22} color="#0D9488" />
+            </View>
+            <Text style={[styles.cardTitle, { color: "#0D9488" }, isRTL && styles.textRight]} numberOfLines={2}>
               {t("findDoctor")}
             </Text>
-            <Text style={[styles.cardDesc, { marginRight: 84 }, isRTL && styles.textRight]} numberOfLines={2}>
+            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
               {t("findDoctorDesc")}
             </Text>
-            <View style={[styles.cardChevron, { backgroundColor: DOCTOR_BLUE + "18" }]}>
-              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color={DOCTOR_BLUE} />
+            <View style={[styles.cardChevron, { backgroundColor: "#0D948818" }]}>
+              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#0D9488" />
             </View>
           </TouchableOpacity>
 

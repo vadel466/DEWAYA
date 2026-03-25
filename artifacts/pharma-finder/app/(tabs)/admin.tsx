@@ -838,6 +838,31 @@ export default function AdminScreen() {
     onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل تغيير حالة الحظر" : "Échec du changement de statut"),
   });
 
+  const toggleCompanySubMutation = useMutation({
+    mutationFn: async ({ id, subscriptionActive }: { id: string; subscriptionActive: boolean }) => {
+      const r = await fetch(`${API_BASE}/company-portal/companies/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+        body: JSON.stringify({ subscriptionActive }),
+      });
+      if (!r.ok) throw new Error();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-companies"] }); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); },
+    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل تغيير الاشتراك" : "Échec du changement d'abonnement"),
+  });
+
+  const deleteCompanyMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`${API_BASE}/company-portal/companies/${id}`, {
+        method: "DELETE",
+        headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      if (!r.ok) throw new Error();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-companies"] }); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); },
+    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل حذف الشركة" : "Échec de la suppression de la société"),
+  });
+
   const usePortalResponseMutation = { isPending: false };
 
   const saveServiceMutation = useMutation({
@@ -1289,20 +1314,17 @@ export default function AdminScreen() {
           {item.contact && <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{item.contact}</Text>}
         </View>
         <View style={styles.actionIcons}>
-          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: item.subscriptionActive ? Colors.warning + "15" : Colors.accent + "15" }]}
-            onPress={async () => {
-              await fetch(`${API_BASE}/company-portal/companies/${item.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
-                body: JSON.stringify({ subscriptionActive: !item.subscriptionActive }),
-              });
-              refetchCompanies();
-            }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: item.subscriptionActive ? Colors.warning + "15" : Colors.accent + "15" }]}
+            onPress={() => toggleCompanySubMutation.mutate({ id: item.id, subscriptionActive: !item.subscriptionActive })}
+            disabled={toggleCompanySubMutation.isPending}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <MaterialCommunityIcons name={item.subscriptionActive ? "pause-circle-outline" : "play-circle-outline"} size={18} color={item.subscriptionActive ? Colors.warning : Colors.accent} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.iconBtn, { backgroundColor: item.isActive ? Colors.danger + "10" : Colors.accent + "10" }]}
             onPress={() => toggleCompanyBanMutation.mutate({ id: item.id, isActive: !item.isActive })}
+            disabled={toggleCompanyBanMutation.isPending}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name={item.isActive ? "lock-closed-outline" : "lock-open-outline"} size={18} color={item.isActive ? Colors.danger : Colors.accent} />
           </TouchableOpacity>
@@ -1314,11 +1336,11 @@ export default function AdminScreen() {
           }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="create-outline" size={18} color={Colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: Colors.danger + "10" }]}
-            onPress={() => confirmDelete(isRTL ? "حذف هذه الشركة نهائياً؟" : "Supprimer définitivement cette société?", async () => {
-              await fetch(`${API_BASE}/company-portal/companies/${item.id}`, { method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET } });
-              refetchCompanies();
-            })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: Colors.danger + "10" }]}
+            onPress={() => confirmDelete(isRTL ? "حذف هذه الشركة نهائياً؟" : "Supprimer définitivement cette société?", () => deleteCompanyMutation.mutate(item.id))}
+            disabled={deleteCompanyMutation.isPending}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="trash-outline" size={18} color={Colors.danger} />
           </TouchableOpacity>
         </View>

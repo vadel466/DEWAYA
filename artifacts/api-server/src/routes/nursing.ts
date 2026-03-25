@@ -160,6 +160,33 @@ router.post("/nurse/login", async (req, res) => {
   }
 });
 
+router.delete("/requests/:id", async (req, res) => {
+  try {
+    const nurseId = req.headers["x-nurse-id"] as string | undefined;
+    const nurseToken = req.headers["x-nurse-token"] as string | undefined;
+
+    if (isAdmin(req)) {
+      await db.delete(nursingRequestsTable).where(eq(nursingRequestsTable.id, req.params.id));
+      res.json({ ok: true }); return;
+    }
+
+    if (nurseId && nurseToken) {
+      const [nurse] = await db.select().from(nursesTable)
+        .where(and(eq(nursesTable.id, nurseId), eq(nursesTable.isActive, true)));
+      if (!nurse || hashPassword(nurse.phone + nurse.id) !== nurseToken) {
+        res.status(401).json({ error: "Non autorisé" }); return;
+      }
+      await db.delete(nursingRequestsTable).where(eq(nursingRequestsTable.id, req.params.id));
+      res.json({ ok: true }); return;
+    }
+
+    res.status(401).json({ error: "Non autorisé" });
+  } catch (err) {
+    console.error("[nursing/requests DELETE]", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
 router.get("/nurses", async (req, res) => {
   try {
     if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }

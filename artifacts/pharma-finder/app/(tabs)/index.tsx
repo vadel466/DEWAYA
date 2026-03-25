@@ -570,6 +570,26 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      {/* ─── DRUG PRICE QUICK ACCESS ─── */}
+      <TouchableOpacity
+        style={[styles.drugPriceBtn, isRTL && styles.rowReverse]}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/drug-price"); }}
+        activeOpacity={0.82}
+      >
+        <View style={styles.drugPriceBtnIcon}>
+          <MaterialCommunityIcons name="pill" size={20} color="#fff" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.drugPriceBtnTitle, isRTL && styles.textRight]}>
+            {isRTL ? "سعر الدواء" : "Prix des médicaments"}
+          </Text>
+          <Text style={[styles.drugPriceBtnSub, isRTL && styles.textRight]}>
+            {isRTL ? "ابحث عن سعر أي دواء مباشرة" : "Recherchez le prix de n'importe quel médicament"}
+          </Text>
+        </View>
+        <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={18} color={AMBER} />
+      </TouchableOpacity>
+
       {/* ─── PORTAL LINKS ─── */}
       <View style={[styles.portalRow, isRTL && styles.rowReverse]}>
         <TouchableOpacity
@@ -1280,6 +1300,20 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.inputBackground, marginTop: 4,
   },
   menuCancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary },
+
+  drugPriceBtn: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    marginHorizontal: 12, marginTop: 8,
+    backgroundColor: AMBER_LIGHT,
+    borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14,
+    borderWidth: 1.5, borderColor: AMBER + "40",
+  },
+  drugPriceBtnIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: AMBER, alignItems: "center", justifyContent: "center",
+  },
+  drugPriceBtnTitle: { fontFamily: "Inter_700Bold", fontSize: 14, color: Colors.light.text },
+  drugPriceBtnSub: { fontFamily: "Inter_400Regular", fontSize: 11, color: Colors.light.textSecondary, marginTop: 2 },
 
   portalRow: {
     flexDirection: "row",

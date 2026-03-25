@@ -1,7 +1,8 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Platform, ActivityIndicator, ScrollView, Alert, Modal, FlatList, Linking,
+  Animated, Vibration,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -95,6 +96,12 @@ export default function NursingCareScreen() {
   const [nurseReqLoading, setNurseReqLoading] = useState(false);
   const [showNurseRegionPicker, setShowNurseRegionPicker] = useState(false);
   const [showPasswordText, setShowPasswordText] = useState(false);
+  const [newReqCount, setNewReqCount] = useState(0);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const bellAnim = useRef(new Animated.Value(0)).current;
+  const prevReqCountRef = useRef(-1);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const careList = isRTL ? CARE_TYPES_AR : CARE_TYPES_FR;
 
@@ -177,23 +184,64 @@ export default function NursingCareScreen() {
     }
   };
 
-  const loadNurseRequests = useCallback(async (session?: NurseSession) => {
+  const triggerBell = useCallback(() => {
+    bellAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(bellAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
+      Animated.timing(bellAnim, { toValue: -1, duration: 80, useNativeDriver: true }),
+      Animated.timing(bellAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
+      Animated.timing(bellAnim, { toValue: -1, duration: 80, useNativeDriver: true }),
+      Animated.timing(bellAnim, { toValue: 0.5, duration: 80, useNativeDriver: true }),
+      Animated.timing(bellAnim, { toValue: -0.5, duration: 80, useNativeDriver: true }),
+      Animated.timing(bellAnim, { toValue: 0, duration: 80, useNativeDriver: true }),
+    ]).start();
+    Vibration.vibrate([0, 150, 80, 150]);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+  }, [bellAnim]);
+
+  const loadNurseRequests = useCallback(async (session?: NurseSession, silent?: boolean) => {
     const s = session || nurseSession;
     if (!s) return;
-    setNurseReqLoading(true);
+    if (!silent) setNurseReqLoading(true);
     try {
       const resp = await fetch(`${API_BASE}/nursing/requests`, {
         headers: { "x-nurse-id": s.id, "x-nurse-token": s.token },
       });
       if (!resp.ok) throw new Error();
       const data: NursingRequest[] = await resp.json();
+      const pendingCount = data.filter(r => r.status === "pending").length;
+      if (pendingCount > prevReqCountRef.current && prevReqCountRef.current >= 0) {
+        const added = pendingCount - prevReqCountRef.current;
+        setNewReqCount(prev => prev + added);
+        triggerBell();
+      }
+      prevReqCountRef.current = pendingCount;
       setNurseRequests(data);
     } catch {
-      setNurseRequests([]);
+      if (!silent) setNurseRequests([]);
     } finally {
-      setNurseReqLoading(false);
+      if (!silent) setNurseReqLoading(false);
     }
-  }, [nurseSession]);
+  }, [nurseSession, triggerBell]);
+
+  useEffect(() => {
+    if (nurseMode === "dashboard" && nurseSession) {
+      pollIntervalRef.current = setInterval(() => {
+        loadNurseRequests(undefined, true);
+      }, 20000);
+    } else {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    }
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [nurseMode, nurseSession, loadNurseRequests]);
 
   const handleRespond = async (reqId: string, reqPhone: string) => {
     if (!nurseSession) return;
@@ -221,10 +269,42 @@ export default function NursingCareScreen() {
   };
 
   const handleNurseLogout = async () => {
+    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
     await AsyncStorage.removeItem("nurse_session");
     setNurseSession(null);
     setNurseMode("login");
     setNursePhone(""); setNursePassword("");
+    setNewReqCount(0);
+    prevReqCountRef.current = -1;
+  };
+
+  const handleDeleteRequest = (reqId: string) => {
+    Alert.alert(
+      isRTL ? "حذف الطلب" : "Supprimer la demande",
+      isRTL ? "هل تريد حذف هذا الطلب نهائياً؟" : "Voulez-vous supprimer définitivement cette demande?",
+      [
+        { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+        {
+          text: isRTL ? "حذف" : "Supprimer", style: "destructive",
+          onPress: async () => {
+            if (!nurseSession) return;
+            setDeletingId(reqId);
+            try {
+              await fetch(`${API_BASE}/nursing/requests/${reqId}`, {
+                method: "DELETE",
+                headers: { "x-nurse-id": nurseSession.id, "x-nurse-token": nurseSession.token },
+              });
+              setNurseRequests(prev => prev.filter(r => r.id !== reqId));
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch {
+              Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل الحذف" : "Échec de la suppression");
+            } finally {
+              setDeletingId(null);
+            }
+          }
+        }
+      ]
+    );
   };
 
   React.useEffect(() => {
@@ -252,10 +332,23 @@ export default function NursingCareScreen() {
           <Text style={[styles.reqTime, isRTL && styles.rtlText]}>{new Date(item.createdAt).toLocaleString(isRTL ? "ar-SA" : "fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</Text>
           {item.description ? <Text style={[styles.reqDesc, isRTL && styles.rtlText]} numberOfLines={2}>{item.description}</Text> : null}
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: item.status === "responded" ? Colors.accent + "18" : TEAL + "12" }]}>
-          <Text style={[styles.statusBadgeText, { color: item.status === "responded" ? Colors.accent : TEAL }]}>
-            {item.status === "responded" ? (isRTL ? "تم الرد" : "Traité") : (isRTL ? "جديد" : "Nouveau")}
-          </Text>
+        <View style={{ alignItems: "flex-end", gap: 6 }}>
+          <View style={[styles.statusBadge, { backgroundColor: item.status === "responded" ? Colors.accent + "18" : TEAL + "12" }]}>
+            <Text style={[styles.statusBadgeText, { color: item.status === "responded" ? Colors.accent : TEAL }]}>
+              {item.status === "responded" ? (isRTL ? "تم الرد" : "Traité") : (isRTL ? "جديد" : "Nouveau")}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.deleteReqBtn}
+            onPress={() => handleDeleteRequest(item.id)}
+            disabled={deletingId === item.id}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            {deletingId === item.id
+              ? <ActivityIndicator size="small" color={Colors.danger} />
+              : <Ionicons name="trash-outline" size={15} color={Colors.danger} />
+            }
+          </TouchableOpacity>
         </View>
       </View>
       {item.status === "pending" && (
@@ -427,6 +520,41 @@ export default function NursingCareScreen() {
         <View style={{ flex: 1 }}>
           {nurseMode === "dashboard" && nurseSession ? (
             <View style={{ flex: 1 }}>
+              {/* Bell notification bar */}
+              <View style={styles.bellBar}>
+                <TouchableOpacity
+                  style={styles.bellBarBtn}
+                  onPress={() => { setNewReqCount(0); loadNurseRequests(); }}
+                  activeOpacity={0.85}
+                >
+                  <Animated.View style={{
+                    transform: [{
+                      rotate: bellAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: ["-25deg", "0deg", "25deg"] })
+                    }]
+                  }}>
+                    <Ionicons name="notifications" size={32} color={newReqCount > 0 ? "#FF3B30" : TEAL} />
+                  </Animated.View>
+                  {newReqCount > 0 && (
+                    <View style={styles.bellBadge}>
+                      <Text style={styles.bellBadgeText}>{newReqCount > 9 ? "9+" : newReqCount}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.bellBarTitle, isRTL && styles.rtlText]}>
+                    {newReqCount > 0
+                      ? (isRTL ? `${newReqCount} طلب جديد وصل!` : `${newReqCount} nouvelle(s) demande(s)!`)
+                      : (isRTL ? "لا توجد طلبات جديدة" : "Pas de nouvelles demandes")}
+                  </Text>
+                  <Text style={[styles.bellBarSub, isRTL && styles.rtlText]}>
+                    {isRTL ? "يتم التحديث تلقائياً كل 20 ثانية" : "Mise à jour automatique toutes les 20s"}
+                  </Text>
+                </View>
+                <TouchableOpacity style={styles.refreshBtn} onPress={() => { setNewReqCount(0); loadNurseRequests(); }} activeOpacity={0.8}>
+                  <Ionicons name="refresh" size={16} color={TEAL} />
+                </TouchableOpacity>
+              </View>
+
               <View style={[styles.nurseHeader, isRTL && styles.rowReverse]}>
                 <View style={styles.nurseAvatarWrap}>
                   <MaterialCommunityIcons name="account-heart" size={24} color={TEAL} />
@@ -438,14 +566,9 @@ export default function NursingCareScreen() {
                     {nurseSession.isVerified ? (isRTL ? " • ✅ موثوق" : " • ✅ Vérifié") : (isRTL ? " • ⏳ قيد التحقق" : " • ⏳ En attente")}
                   </Text>
                 </View>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <TouchableOpacity style={styles.refreshBtn} onPress={() => loadNurseRequests()} activeOpacity={0.8}>
-                    <Ionicons name="refresh" size={16} color={TEAL} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.logoutBtn} onPress={handleNurseLogout} activeOpacity={0.8}>
-                    <Ionicons name="log-out-outline" size={16} color={Colors.light.textSecondary} />
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity style={styles.logoutBtn} onPress={handleNurseLogout} activeOpacity={0.8}>
+                  <Ionicons name="log-out-outline" size={16} color={Colors.light.textSecondary} />
+                </TouchableOpacity>
               </View>
 
               {nurseReqLoading ? (
@@ -872,6 +995,36 @@ const styles = StyleSheet.create({
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
   },
   respondBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: TEAL },
+
+  bellBar: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 16, paddingVertical: 14,
+    backgroundColor: "#FFF8F0",
+    borderBottomWidth: 1, borderBottomColor: "#FFE4C0",
+  },
+  bellBarBtn: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: "#FFF0E0",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: "#FFD080",
+    position: "relative",
+  },
+  bellBadge: {
+    position: "absolute", top: -4, right: -4,
+    backgroundColor: "#FF3B30", borderRadius: 10,
+    minWidth: 20, height: 20,
+    alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 4,
+    borderWidth: 2, borderColor: "#fff",
+  },
+  bellBadgeText: { fontFamily: "Inter_700Bold", fontSize: 10, color: "#fff" },
+  bellBarTitle: { fontFamily: "Inter_700Bold", fontSize: 14, color: Colors.light.text },
+  bellBarSub: { fontFamily: "Inter_400Regular", fontSize: 11, color: Colors.light.textSecondary, marginTop: 2 },
+  deleteReqBtn: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: Colors.danger + "12",
+    alignItems: "center", justifyContent: "center",
+  },
 
   emptyState: { alignItems: "center", justifyContent: "center", paddingVertical: 60, gap: 12 },
   emptyTitle: { fontFamily: "Inter_500Medium", fontSize: 15, color: Colors.light.textSecondary, textAlign: "center" },

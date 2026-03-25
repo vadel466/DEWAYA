@@ -501,14 +501,14 @@ export default function HomeScreen() {
               {isRTL ? "التمريض المنزلي\nوالرعاية الصحية" : "Soins à domicile\net infirmiers"}
             </Text>
 
-            {/* Nurse images — female + male, side by side at bottom */}
+            {/* Nurse images — female + male in medical uniform with stethoscope */}
             <Image
-              source={require("@/assets/images/doctor-card.png")}
+              source={require("@/assets/images/nurse-female.png")}
               style={styles.nurseImgFemale}
               resizeMode="contain"
             />
             <Image
-              source={require("@/assets/images/doctor-male-card.png")}
+              source={require("@/assets/images/nurse-male.png")}
               style={styles.nurseImgMale}
               resizeMode="contain"
             />
@@ -1243,19 +1243,19 @@ const styles = StyleSheet.create({
   },
   nurseImgFemale: {
     position: "absolute",
-    right: 20,
-    bottom: -4,
-    width: 64,
-    height: 64,
-    opacity: 0.90,
+    right: 16,
+    bottom: 0,
+    width: 72,
+    height: 90,
+    opacity: 1,
   },
   nurseImgMale: {
     position: "absolute",
-    right: -6,
-    bottom: -4,
-    width: 56,
-    height: 56,
-    opacity: 0.82,
+    right: -4,
+    bottom: 0,
+    width: 60,
+    height: 76,
+    opacity: 0.9,
   },
   nurseCardImg: {
     position: "absolute",

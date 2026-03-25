@@ -310,9 +310,15 @@ export default function AdminScreen() {
       const r = await fetch(`${API_BASE}/drug-prices/${id}`, {
         method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET },
       });
-      if (!r.ok) throw new Error(); return r.json();
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-drug-prices"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-drug-prices"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(isRTL ? "✅ تم الحذف" : "✅ Supprimé", isRTL ? "تم حذف الدواء بنجاح" : "Médicament supprimé");
+    },
+    onError: (e: any) => Alert.alert(isRTL ? "خطأ في الحذف" : "Erreur", isRTL ? `فشل الحذف: ${e?.message || ""}` : `Échec: ${e?.message || ""}`),
   });
 
   const bulkImportMutation = useMutation({
@@ -338,10 +344,14 @@ export default function AdminScreen() {
       const r = await fetch(`${API_BASE}/requests/${id}`, {
         method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET },
       });
-      if (!r.ok) throw new Error();
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-requests"] }); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); },
-    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل الحذف" : "Échec de la suppression"),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-requests"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(isRTL ? "✅ تم الحذف" : "✅ Supprimé", isRTL ? "تم حذف الطلب بنجاح" : "Demande supprimée");
+    },
+    onError: (e: any) => Alert.alert(isRTL ? "خطأ في الحذف" : "Erreur", isRTL ? `فشل الحذف: ${e?.message || ""}` : `Échec: ${e?.message || ""}`),
   });
 
   const clearAllPricesMutation = useMutation({
@@ -548,9 +558,16 @@ export default function AdminScreen() {
   });
 
   const deletePharmacyMutation = useMutation({
-    mutationFn: async (id: string) => { const r = await fetch(`${API_BASE}/pharmacies/${id}`, { method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET } }); if (!r.ok) throw new Error(); },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-pharmacies"] }); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); },
-    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل الحذف" : "Échec de la suppression"),
+    mutationFn: async (id: string) => {
+      const r = await fetch(`${API_BASE}/pharmacies/${id}`, { method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET } });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-pharmacies"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(isRTL ? "✅ تم الحذف" : "✅ Supprimé", isRTL ? "تم حذف الصيدلية بنجاح" : "Pharmacie supprimée");
+    },
+    onError: (e: any) => Alert.alert(isRTL ? "خطأ في الحذف" : "Erreur", isRTL ? `فشل الحذف: ${e?.message || ""}` : `Échec: ${e?.message || ""}`),
   });
 
   const uploadDutyImageMutation = useMutation({
@@ -583,14 +600,32 @@ export default function AdminScreen() {
   const pickDutyImage = async () => {
     setPickingImage(true);
     try {
-      const { launchImageLibraryAsync, MediaTypeOptions } = await import("expo-image-picker");
-      const result = await launchImageLibraryAsync({ mediaTypes: MediaTypeOptions.Images, quality: 0.7, base64: true, allowsEditing: false });
+      const ImagePicker = await import("expo-image-picker");
+      if (Platform.OS !== "web") {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert(
+            isRTL ? "إذن مطلوب" : "Permission requise",
+            isRTL ? "يُرجى السماح بالوصول إلى معرض الصور في إعدادات الجهاز" : "Veuillez autoriser l'accès à la galerie dans les paramètres"
+          );
+          return;
+        }
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
+        base64: true,
+        allowsEditing: true,
+      });
       if (!result.canceled && result.assets?.[0]?.base64) {
         setUploadBase64(result.assets[0].base64);
         const uri = result.assets[0].uri ?? "";
         setUploadMimeType(uri.endsWith(".png") ? "image/png" : "image/jpeg");
+        Alert.alert(isRTL ? "✅ تم اختيار الصورة" : "✅ Image sélectionnée", isRTL ? "اضغط على 'رفع الصورة' لحفظها" : "Appuyez sur 'Télécharger' pour enregistrer");
       }
-    } catch {
+    } catch (err: any) {
+      console.error("[pickDutyImage]", err);
+      Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "تعذّر فتح معرض الصور" : "Impossible d'ouvrir la galerie");
     } finally {
       setPickingImage(false);
     }
@@ -749,10 +784,14 @@ export default function AdminScreen() {
         method: "DELETE",
         headers: { "x-admin-secret": ADMIN_SECRET },
       });
-      if (!r.ok) throw new Error();
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-companies"] }); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); },
-    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل حذف الشركة" : "Échec de la suppression de la société"),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-companies"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(isRTL ? "✅ تم الحذف" : "✅ Supprimé", isRTL ? "تم حذف الشركة بنجاح" : "Société supprimée");
+    },
+    onError: (e: any) => Alert.alert(isRTL ? "خطأ في الحذف" : "Erreur", isRTL ? `فشل الحذف: ${e?.message || ""}` : `Échec: ${e?.message || ""}`),
   });
 
   const usePortalResponseMutation = { isPending: false };
@@ -785,14 +824,15 @@ export default function AdminScreen() {
         method: "DELETE",
         headers: { "x-admin-secret": ADMIN_SECRET },
       });
-      if (!r.ok) throw new Error();
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-services"] });
       qc.invalidateQueries({ queryKey: ["other-services"] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(isRTL ? "✅ تم الحذف" : "✅ Supprimé", isRTL ? "تم حذف الخدمة بنجاح" : "Service supprimé");
     },
-    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل الحذف" : "Échec de la suppression"),
+    onError: (e: any) => Alert.alert(isRTL ? "خطأ في الحذف" : "Erreur", isRTL ? `فشل الحذف: ${e?.message || ""}` : `Échec: ${e?.message || ""}`),
   });
 
   const openEditService = (s: OtherService) => {
@@ -966,11 +1006,14 @@ export default function AdminScreen() {
         <View style={{ flexDirection: "column", gap: 8, alignItems: "center" }}>
           {item.status === "pending" && <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />}
           <TouchableOpacity
-            onPress={(e) => { e.stopPropagation(); confirmDelete(isRTL ? "حذف هذا الطلب نهائياً؟" : "Supprimer définitivement cette demande?", () => deleteRequestMutation.mutate(item.id)); }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPress={() => confirmDelete(isRTL ? "حذف هذا الطلب نهائياً؟" : "Supprimer définitivement cette demande?", () => deleteRequestMutation.mutate(item.id))}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             disabled={deleteRequestMutation.isPending}
+            style={{ padding: 4 }}
           >
-            <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+            {deleteRequestMutation.isPending
+              ? <ActivityIndicator size="small" color={Colors.danger} />
+              : <Ionicons name="trash-outline" size={20} color={Colors.danger} />}
           </TouchableOpacity>
         </View>
       </View>

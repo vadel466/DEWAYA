@@ -547,14 +547,21 @@ export default function AdminScreen() {
   };
 
   const handleClearAllPrices = () => {
-    Alert.alert(
-      isRTL ? "مسح جميع الأدوية" : "Effacer tous les médicaments",
-      isRTL ? "سيتم حذف جميع بيانات الأسعار نهائياً. هل أنت متأكد؟" : "Toutes les données de prix seront supprimées définitivement. Confirmer ?",
-      [
-        { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
-        { text: isRTL ? "مسح الكل" : "Tout effacer", style: "destructive", onPress: () => clearAllPricesMutation.mutate() },
-      ]
-    );
+    const msg = isRTL ? "سيتم حذف جميع بيانات الأسعار نهائياً. هل أنت متأكد؟" : "Toutes les données de prix seront supprimées définitivement. Confirmer ?";
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(msg)) {
+        clearAllPricesMutation.mutate();
+      }
+    } else {
+      Alert.alert(
+        isRTL ? "مسح جميع الأدوية" : "Effacer tous les médicaments",
+        msg,
+        [
+          { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+          { text: isRTL ? "مسح الكل" : "Tout effacer", style: "destructive", onPress: () => clearAllPricesMutation.mutate() },
+        ]
+      );
+    }
   };
 
   const respondMutation = useMutation({
@@ -832,18 +839,25 @@ export default function AdminScreen() {
 
   const deleteCompanyMutation = useMutation({
     mutationFn: async (id: string) => {
+      console.log("[DELETE company]", `${API_BASE}/company-portal/companies/${id}`);
       const r = await fetch(`${API_BASE}/company-portal/companies/${id}`, {
         method: "DELETE",
         headers: { "x-admin-secret": ADMIN_SECRET },
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      console.log("[DELETE company] status:", r.status);
+      const text = await r.text();
+      console.log("[DELETE company] body:", text);
+      if (!r.ok) throw new Error(`HTTP ${r.status}: ${text}`);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-companies"] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(isRTL ? "✅ تم الحذف" : "✅ Supprimé", isRTL ? "تم حذف الشركة بنجاح" : "Société supprimée");
     },
-    onError: (e: any) => Alert.alert(isRTL ? "خطأ في الحذف" : "Erreur", isRTL ? `فشل الحذف: ${e?.message || ""}` : `Échec: ${e?.message || ""}`),
+    onError: (e: any) => {
+      console.error("[DELETE company error]", e);
+      Alert.alert(isRTL ? "خطأ في الحذف" : "Erreur de suppression", String(e?.message || e));
+    },
   });
 
   const usePortalResponseMutation = { isPending: false };
@@ -916,10 +930,16 @@ export default function AdminScreen() {
   };
 
   const confirmDelete = (title: string, onConfirm: () => void) => {
-    Alert.alert(isRTL ? "تأكيد الحذف" : "Confirmer", title, [
-      { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
-      { text: isRTL ? "حذف" : "Supprimer", style: "destructive", onPress: onConfirm },
-    ]);
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(title)) {
+        onConfirm();
+      }
+    } else {
+      Alert.alert(isRTL ? "تأكيد الحذف" : "Confirmer", title, [
+        { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+        { text: isRTL ? "حذف" : "Supprimer", style: "destructive", onPress: onConfirm },
+      ]);
+    }
   };
 
   const handleCopyRef = async (ref: string) => {
@@ -1461,8 +1481,14 @@ export default function AdminScreen() {
           <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); openEditPrice(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="pencil-outline" size={18} color={Colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => Alert.alert(isRTL ? "حذف" : "Supprimer", isRTL ? `حذف "${item.name}"؟` : `Supprimer "${item.name}" ?`, [{ text: isRTL ? "إلغاء" : "Annuler", style: "cancel" }, { text: isRTL ? "حذف" : "Supprimer", style: "destructive", onPress: () => deletePriceMutation.mutate(item.id) }])} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+          <TouchableOpacity
+            onPress={() => confirmDelete(isRTL ? `حذف "${item.name}"؟` : `Supprimer "${item.name}" ?`, () => deletePriceMutation.mutate(item.id))}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            disabled={deletePriceMutation.isPending}
+          >
+            {deletePriceMutation.isPending
+              ? <ActivityIndicator size="small" color={Colors.danger} />
+              : <Ionicons name="trash-outline" size={18} color={Colors.danger} />}
           </TouchableOpacity>
         </View>
       </View>
@@ -1495,10 +1521,7 @@ export default function AdminScreen() {
             <Ionicons name="pencil-outline" size={18} color={Colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => Alert.alert(isRTL ? "حذف" : "Supprimer", isRTL ? `حذف "${item.nameAr}"؟` : `Supprimer "${item.nameFr}" ?`, [
-              { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
-              { text: isRTL ? "حذف" : "Supprimer", style: "destructive", onPress: () => deleteServiceMutation.mutate(item.id) },
-            ])}
+            onPress={() => confirmDelete(isRTL ? `حذف "${item.nameAr}"؟` : `Supprimer "${item.nameFr}" ?`, () => deleteServiceMutation.mutate(item.id))}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="trash-outline" size={18} color={Colors.danger} />
@@ -1919,10 +1942,9 @@ export default function AdminScreen() {
                       </Text>
                     </View>
                     <TouchableOpacity
-                      onPress={() => Alert.alert(
-                        isRTL ? "حذف الصورة" : "Supprimer l'image",
+                      onPress={() => confirmDelete(
                         isRTL ? "هل تريد حذف هذه الصورة؟" : "Supprimer cette image ?",
-                        [{ text: isRTL ? "إلغاء" : "Annuler", style: "cancel" }, { text: isRTL ? "حذف" : "Supprimer", style: "destructive", onPress: () => deleteDutyImageMutation.mutate(img.id) }]
+                        () => deleteDutyImageMutation.mutate(img.id)
                       )}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >

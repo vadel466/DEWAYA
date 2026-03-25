@@ -389,7 +389,7 @@ export default function HomeScreen() {
         <View style={styles.searchCard}>
           <Text style={[styles.searchCardLabel, isRTL && styles.textRight]}>{t("searchTitle")}</Text>
 
-          {/* ── Unified input bar: [📍 Region] | [Drug input] [📷] ── */}
+          {/* ── Unified input bar: [📍 Region] | [Drug input] ── */}
           <View style={[styles.unifiedBar, isRTL && styles.rowReverse, inputFocused && styles.unifiedBarFocused]}>
             {/* Region chip */}
             <TouchableOpacity
@@ -436,14 +436,9 @@ export default function HomeScreen() {
                 <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
               </TouchableOpacity>
             )}
-
-            {/* Camera button */}
-            <TouchableOpacity style={styles.cameraChip} onPress={() => setShowImgMenu(true)} activeOpacity={0.8}>
-              <Ionicons name="camera" size={19} color={Colors.primary} />
-            </TouchableOpacity>
           </View>
 
-          {/* GPS + Submit row */}
+          {/* GPS + Camera + Submit row */}
           <View style={[styles.searchActions, isRTL && styles.rowReverse]}>
             <TouchableOpacity style={[styles.gpsBtn, isRTL && styles.rowReverse]} onPress={detectLocation} activeOpacity={0.8} disabled={detectingLocation}>
               {detectingLocation
@@ -453,6 +448,15 @@ export default function HomeScreen() {
                     <Text style={styles.gpsBtnText}>{t("detectLocation")}</Text>
                   </>
               }
+            </TouchableOpacity>
+
+            {/* Camera button — to the LEFT of the search button */}
+            <TouchableOpacity
+              style={styles.cameraActionBtn}
+              onPress={() => setShowImgMenu(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="camera" size={20} color={Colors.primary} />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -495,8 +499,14 @@ export default function HomeScreen() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.card, { backgroundColor: "#E8F7F4" }]} onPress={goToFindDoctor} activeOpacity={0.82}>
+          <TouchableOpacity style={[styles.card, { backgroundColor: "#E8F7F4", overflow: "hidden" }]} onPress={goToFindDoctor} activeOpacity={0.82}>
             <View style={[styles.cardAccent, { backgroundColor: "#0D9488" }]} />
+            {/* Nurse image — absolute positioned */}
+            <Image
+              source={require("@/assets/images/doctor-card.png")}
+              style={styles.nurseCardImg}
+              resizeMode="contain"
+            />
             <View style={[styles.cardIconCircle, { backgroundColor: "#0D94881E" }]}>
               <MaterialCommunityIcons name="needle" size={22} color="#0D9488" />
             </View>
@@ -1049,6 +1059,16 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderLeftColor: Colors.light.border,
   },
+  cameraActionBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary + "12",
+    borderWidth: 1.5,
+    borderColor: Colors.primary + "30",
+  },
   searchActions: {
     flexDirection: "row",
     alignItems: "center",
@@ -1152,6 +1172,14 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 13, fontFamily: "Inter_700Bold", marginBottom: 3, paddingLeft: 6 },
   cardDesc: { fontSize: 10, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, lineHeight: 14, paddingLeft: 6 },
+  nurseCardImg: {
+    position: "absolute",
+    right: -6,
+    bottom: -4,
+    width: 80,
+    height: 80,
+    opacity: 0.88,
+  },
   doctorFemaleImg: {
     position: "absolute",
     right: 38,

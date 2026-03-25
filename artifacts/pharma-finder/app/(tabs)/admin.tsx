@@ -407,6 +407,27 @@ export default function AdminScreen() {
     onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل المسح" : "Échec de la suppression"),
   });
 
+  const seedDemoMutation = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`${API_BASE}/drug-prices/seed-demo`, {
+        method: "POST",
+        headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      const text = await r.text();
+      if (!r.ok) throw new Error(`HTTP ${r.status}: ${text}`);
+      return JSON.parse(text);
+    },
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["admin-drug-prices"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        isRTL ? "✅ تم إضافة بيانات تجريبية" : "✅ Données de démonstration ajoutées",
+        isRTL ? `تم إضافة ${data.inserted} دواء تجريبياً للقاعدة` : `${data.inserted} médicaments de démonstration ajoutés`
+      );
+    },
+    onError: (e: any) => Alert.alert(isRTL ? "خطأ" : "Erreur", String(e?.message || e)),
+  });
+
   const openAddPrice = () => {
     setEditingPrice(null);
     setDpName(""); setDpNameAr(""); setDpPrice(""); setDpUnit(""); setDpCategory(""); setDpNotes("");
@@ -1722,6 +1743,19 @@ export default function AdminScreen() {
                     {fileImportLoading
                       ? <ActivityIndicator color="#fff" size="small" />
                       : <><MaterialCommunityIcons name="file-excel-outline" size={20} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "رفع ملف Excel لتحديث قاعدة الأدوية" : "Importer un fichier Excel"}</Text></>}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.addBtn, { backgroundColor: "#7C3AED", marginBottom: 8 }]}
+                    onPress={() => confirmDelete(
+                      isRTL ? "إضافة ~55 دواء تجريبي بمختلف الفئات إلى القاعدة؟" : "Ajouter ~55 médicaments de démonstration dans toutes les catégories ?",
+                      () => seedDemoMutation.mutate()
+                    )}
+                    disabled={seedDemoMutation.isPending}
+                    activeOpacity={0.85}
+                  >
+                    {seedDemoMutation.isPending
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <><MaterialCommunityIcons name="database-plus-outline" size={18} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "إضافة بيانات تجريبية (55 دواء)" : "Ajouter données de démo (55 méd.)"}</Text></>}
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.addBtn, { backgroundColor: Colors.danger, marginBottom: 8 }]} onPress={handleClearAllPrices} disabled={clearAllPricesMutation.isPending} activeOpacity={0.85}>
                     {clearAllPricesMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><MaterialCommunityIcons name="delete-sweep-outline" size={18} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "مسح كل الأدوية" : "Effacer toute la base"}</Text></>}

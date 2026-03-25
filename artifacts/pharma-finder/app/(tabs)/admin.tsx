@@ -347,6 +347,23 @@ export default function AdminScreen() {
     },
   });
 
+  const togglePriceMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`${API_BASE}/drug-prices/${id}/toggle`, {
+        method: "PATCH", headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json() as Promise<DrugPrice>;
+    },
+    onSuccess: (row: DrugPrice) => {
+      qc.invalidateQueries({ queryKey: ["admin-drug-prices"] });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    },
+    onError: (e: any) => {
+      webAlert(isRTL ? "خطأ في التحديث" : "Erreur", String(e?.message || e));
+    },
+  });
+
   const bulkImportMutation = useMutation({
     mutationFn: async (rows: object[]) => {
       const r = await fetch(`${API_BASE}/drug-prices/bulk`, {
@@ -483,30 +500,45 @@ export default function AdminScreen() {
     bulkImportMutation.mutate(rows);
   };
 
-  const sendFileToApi = async (base64: string, mimeType: string, fileName: string) => {
-    const resp = await fetch(`${API_BASE}/drug-prices/upload-and-save`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
-      body: JSON.stringify({ fileData: base64, fileType: mimeType || "application/octet-stream", fileName, replaceAll: true }),
-    });
-    const data = await resp.json();
-    if (!resp.ok) {
-      Alert.alert(
-        isRTL ? "خطأ في الملف" : "Erreur fichier",
-        isRTL
-          ? (data.errorAr || `تأكد من صيغة الملف (.xlsx / .csv)\nالتنسيق: الاسم | السعر | الاسم عربي | الوحدة | الفئة`)
-          : (data.error || `Vérifiez le format (.xlsx / .csv)\nFormat: Nom | Prix | NomAr | Unité | Catégorie`)
-      );
-      return;
+  const webAlert = (title: string, msg?: string) => {
+    if (Platform.OS === "web") {
+      window.alert(msg ? `${title}\n\n${msg}` : title);
+    } else {
+      Alert.alert(title, msg);
     }
-    qc.invalidateQueries({ queryKey: ["admin-drug-prices"] });
-    qc.invalidateQueries({ queryKey: ["drug-prices-stats"] });
-    Alert.alert(
-      isRTL ? "تم الاستيراد ✓" : "Import réussi ✓",
-      isRTL
-        ? `تمت إضافة ${data.imported} دواء إلى قاعدة البيانات بنجاح`
-        : `${data.imported} médicaments importés avec succès`
-    );
+  };
+
+  const sendFileToApi = async (base64: string, mimeType: string, fileName: string) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 180_000);
+    try {
+      const resp = await fetch(`${API_BASE}/drug-prices/upload-and-save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+        body: JSON.stringify({ fileData: base64, fileType: mimeType || "application/octet-stream", fileName, replaceAll: true }),
+        signal: controller.signal,
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        webAlert(
+          isRTL ? "خطأ في الملف" : "Erreur fichier",
+          isRTL
+            ? (data.errorAr || `تأكد من صيغة الملف (.xlsx / .csv / .pdf)\nالتنسيق: الاسم | السعر`)
+            : (data.error || `Vérifiez le format (.xlsx / .csv / .pdf)`)
+        );
+        return;
+      }
+      qc.invalidateQueries({ queryKey: ["admin-drug-prices"] });
+      qc.invalidateQueries({ queryKey: ["drug-prices-stats"] });
+      webAlert(
+        isRTL ? "تم الاستيراد ✓" : "Import réussi ✓",
+        isRTL
+          ? `تمت إضافة ${data.imported} دواء إلى قاعدة البيانات بنجاح`
+          : `${data.imported} médicaments importés avec succès`
+      );
+    } finally {
+      clearTimeout(timer);
+    }
   };
 
   /* web: called by the hidden <input> onChange */
@@ -527,9 +559,12 @@ export default function AdminScreen() {
       await sendFileToApi(base64, file.type || "application/octet-stream", file.name);
     } catch (err: any) {
       console.error("[handleWebFileChange]", err);
-      Alert.alert(
-        isRTL ? "خطأ في قراءة الملف" : "Erreur de lecture",
-        isRTL ? "تعذّر معالجة الملف. تأكد من التنسيق وحاول مجدداً." : "Impossible de lire le fichier."
+      const isAbort = err?.name === "AbortError";
+      webAlert(
+        isRTL ? "خطأ في معالجة الملف" : "Erreur de traitement",
+        isRTL
+          ? (isAbort ? "انتهت مهلة معالجة الملف. حاول مع ملف أصغر." : `${err?.message ?? "خطأ غير متوقع"}`)
+          : (isAbort ? "Délai d'attente dépassé. Essayez un fichier plus petit." : `${err?.message ?? "Erreur inattendue"}`)
       );
     } finally {
       setFileImportLoading(false);
@@ -1548,35 +1583,56 @@ export default function AdminScreen() {
     );
   };
 
-  const renderDrugPrice = ({ item }: { item: DrugPrice }) => (
-    <View style={styles.requestCard}>
-      <View style={[styles.cardRow, isRTL && styles.rtlRow]}>
-        <View style={[styles.cardIconCircle2, { backgroundColor: "#F59E0B22" }]}>
-          <MaterialCommunityIcons name="tag-outline" size={20} color="#F59E0B" />
-        </View>
-        <View style={[styles.requestInfo, isRTL && styles.rtlInfo, { flex: 1 }]}>
-          <Text style={[styles.drugName, isRTL && styles.rtlText]}>{item.name}</Text>
-          {item.nameAr ? <Text style={[styles.userId, isRTL && styles.rtlText]}>{item.nameAr}</Text> : null}
-          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-            <View style={styles.priceBadge}>
-              <Text style={styles.priceBadgeText}>{item.price.toFixed(2)} MRU{item.unit ? ` / ${item.unit}` : ""}</Text>
+  const renderDrugPrice = ({ item }: { item: DrugPrice }) => {
+    const isToggling = togglePriceMutation.isPending && togglePriceMutation.variables === item.id;
+    const isDeleting = deletePriceMutation.isPending && deletePriceMutation.variables === item.id;
+    return (
+      <View style={[styles.requestCard, !item.isActive && { opacity: 0.5 }]}>
+        <View style={[styles.cardRow, isRTL && styles.rtlRow]}>
+          <View style={[styles.cardIconCircle2, { backgroundColor: item.isActive ? "#F59E0B22" : "#9CA3AF22" }]}>
+            <MaterialCommunityIcons name="tag-outline" size={20} color={item.isActive ? "#F59E0B" : "#9CA3AF"} />
+          </View>
+          <View style={[styles.requestInfo, isRTL && styles.rtlInfo, { flex: 1 }]}>
+            <Text style={[styles.drugName, isRTL && styles.rtlText]}>{item.name}</Text>
+            {item.nameAr ? <Text style={[styles.userId, isRTL && styles.rtlText]}>{item.nameAr}</Text> : null}
+            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+              <View style={[styles.priceBadge, !item.isActive && { backgroundColor: "#9CA3AF22" }]}>
+                <Text style={[styles.priceBadgeText, !item.isActive && { color: "#9CA3AF" }]}>{item.price.toFixed(2)} MRU{item.unit ? ` / ${item.unit}` : ""}</Text>
+              </View>
+              {!item.isActive && (
+                <View style={[styles.categoryBadge, { backgroundColor: "#9CA3AF22" }]}>
+                  <Text style={[styles.categoryText, { color: "#9CA3AF" }]}>{isRTL ? "معطّل" : "Désactivé"}</Text>
+                </View>
+              )}
+              {item.category ? <View style={styles.categoryBadge}><Text style={styles.categoryText}>{item.category}</Text></View> : null}
             </View>
-            {item.category ? <View style={styles.categoryBadge}><Text style={styles.categoryText}>{item.category}</Text></View> : null}
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <TouchableOpacity
+              onPress={() => togglePriceMutation.mutate(item.id)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              disabled={isToggling || isDeleting}
+              style={{ padding: 8 }}
+            >
+              {isToggling
+                ? <ActivityIndicator size="small" color="#6B7280" />
+                : <Ionicons name={item.isActive ? "eye-outline" : "eye-off-outline"} size={20} color={item.isActive ? "#059669" : "#9CA3AF"} />}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => confirmDelete(isRTL ? `حذف "${item.name}"؟` : `Supprimer "${item.name}" ?`, () => deletePriceMutation.mutate(item.id))}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              disabled={isDeleting || isToggling}
+              style={{ padding: 8 }}
+            >
+              {isDeleting
+                ? <ActivityIndicator size="small" color={Colors.danger} />
+                : <Ionicons name="trash-outline" size={20} color={Colors.danger} />}
+            </TouchableOpacity>
           </View>
         </View>
-        <TouchableOpacity
-          onPress={() => confirmDelete(isRTL ? `حذف "${item.name}"؟` : `Supprimer "${item.name}" ?`, () => deletePriceMutation.mutate(item.id))}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          disabled={deletePriceMutation.isPending}
-          style={{ padding: 8 }}
-        >
-          {deletePriceMutation.isPending
-            ? <ActivityIndicator size="small" color={Colors.danger} />
-            : <Ionicons name="trash-outline" size={20} color={Colors.danger} />}
-        </TouchableOpacity>
       </View>
-    </View>
-  );
+    );
+  };
 
   const NURSING_TEAL = "#0D9488";
   const renderNursingRequest = ({ item }: { item: AdminNursingRequest }) => {

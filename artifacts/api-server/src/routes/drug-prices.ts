@@ -529,6 +529,26 @@ router.put("/:id", async (req, res) => {
   }
 });
 
+/* ─── ADMIN: toggle isActive ─────────────────────────────────── */
+router.patch("/:id/toggle", async (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: "Forbidden" });
+  try {
+    const [current] = await db
+      .select({ isActive: drugPricesTable.isActive })
+      .from(drugPricesTable)
+      .where(eq(drugPricesTable.id, req.params.id));
+    if (!current) return res.status(404).json({ error: "Not found" });
+    const [row] = await db
+      .update(drugPricesTable)
+      .set({ isActive: !current.isActive, updatedAt: new Date() })
+      .where(eq(drugPricesTable.id, req.params.id))
+      .returning();
+    return res.json(row);
+  } catch (e) {
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
 /* ─── ADMIN: clear all ───────────────────────────────────────── */
 router.delete("/clear-all", async (req, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: "Forbidden" });

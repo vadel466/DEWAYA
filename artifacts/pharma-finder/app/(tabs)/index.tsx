@@ -436,39 +436,22 @@ export default function HomeScreen() {
                 <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
               </TouchableOpacity>
             )}
+
+            {/* Camera — inside the bar, at the left end */}
+            <TouchableOpacity
+              style={styles.barCameraBtn}
+              onPress={() => setShowImgMenu(true)}
+              activeOpacity={0.75}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Ionicons name="camera-outline" size={20} color={Colors.primary} />
+            </TouchableOpacity>
           </View>
 
-          {/* صورة الدواء + Camera + Submit row */}
-          <View style={[styles.searchActions, isRTL && styles.rowReverse]}>
-            {/* GPS icon-only — compact */}
-            <TouchableOpacity style={styles.gpsIconBtn} onPress={detectLocation} activeOpacity={0.8} disabled={detectingLocation}>
-              {detectingLocation
-                ? <ActivityIndicator size="small" color={Colors.primary} />
-                : <Ionicons name="navigate" size={16} color={Colors.primary} />
-              }
-            </TouchableOpacity>
-
-            {/* صورة 💊 الدواء — goes to drug price search */}
+          {/* Submit row */}
+          <View style={styles.searchActions}>
             <TouchableOpacity
-              style={[styles.drugPhotoBtn, isRTL && styles.rowReverse]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/drug-price"); }}
-              activeOpacity={0.82}
-            >
-              <Text style={styles.drugPhotoBtnEmoji}>💊</Text>
-              <Text style={styles.drugPhotoBtnText}>{isRTL ? "صورة الدواء" : "Prix médicament"}</Text>
-            </TouchableOpacity>
-
-            {/* Camera button */}
-            <TouchableOpacity
-              style={styles.cameraActionBtn}
-              onPress={() => setShowImgMenu(true)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="camera" size={20} color={Colors.primary} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.submitBtn, (!canSubmit || loading) && styles.submitBtnDisabled]}
+              style={[styles.submitBtn, { flex: 1 }, (!canSubmit || loading) && styles.submitBtnDisabled]}
               onPress={handleSearch}
               activeOpacity={0.85}
               disabled={!canSubmit || loading}
@@ -533,26 +516,46 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Row 2: صيدليات المداومة وسعر الدواء — full-width banner card */}
-        <TouchableOpacity style={styles.dutyCard} onPress={goToDutyAndPrice} activeOpacity={0.82}>
-          <View style={[styles.cardAccent, { backgroundColor: "#1565C0" }]} />
-          <View style={[styles.dutyCardInner, isRTL && styles.rowReverse]}>
-            <View style={[styles.dutyIconCircle, { backgroundColor: "#1565C015" }]}>
-              <MaterialCommunityIcons name="hospital-building" size={28} color="#1565C0" />
+        {/* Row 2: صيدليات المداومة | سعر الدواء — two half-width cards */}
+        <View style={styles.gridRow}>
+          {/* صيدليات المداومة */}
+          <TouchableOpacity style={[styles.card, { backgroundColor: "#EEF1FD", overflow: "hidden" }]} onPress={goToDutyAndPrice} activeOpacity={0.82}>
+            <View style={[styles.cardAccent, { backgroundColor: "#3B5BDB" }]} />
+            <View style={[styles.cardIconCircle, { backgroundColor: "#3B5BDB1E" }]}>
+              <MaterialCommunityIcons name="moon-waning-crescent" size={22} color="#3B5BDB" />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.dutyCardTitle, { color: "#1565C0" }, isRTL && styles.textRight]} numberOfLines={1}>
-                {t("dutyAndPrice")}
-              </Text>
-              <Text style={[styles.dutyCardDesc, isRTL && styles.textRight]} numberOfLines={1}>
-                {t("dutyAndPriceDesc")}
-              </Text>
+            <Text style={[styles.cardTitle, { color: "#3B5BDB" }, isRTL && styles.textRight]} numberOfLines={2}>
+              {isRTL ? "صيدليات\nالمداومة" : "Pharmacies\nde Garde"}
+            </Text>
+            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={1}>
+              {isRTL ? "مفتوحة الليل" : "Ouvertes la nuit"}
+            </Text>
+            <View style={[styles.cardChevron, { backgroundColor: "#3B5BDB14" }]}>
+              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#3B5BDB" />
             </View>
-            <View style={[styles.cardChevron, { backgroundColor: "#1565C014", marginTop: 0 }]}>
-              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#1565C0" />
+          </TouchableOpacity>
+
+          {/* سعر الدواء */}
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: "#FFF7EB", overflow: "hidden" }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/drug-price"); }}
+            activeOpacity={0.82}
+          >
+            <View style={[styles.cardAccent, { backgroundColor: "#E07B00" }]} />
+            <View style={[styles.cardIconCircle, { backgroundColor: "#E07B001E" }]}>
+              <MaterialCommunityIcons name="pill" size={22} color="#E07B00" />
             </View>
-          </View>
-        </TouchableOpacity>
+            <Text style={[styles.cardTitle, { color: "#B96200" }, isRTL && styles.textRight]} numberOfLines={2}>
+              {isRTL ? "سعر\nالدواء" : "Prix du\nMédicament"}
+            </Text>
+            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={1}>
+              {isRTL ? "قاعدة الأسعار" : "Tarifs officiels"}
+            </Text>
+            <View style={[styles.cardChevron, { backgroundColor: "#E07B0014" }]}>
+              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#E07B00" />
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* ─── PORTAL LINKS ─── */}
@@ -1079,6 +1082,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + "12",
     borderWidth: 1.5,
     borderColor: Colors.primary + "30",
+  },
+  barCameraBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 2,
   },
   searchActions: {
     flexDirection: "row",

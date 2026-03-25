@@ -924,6 +924,66 @@ export default function AdminScreen() {
 
   const usePortalResponseMutation = { isPending: false };
 
+  const deletePortalResponseMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`${API_BASE}/pharmacy-portal/responses/${id}`, {
+        method: "DELETE",
+        headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-portal-responses"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: (e: any) => Alert.alert(isRTL ? "خطأ" : "Erreur", String(e?.message || e)),
+  });
+
+  const deleteAllPortalResponsesMutation = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`${API_BASE}/pharmacy-portal/responses-all`, {
+        method: "DELETE",
+        headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-portal-responses"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: (e: any) => Alert.alert(isRTL ? "خطأ" : "Erreur", String(e?.message || e)),
+  });
+
+  const deleteB2bMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`${API_BASE}/pharmacy-portal/b2b-messages/${id}`, {
+        method: "DELETE",
+        headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-b2b"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: (e: any) => Alert.alert(isRTL ? "خطأ" : "Erreur", String(e?.message || e)),
+  });
+
+  const deleteAllB2bMutation = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`${API_BASE}/pharmacy-portal/b2b-messages-all`, {
+        method: "DELETE",
+        headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-b2b"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: (e: any) => Alert.alert(isRTL ? "خطأ" : "Erreur", String(e?.message || e)),
+  });
+
   const deleteNursingMutation = useMutation({
     mutationFn: async (id: string) => {
       const r = await fetch(`${API_BASE}/nursing/requests/${id}`, {
@@ -1193,6 +1253,16 @@ export default function AdminScreen() {
               <Text style={{ fontSize: 11, color: Colors.warning, fontFamily: "Inter_600SemiBold" }}>{isRTL ? "⏳ معلق" : "⏳ Attente"}</Text>
             </View>
           )}
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={() => confirmDelete(
+              isRTL ? "حذف هذا الرد؟" : "Supprimer cette réponse ?",
+              () => deletePortalResponseMutation.mutate(item.id)
+            )}
+            disabled={deletePortalResponseMutation.isPending}
+          >
+            <MaterialCommunityIcons name="trash-can-outline" size={20} color="#ef4444" />
+          </TouchableOpacity>
         </View>
         {isPending && (
           pendingConfirmId === item.id ? (
@@ -1294,6 +1364,16 @@ export default function AdminScreen() {
           <Text style={[styles.requestTime, isRTL && styles.rtlText]} numberOfLines={2}>{item.message}</Text>
           <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{formatTime(item.createdAt, language)}</Text>
         </View>
+        <TouchableOpacity
+          style={styles.deleteBtn}
+          onPress={() => confirmDelete(
+            isRTL ? "حذف هذه الرسالة؟" : "Supprimer ce message ?",
+            () => deleteB2bMutation.mutate(item.id)
+          )}
+          disabled={deleteB2bMutation.isPending}
+        >
+          <MaterialCommunityIcons name="trash-can-outline" size={20} color="#ef4444" />
+        </TouchableOpacity>
       </View>
       {item.adminStatus === "pending" && (
         <View style={[styles.mediationBtns, isRTL && styles.rtlRow]}>
@@ -1852,6 +1932,24 @@ export default function AdminScreen() {
                   </TouchableOpacity>
                 </View>
               )
+            ) : (activeTab === "b2b" || activeTab === "portal") && currentData.length > 0 ? (
+              <TouchableOpacity
+                style={[styles.addBtn, { backgroundColor: "#ef4444", marginBottom: 8 }]}
+                onPress={() => confirmDelete(
+                  isRTL
+                    ? (activeTab === "b2b" ? "حذف جميع طلبيات الصيدليات؟" : "حذف جميع ردود الصيدليات؟")
+                    : (activeTab === "b2b" ? "Supprimer toutes les commandes pharmacies?" : "Supprimer toutes les réponses pharmacies?"),
+                  activeTab === "b2b"
+                    ? () => deleteAllB2bMutation.mutate()
+                    : () => deleteAllPortalResponsesMutation.mutate()
+                )}
+                disabled={deleteAllB2bMutation.isPending || deleteAllPortalResponsesMutation.isPending}
+                activeOpacity={0.85}
+              >
+                {(deleteAllB2bMutation.isPending || deleteAllPortalResponsesMutation.isPending)
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <><MaterialCommunityIcons name="trash-can-outline" size={18} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "حذف الكل" : "Tout supprimer"}</Text></>}
+              </TouchableOpacity>
             ) : null
           }
           ListEmptyComponent={

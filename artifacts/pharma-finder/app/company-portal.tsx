@@ -71,6 +71,8 @@ export default function CompanyPortalScreen() {
   const [showRespondModal, setShowRespondModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<CompanyOrder | null>(null);
   const [responseText, setResponseText] = useState("");
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
+  const [deletingAllOrders, setDeletingAllOrders] = useState(false);
 
   const handleCodeSubmit = async () => {
     if (!code.trim()) return;
@@ -151,6 +153,49 @@ export default function CompanyPortalScreen() {
         fetchOrders();
       }
     } catch {} finally { setRespondingId(null); }
+  };
+
+  const handleDeleteOrder = async (id: string) => {
+    if (!company) return;
+    const doDelete = () => {
+      setDeletingOrderId(id);
+      fetch(`${API_BASE}/company-portal/orders/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", "x-company-code": company.code },
+        body: JSON.stringify({ companyId: company.id }),
+      }).then(r => {
+        if (r.ok) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); fetchOrders(); }
+      }).catch(() => {}).finally(() => setDeletingOrderId(null));
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm(isRTL ? "حذف هذا الطلب؟" : "Supprimer cette commande ?")) doDelete();
+    } else {
+      Alert.alert(isRTL ? "حذف الطلب؟" : "Supprimer?", "", [
+        { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+        { text: isRTL ? "حذف" : "Supprimer", style: "destructive", onPress: doDelete },
+      ]);
+    }
+  };
+
+  const handleDeleteAllOrders = async () => {
+    if (!company) return;
+    const doDelete = () => {
+      setDeletingAllOrders(true);
+      fetch(`${API_BASE}/company-portal/orders-all/${company.id}`, {
+        method: "DELETE",
+        headers: { "x-company-code": company.code },
+      }).then(r => {
+        if (r.ok) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); setOrders([]); }
+      }).catch(() => {}).finally(() => setDeletingAllOrders(false));
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm(isRTL ? "حذف كل الطلبات؟" : "Supprimer toutes les commandes ?")) doDelete();
+    } else {
+      Alert.alert(isRTL ? "حذف الكل؟" : "Tout supprimer?", isRTL ? "سيتم حذف جميع الطلبات نهائياً" : "Toutes les commandes seront supprimées définitivement", [
+        { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+        { text: isRTL ? "حذف الكل" : "Tout supprimer", style: "destructive", onPress: doDelete },
+      ]);
+    }
   };
 
   const pickInvImage = async () => {
@@ -396,6 +441,19 @@ export default function CompanyPortalScreen() {
                     </Text>
                   </View>
                 )}
+                {orders.length > 0 && (
+                  <TouchableOpacity
+                    style={[styles.deleteAllBtn]}
+                    onPress={handleDeleteAllOrders}
+                    disabled={deletingAllOrders}
+                    activeOpacity={0.8}
+                  >
+                    {deletingAllOrders
+                      ? <ActivityIndicator size={14} color="#ef4444" />
+                      : <MaterialCommunityIcons name="trash-can-outline" size={15} color="#ef4444" />}
+                    <Text style={styles.deleteAllBtnText}>{isRTL ? "حذف الكل" : "Tout supprimer"}</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             }
             renderItem={({ item }) => {
@@ -466,21 +524,33 @@ export default function CompanyPortalScreen() {
 
                   <View style={[styles.orderFooter, isRTL && styles.rtlRow]}>
                     <Text style={styles.orderTime}>{fmt(item.createdAt, language)}</Text>
-                    {isPending ? (
+                    <View style={[{ flexDirection: "row", gap: 8, alignItems: "center" }, isRTL && { flexDirection: "row-reverse" }]}>
+                      {isPending ? (
+                        <TouchableOpacity
+                          style={styles.respondBtn}
+                          onPress={() => { setSelectedOrder(item); setResponseText(""); setShowRespondModal(true); }}
+                          activeOpacity={0.85}
+                        >
+                          <Ionicons name="send" size={14} color="#fff" />
+                          <Text style={styles.respondBtnText}>{isRTL ? "رد" : "Répondre"}</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={styles.respondedBadge}>
+                          <Ionicons name="checkmark-circle" size={14} color={Colors.accent} />
+                          <Text style={styles.respondedBadgeText}>{isRTL ? "تم الرد" : "Répondu"}</Text>
+                        </View>
+                      )}
                       <TouchableOpacity
-                        style={styles.respondBtn}
-                        onPress={() => { setSelectedOrder(item); setResponseText(""); setShowRespondModal(true); }}
-                        activeOpacity={0.85}
+                        style={styles.trashBtn}
+                        onPress={() => handleDeleteOrder(item.id)}
+                        disabled={deletingOrderId === item.id}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Ionicons name="send" size={14} color="#fff" />
-                        <Text style={styles.respondBtnText}>{isRTL ? "رد" : "Répondre"}</Text>
+                        {deletingOrderId === item.id
+                          ? <ActivityIndicator size={14} color="#ef4444" />
+                          : <MaterialCommunityIcons name="trash-can-outline" size={18} color="#ef4444" />}
                       </TouchableOpacity>
-                    ) : (
-                      <View style={styles.respondedBadge}>
-                        <Ionicons name="checkmark-circle" size={14} color={Colors.accent} />
-                        <Text style={styles.respondedBadgeText}>{isRTL ? "تم الرد" : "Répondu"}</Text>
-                      </View>
-                    )}
+                    </View>
                   </View>
                   {item.companyResponse && (
                     <View style={[styles.responseBox, isRTL && { alignItems: "flex-end" }]}>
@@ -752,6 +822,9 @@ const styles = StyleSheet.create({
   orderAttachFileName: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.light.text },
   orderFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   orderTime: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary },
+  trashBtn: { padding: 6, borderRadius: 8 },
+  deleteAllBtn: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: "#ef444430", backgroundColor: "#ef44440a", alignSelf: "flex-end" },
+  deleteAllBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#ef4444" },
   respondBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: COMPANY_COLOR, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
   respondBtnText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 13 },
   respondedBadge: { flexDirection: "row", alignItems: "center", gap: 4 },

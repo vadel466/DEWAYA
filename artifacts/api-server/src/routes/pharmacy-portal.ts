@@ -378,6 +378,58 @@ router.get("/company-orders/:pharmacyId", async (req, res) => {
   }
 });
 
+router.delete("/company-orders/:id", async (req, res) => {
+  try {
+    const { pharmacyId } = req.body;
+    if (!pharmacyId && !isAdmin(req)) { res.status(400).json({ error: "pharmacyId requis" }); return; }
+    const authorized = isAdmin(req) || await validatePharmacyPin(req, pharmacyId);
+    if (!authorized) { res.status(401).json({ error: "Non autorisé" }); return; }
+    await db.delete(companyOrdersTable).where(eq(companyOrdersTable.id, req.params.id));
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Erreur serveur" }); }
+});
+
+router.delete("/company-orders-all/:pharmacyId", async (req, res) => {
+  try {
+    const authorized = isAdmin(req) || await validatePharmacyPin(req, req.params.pharmacyId);
+    if (!authorized) { res.status(401).json({ error: "Non autorisé" }); return; }
+    await db.delete(companyOrdersTable).where(eq(companyOrdersTable.pharmacyId, req.params.pharmacyId));
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Erreur serveur" }); }
+});
+
+router.delete("/responses/:id", async (req, res) => {
+  try {
+    if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }
+    await db.delete(pharmacyResponsesTable).where(eq(pharmacyResponsesTable.id, req.params.id));
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Erreur serveur" }); }
+});
+
+router.delete("/responses-all", async (req, res) => {
+  try {
+    if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }
+    await db.delete(pharmacyResponsesTable);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Erreur serveur" }); }
+});
+
+router.delete("/b2b-messages/:id", async (req, res) => {
+  try {
+    if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }
+    await db.delete(b2bMessagesTable).where(eq(b2bMessagesTable.id, req.params.id));
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Erreur serveur" }); }
+});
+
+router.delete("/b2b-messages-all", async (req, res) => {
+  try {
+    if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }
+    await db.delete(b2bMessagesTable);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Erreur serveur" }); }
+});
+
 router.get("/companies-list", async (_req, res) => {
   try {
     const companies = await db.select({ id: companiesTable.id, name: companiesTable.name, nameAr: companiesTable.nameAr, contact: companiesTable.contact, subscriptionActive: companiesTable.subscriptionActive })

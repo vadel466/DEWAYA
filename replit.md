@@ -156,6 +156,15 @@ Express 5 API server. All admin routes protected by `x-admin-secret: DEWAYA_ADMI
 - Danger: `#E8404A`
 - Company/Partner: `#7C3AED`
 
+## Delete Architecture (completed)
+
+- **Admin panel** (admin.tsx): trash icon per card in ALL tabs (nursing, b2b, portal, requests, pharmacies); "حذف الكل" button appears in ListHeaderComponent for b2b + portal tabs when list is non-empty
+- **Pharmacy portal** (pharmacy-portal.tsx): per-card delete + "حذف الكل" for both company orders and patient requests sections
+- **Company portal** (company-portal.tsx): per-card delete + "حذف الكل" for company orders
+- **API DELETE endpoints**: `DELETE /requests/:id`, `DELETE /requests/bulk/all-pharmacy/:pharmacyId`, `DELETE /pharmacy-portal/company-orders/:id`, `DELETE /pharmacy-portal/company-orders-all/:pharmacyId`, `DELETE /pharmacy-portal/responses/:id`, `DELETE /pharmacy-portal/responses-all`, `DELETE /pharmacy-portal/b2b-messages/:id`, `DELETE /pharmacy-portal/b2b-messages-all`, `DELETE /company-portal/orders/:id`, `DELETE /company-portal/orders-all/:companyId`
+- `requests.ts` DELETE handlers accept both admin (`x-admin-secret`) and pharmacy PIN (`x-pharmacy-pin`) auth; static imports used (no dynamic `await import()`)
+- **queryKey fix**: `deleteB2bMutation` + `deleteAllB2bMutation` invalidate `["admin-b2b"]` (was mistakenly `["admin-b2b-messages"]`)
+
 ## Database Migrations
 
 Development: `pnpm --filter @workspace/db run push`

@@ -78,6 +78,10 @@ export default function PharmacyPortalScreen() {
   const [companyOrders, setCompanyOrders] = useState<CompanyOrder[]>([]);
   const [companyOrdersLoading, setCompanyOrdersLoading] = useState(false);
   const [companyOrdersRefreshing, setCompanyOrdersRefreshing] = useState(false);
+  const [deletingCompanyOrderId, setDeletingCompanyOrderId] = useState<string | null>(null);
+  const [deletingAllCompanyOrders, setDeletingAllCompanyOrders] = useState(false);
+  const [deletingRequestId, setDeletingRequestId] = useState<string | null>(null);
+  const [deletingAllRequests, setDeletingAllRequests] = useState(false);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [orderDrug, setOrderDrug] = useState("");
@@ -459,6 +463,91 @@ export default function PharmacyPortalScreen() {
     setRequests([]); setInventory([]); setCompanyOrders([]); setAnnouncements([]); setActiveTab("requests");
   };
 
+  const handleDeleteCompanyOrder = (id: string) => {
+    if (!pharmacy) return;
+    const doDelete = () => {
+      setDeletingCompanyOrderId(id);
+      fetch(`${API_BASE}/pharmacy-portal/company-orders/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", "x-pharmacy-pin": pin },
+        body: JSON.stringify({ pharmacyId: pharmacy.id }),
+      }).then(r => {
+        if (r.ok) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); setCompanyOrders(prev => prev.filter(o => o.id !== id)); }
+      }).catch(() => {}).finally(() => setDeletingCompanyOrderId(null));
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm(isRTL ? "حذف هذه الطلبية؟" : "Supprimer cette commande ?")) doDelete();
+    } else {
+      Alert.alert(isRTL ? "حذف؟" : "Supprimer?", "", [
+        { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+        { text: isRTL ? "حذف" : "Supprimer", style: "destructive", onPress: doDelete },
+      ]);
+    }
+  };
+
+  const handleDeleteAllCompanyOrders = () => {
+    if (!pharmacy) return;
+    const doDelete = () => {
+      setDeletingAllCompanyOrders(true);
+      fetch(`${API_BASE}/pharmacy-portal/company-orders-all/${pharmacy.id}`, {
+        method: "DELETE",
+        headers: { "x-pharmacy-pin": pin },
+      }).then(r => {
+        if (r.ok) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); setCompanyOrders([]); }
+      }).catch(() => {}).finally(() => setDeletingAllCompanyOrders(false));
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm(isRTL ? "حذف كل طلبيات الشركات؟" : "Supprimer toutes les commandes ?")) doDelete();
+    } else {
+      Alert.alert(isRTL ? "حذف الكل؟" : "Tout supprimer?", isRTL ? "سيتم حذف جميع الطلبيات نهائياً" : "Toutes les commandes seront supprimées", [
+        { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+        { text: isRTL ? "حذف الكل" : "Tout supprimer", style: "destructive", onPress: doDelete },
+      ]);
+    }
+  };
+
+  const handleDeleteRequest = (id: string) => {
+    if (!pharmacy) return;
+    const doDelete = () => {
+      setDeletingRequestId(id);
+      fetch(`${API_BASE}/requests/${id}`, {
+        method: "DELETE",
+        headers: { "x-pharmacy-pin": pin },
+      }).then(r => {
+        if (r.ok) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); setRequests(prev => prev.filter(r => r.id !== id)); }
+      }).catch(() => {}).finally(() => setDeletingRequestId(null));
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm(isRTL ? "حذف هذا الطلب؟" : "Supprimer cette demande ?")) doDelete();
+    } else {
+      Alert.alert(isRTL ? "حذف؟" : "Supprimer?", "", [
+        { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+        { text: isRTL ? "حذف" : "Supprimer", style: "destructive", onPress: doDelete },
+      ]);
+    }
+  };
+
+  const handleDeleteAllRequests = () => {
+    if (!pharmacy) return;
+    const doDelete = () => {
+      setDeletingAllRequests(true);
+      fetch(`${API_BASE}/requests/bulk/all-pharmacy/${pharmacy.id}`, {
+        method: "DELETE",
+        headers: { "x-pharmacy-pin": pin },
+      }).then(r => {
+        if (r.ok) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); setRequests([]); }
+      }).catch(() => {}).finally(() => setDeletingAllRequests(false));
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm(isRTL ? "حذف كل طلبات التطبيق؟" : "Supprimer toutes les demandes ?")) doDelete();
+    } else {
+      Alert.alert(isRTL ? "حذف الكل؟" : "Tout supprimer?", isRTL ? "سيتم حذف جميع طلبات التطبيق في منطقتكم نهائياً" : "Toutes les demandes de votre région seront supprimées", [
+        { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+        { text: isRTL ? "حذف الكل" : "Tout supprimer", style: "destructive", onPress: doDelete },
+      ]);
+    }
+  };
+
   const pendingRequests = requests.filter(r => r.status === "pending" && !respondedIds.has(r.id) && !dismissedIds.has(r.id));
   const pendingOrders = companyOrders.filter(o => o.status === "pending");
 
@@ -583,8 +672,22 @@ export default function PharmacyPortalScreen() {
             contentContainerStyle={[styles.list, pendingRequests.length === 0 && styles.emptyList, { paddingBottom: insets.bottom + 20 }]}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchRequests(true)} tintColor={Colors.primary} />}
-            ListHeaderComponent={myResponsesStatus.length > 0 ? (
+            ListHeaderComponent={(
               <View style={{ marginBottom: 10 }}>
+                {requests.length > 0 && (
+                  <TouchableOpacity
+                    style={[styles.deleteAllBtn]}
+                    onPress={handleDeleteAllRequests}
+                    disabled={deletingAllRequests}
+                    activeOpacity={0.8}
+                  >
+                    {deletingAllRequests
+                      ? <ActivityIndicator size={13} color="#ef4444" />
+                      : <MaterialCommunityIcons name="trash-can-outline" size={14} color="#ef4444" />}
+                    <Text style={styles.deleteAllBtnText}>{isRTL ? "حذف الكل" : "Tout supprimer"}</Text>
+                  </TouchableOpacity>
+                )}
+                {myResponsesStatus.length > 0 ? (<View style={{ marginBottom: 0 }}>
                 <View style={[{ flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6, paddingHorizontal: 2 }]}>
                   <Text style={[{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary }, isRTL && { textAlign: "right" }]}>
                     {isRTL ? "حالة ردودي الأخيرة:" : "État de mes réponses:"}
@@ -612,6 +715,8 @@ export default function PharmacyPortalScreen() {
                 })}
               </View>
             ) : null}
+              </View>
+            )}
             renderItem={({ item }) => {
               const isResponding = respondingId === item.id;
               const alreadyDone = respondedIds.has(item.id);
@@ -631,6 +736,16 @@ export default function PharmacyPortalScreen() {
                         <Text style={styles.pendingAdminText}>{isRTL ? "قيد المراجعة" : "En révision"}</Text>
                       </View>
                     )}
+                    <TouchableOpacity
+                      style={{ padding: 6 }}
+                      onPress={() => handleDeleteRequest(item.id)}
+                      disabled={deletingRequestId === item.id}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      {deletingRequestId === item.id
+                        ? <ActivityIndicator size={14} color="#ef4444" />
+                        : <MaterialCommunityIcons name="trash-can-outline" size={18} color="#ef4444" />}
+                    </TouchableOpacity>
                   </View>
                   {!alreadyDone && (
                     <View style={[styles.requestActionRow, isRTL && styles.rtlRow]}>
@@ -764,7 +879,17 @@ export default function PharmacyPortalScreen() {
                 </View>
               )}
 
-              <Text style={[styles.sectionLabel, isRTL && styles.rtlText]}>{isRTL ? "طلباتي" : "Mes commandes"}</Text>
+              <View style={[{ flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }]}>
+                <Text style={[styles.sectionLabel, isRTL && styles.rtlText, { marginBottom: 0 }]}>{isRTL ? "طلباتي" : "Mes commandes"}</Text>
+                {companyOrders.length > 0 && (
+                  <TouchableOpacity style={styles.deleteAllBtn} onPress={handleDeleteAllCompanyOrders} disabled={deletingAllCompanyOrders} activeOpacity={0.8}>
+                    {deletingAllCompanyOrders
+                      ? <ActivityIndicator size={13} color="#ef4444" />
+                      : <MaterialCommunityIcons name="trash-can-outline" size={14} color="#ef4444" />}
+                    <Text style={styles.deleteAllBtnText}>{isRTL ? "حذف الكل" : "Tout suppr."}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
               {companyOrdersLoading ? (
                 <ActivityIndicator size="small" color={PARTNER_COLOR} style={{ marginTop: 20 }} />
               ) : companyOrders.length === 0 ? (
@@ -788,6 +913,16 @@ export default function PharmacyPortalScreen() {
                         {order.status === "responded" ? (isRTL ? "مُجاب" : "Répondu") : (isRTL ? "انتظار" : "En attente")}
                       </Text>
                     </View>
+                    <TouchableOpacity
+                      style={{ padding: 6 }}
+                      onPress={() => handleDeleteCompanyOrder(order.id)}
+                      disabled={deletingCompanyOrderId === order.id}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      {deletingCompanyOrderId === order.id
+                        ? <ActivityIndicator size={14} color="#ef4444" />
+                        : <MaterialCommunityIcons name="trash-can-outline" size={18} color="#ef4444" />}
+                    </TouchableOpacity>
                   </View>
                   {order.companyResponse && (
                     <View style={[styles.companyResponseBox, isRTL && { alignItems: "flex-end" }]}>
@@ -1043,6 +1178,8 @@ const styles = StyleSheet.create({
   companyChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: PARTNER_COLOR + "12", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: PARTNER_COLOR + "30" },
   companyChipText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: PARTNER_COLOR },
 
+  deleteAllBtn: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: "#ef444430", backgroundColor: "#ef44440a" },
+  deleteAllBtnText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#ef4444" },
   companyOrderCard: { backgroundColor: Colors.light.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.light.border, gap: 8 },
   orderCardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   orderCardIcon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },

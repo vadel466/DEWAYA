@@ -227,6 +227,26 @@ router.patch("/companies/:id", async (req, res) => {
   }
 });
 
+router.delete("/orders/:id", async (req, res) => {
+  try {
+    const { companyId } = req.body;
+    if (!companyId && !isAdmin(req)) { res.status(400).json({ error: "companyId requis" }); return; }
+    const authorized = isAdmin(req) || await validateCompanyCode(req, companyId);
+    if (!authorized) { res.status(401).json({ error: "Non autorisé" }); return; }
+    await db.delete(companyOrdersTable).where(eq(companyOrdersTable.id, req.params.id));
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Erreur serveur" }); }
+});
+
+router.delete("/orders-all/:companyId", async (req, res) => {
+  try {
+    const authorized = isAdmin(req) || await validateCompanyCode(req, req.params.companyId);
+    if (!authorized) { res.status(401).json({ error: "Non autorisé" }); return; }
+    await db.delete(companyOrdersTable).where(eq(companyOrdersTable.companyId, req.params.companyId));
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Erreur serveur" }); }
+});
+
 router.delete("/companies/:id", async (req, res) => {
   try {
     if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }

@@ -2287,13 +2287,18 @@ export default function AdminScreen() {
                     style={[styles.addBtn, { flex: 1 }, { backgroundColor: "#7C3AED" }, (!coName.trim() || !coCode.trim()) && { opacity: 0.5 }]}
                     onPress={async () => {
                       if (!coName.trim() || !coCode.trim()) return;
-                      const url = editingCompany ? `${API_BASE}/company-portal/companies/${editingCompany.id}` : `${API_BASE}/company-portal/companies`;
-                      const resp = await fetch(url, {
-                        method: editingCompany ? "PATCH" : "POST",
-                        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
-                        body: JSON.stringify({ name: coName.trim(), nameAr: coNameAr.trim() || null, code: coCode.trim().toUpperCase(), contact: coContact.trim() || null, notes: coNotes.trim() || null }),
-                      });
-                      if (resp.ok) { refetchCompanies(); setShowCompanyModal(false); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
+                      try {
+                        const url = editingCompany ? `${API_BASE}/company-portal/companies/${editingCompany.id}` : `${API_BASE}/company-portal/companies`;
+                        const resp = await fetch(url, {
+                          method: editingCompany ? "PATCH" : "POST",
+                          headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+                          body: JSON.stringify({ name: coName.trim(), nameAr: coNameAr.trim() || null, code: coCode.trim().toUpperCase(), contact: coContact.trim() || null, notes: coNotes.trim() || null }),
+                        });
+                        if (resp.ok) { refetchCompanies(); setShowCompanyModal(false); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
+                        else { Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل حفظ الشركة" : "Échec de l'enregistrement"); }
+                      } catch (e: any) {
+                        Alert.alert(isRTL ? "خطأ في الاتصال" : "Erreur réseau", isRTL ? `تعذّر الاتصال بالخادم\n${e?.message || ""}` : `Impossible de joindre le serveur\n${e?.message || ""}`);
+                      }
                     }}
                     disabled={!coName.trim() || !coCode.trim()} activeOpacity={0.85}
                   >

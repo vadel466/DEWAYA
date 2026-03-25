@@ -176,12 +176,16 @@ Express 5 API server. All admin routes protected by `x-admin-secret: DEWAYA_ADMI
 ## Drug Price Database
 
 - API: `GET /api/drug-prices/search?q=...` — public search (no auth)
-- API: `GET /api/drug-prices/stats` — public stats
-- API: `POST /api/drug-prices/seed-demo` — admin: clears existing data then seeds 56 demo drugs (idempotent)
-- API: `POST /api/drug-prices/parse-file` — admin: parse Excel (.xlsx/.xls) or PDF and return rows
-- User screen: `artifacts/pharma-finder/app/drug-price.tsx` with debounced search, category browsing, error states
-- Error states: network error (shows retry button) vs. not found vs. empty database
-- **DB must be seeded**: run seed-demo from admin panel under "أسعار الدواء" tab
+- API: `GET /api/drug-prices/stats` — public stats (returns `{total, categories}`)
+- API: `POST /api/drug-prices/upload-and-save` — admin: upload Excel (.xlsx/.xls) or CSV, parse + save in one step, returns `{imported, source}`
+- API: `POST /api/drug-prices/parse-file` — admin: legacy parse-only (returns rows without saving)
+- API: `DELETE /api/drug-prices/clear-all` — admin: delete all drugs from DB
+- User screen: `artifacts/pharma-finder/app/drug-price.tsx` — search-only UI (no categories, no stats display)
+  - Placeholder shows "اكتب اسم الدواء" or empty-DB warning if DB is empty
+  - Results show: drug name (Arabic+French), price in MRU, unit
+  - Debounced search (280ms), load-more pagination (20 per page)
+- **DB starts empty** — admin uploads Excel/CSV file to populate; no seed data
+- File format: columns A=name, B=price, C=nameAr(opt), D=unit(opt), E=category(opt)
 
 ## Database Migrations
 

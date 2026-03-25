@@ -2,7 +2,6 @@ import { Router } from "express";
 import { db, drugPricesTable } from "@workspace/db";
 import { eq, ilike, or, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import * as XLSX from "xlsx";
 
 const router = Router();
 
@@ -88,9 +87,15 @@ router.post("/parse-file", async (req, res) => {
       return res.json({ rows, source: "pdf", count: rows.length, pages: data.numpages });
     }
 
-    const wb = XLSX.read(buffer, { type: "buffer", cellDates: true });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const raw: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer as unknown as ArrayBuffer);
+    const ws = wb.worksheets[0];
+    const raw: any[][] = [];
+    ws.eachRow({ includeEmpty: false }, (row) => {
+      const vals = (row.values as any[]).slice(1).map((v: any) => (v === null || v === undefined ? "" : (typeof v === "object" && v.result !== undefined ? v.result : v)));
+      raw.push(vals);
+    });
 
     const isHeaderRow = (r: any[]) => !r[1] || isNaN(parseFloat(String(r[1]).replace(",", ".")));
     const rows = raw
@@ -105,7 +110,8 @@ router.post("/parse-file", async (req, res) => {
       }))
       .filter(r => r.name && r.price > 0);
 
-    return res.json({ rows, source: "excel", count: rows.length, sheets: wb.SheetNames });
+    const sheetNames = wb.worksheets.map(s => s.name);
+    return res.json({ rows, source: "excel", count: rows.length, sheets: sheetNames });
   } catch (e: any) {
     console.error("[parse-file]", e?.message);
     return res.status(500).json({ error: "Erreur lors du traitement du fichier", detail: String(e?.message || "") });

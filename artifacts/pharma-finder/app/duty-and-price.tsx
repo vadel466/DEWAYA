@@ -10,7 +10,6 @@ import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 
 const DUTY_RED = "#DC3545";
-const MAP_BLUE = "#0A7EA4";
 const PRICE_AMBER = "#D97706";
 
 export default function DutyAndPriceScreen() {
@@ -27,11 +26,6 @@ export default function DutyAndPriceScreen() {
   const goToDrugPrice = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push("/drug-price");
-  };
-
-  const goToMap = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push("/nearest-pharmacy");
   };
 
   return (
@@ -103,31 +97,6 @@ export default function DutyAndPriceScreen() {
                   {isRTL ? "البحث عن سعر" : "Rechercher un prix"}
                 </Text>
                 <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={16} color={PRICE_AMBER} />
-              </View>
-            </View>
-          </View>
-        </TouchableOpacity>
-
-        {/* ── Pharmacy Map ── */}
-        <TouchableOpacity style={styles.optionCard} onPress={goToMap} activeOpacity={0.85}>
-          <View style={[styles.cardInner, { borderLeftColor: MAP_BLUE, borderLeftWidth: 4 }, isRTL && styles.rowReverse, isRTL && { borderLeftWidth: 0, borderRightColor: MAP_BLUE, borderRightWidth: 4 }]}>
-            <View style={[styles.cardIconWrap, { backgroundColor: MAP_BLUE + "15" }]}>
-              <MaterialCommunityIcons name="map-marker-multiple-outline" size={42} color={MAP_BLUE} />
-            </View>
-            <View style={[styles.cardTextWrap, isRTL && { alignItems: "flex-end" }]}>
-              <Text style={[styles.cardTitle, { color: MAP_BLUE }, isRTL && styles.rtlText]}>
-                {isRTL ? "خريطة صيدليات نواكشوط" : "Carte des pharmacies"}
-              </Text>
-              <Text style={[styles.cardDesc, isRTL && styles.rtlText]}>
-                {isRTL
-                  ? "شاهد مواقع الصيدليات على الخريطة مع روابط غوغل ماب وترتيب حسب المسافة"
-                  : "Voyez les pharmacies sur la carte avec liens Google Maps et tri par distance"}
-              </Text>
-              <View style={[styles.cardArrow, isRTL && styles.rowReverse]}>
-                <Text style={[styles.cardArrowText, { color: MAP_BLUE }]}>
-                  {isRTL ? "فتح الخريطة" : "Ouvrir la carte"}
-                </Text>
-                <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={16} color={MAP_BLUE} />
               </View>
             </View>
           </View>

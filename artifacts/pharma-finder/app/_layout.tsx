@@ -3,13 +3,13 @@ import {
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
-  useFonts,
 } from "@expo-google-fonts/inter";
+import * as Font from "expo-font";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useState } from "react";
-import { Platform, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -19,21 +19,6 @@ import IntroScreen from "@/components/IntroScreen";
 import { AppProvider } from "@/context/AppContext";
 
 SplashScreen.preventAutoHideAsync();
-
-if (Platform.OS === "web" && typeof window !== "undefined") {
-  window.addEventListener("unhandledrejection", (event: PromiseRejectionEvent) => {
-    const msg = event.reason?.message || String(event.reason ?? "");
-    if (
-      msg.includes("timeout") ||
-      msg.includes("Timeout") ||
-      msg.includes("6000") ||
-      msg.includes("FontFace") ||
-      msg.includes("font")
-    ) {
-      event.preventDefault();
-    }
-  });
-}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -64,21 +49,33 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-  });
+  const [ready, setReady] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
-  const [fontTimedOut, setFontTimedOut] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setFontTimedOut(true), 4500);
-    return () => clearTimeout(timer);
-  }, []);
+    let cancelled = false;
 
-  const ready = fontsLoaded || !!fontError || fontTimedOut;
+    const fallback = setTimeout(() => {
+      if (!cancelled) setReady(true);
+    }, 4000);
+
+    Font.loadAsync({
+      Inter_400Regular,
+      Inter_500Medium,
+      Inter_600SemiBold,
+      Inter_700Bold,
+    })
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(fallback);
+        if (!cancelled) setReady(true);
+      });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(fallback);
+    };
+  }, []);
 
   useEffect(() => {
     if (ready) {

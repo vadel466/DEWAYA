@@ -71,8 +71,12 @@ router.get("/:id/image", async (req, res) => {
     }).from(doctorsTable).where(eq(doctorsTable.id, req.params.id));
     if (!doc || !doc.imageData) return res.status(404).json({ error: "Not found" });
     const buf = Buffer.from(doc.imageData, "base64");
-    res.set("Content-Type", doc.imageMimeType ?? "image/jpeg");
+    /* Restrict to safe image MIME types — prevent Content-Type injection */
+    const SAFE_IMG = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
+    const mime = SAFE_IMG.includes(doc.imageMimeType ?? "") ? (doc.imageMimeType as string) : "image/jpeg";
+    res.set("Content-Type", mime);
     res.set("Cache-Control", "public, max-age=86400");
+    res.set("X-Content-Type-Options", "nosniff");
     res.send(buf);
   } catch {
     res.status(500).json({ error: "Internal server error" });

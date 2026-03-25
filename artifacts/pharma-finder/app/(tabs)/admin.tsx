@@ -1916,18 +1916,33 @@ export default function AdminScreen() {
                     </View>
                   </View>
                 )}
-                {/* Upload button — only way to add data */}
-                <TouchableOpacity style={[styles.addBtn, { backgroundColor: "#059669", marginBottom: 8 }]} onPress={pickAndParseExcel} disabled={fileImportLoading} activeOpacity={0.85}>
-                  {fileImportLoading
-                    ? <ActivityIndicator color="#fff" size="small" />
-                    : <><MaterialCommunityIcons name="file-upload-outline" size={20} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "رفع ملف (Excel أو CSV أو PDF) لتحديث قاعدة الأدوية" : "Importer Excel / CSV / PDF — mettre à jour la base"}</Text></>}
-                </TouchableOpacity>
-                {/* Clear all */}
-                {allDrugPrices.length > 0 && (
-                  <TouchableOpacity style={[styles.addBtn, { backgroundColor: Colors.danger, marginBottom: 8 }]} onPress={handleClearAllPrices} disabled={clearAllPricesMutation.isPending} activeOpacity={0.85}>
-                    {clearAllPricesMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><MaterialCommunityIcons name="delete-sweep-outline" size={18} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "مسح قاعدة البيانات بالكامل" : "Effacer toute la base"}</Text></>}
+                {/* Upload + Clear row */}
+                <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+                  <TouchableOpacity
+                    style={[styles.addBtn, { backgroundColor: "#059669", flex: 1 }]}
+                    onPress={pickAndParseExcel}
+                    disabled={fileImportLoading}
+                    activeOpacity={0.85}
+                  >
+                    {fileImportLoading
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <><MaterialCommunityIcons name="file-upload-outline" size={20} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "رفع ملف (Excel / CSV / PDF)" : "Importer Excel / CSV / PDF"}</Text></>}
                   </TouchableOpacity>
-                )}
+                  <TouchableOpacity
+                    style={[styles.addBtn, {
+                      backgroundColor: allDrugPrices.length > 0 ? Colors.danger : "#D1D5DB",
+                      paddingHorizontal: 14, flexDirection: "row", gap: 6, alignItems: "center",
+                    }]}
+                    onPress={handleClearAllPrices}
+                    disabled={clearAllPricesMutation.isPending || allDrugPrices.length === 0}
+                    activeOpacity={0.85}
+                  >
+                    {clearAllPricesMutation.isPending
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <MaterialCommunityIcons name="delete-sweep-outline" size={20} color="#fff" />}
+                    <Text style={[styles.addBtnText, { marginLeft: 0 }]}>{isRTL ? "مسح الكل" : "Tout effacer"}</Text>
+                  </TouchableOpacity>
+                </View>
                 {/* Search */}
                 {allDrugPrices.length > 0 && (
                   <View style={styles.searchBarWrap}>

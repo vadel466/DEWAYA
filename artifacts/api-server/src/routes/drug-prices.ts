@@ -199,12 +199,20 @@ function parseCsvText(text: string) {
 
 /* ─── Helper: parse PDF buffer using pdfjs-dist ───────────────── */
 async function parsePdfBuffer(buffer: Buffer) {
-  const PDFJS_PATH = "/home/runner/workspace/node_modules/.pnpm/pdfjs-dist@5.4.296/node_modules/pdfjs-dist/legacy/build/pdf.mjs";
+  const BASE = "/home/runner/workspace/node_modules/.pnpm/pdfjs-dist@5.4.296/node_modules/pdfjs-dist/legacy/build";
+  const PDFJS_PATH = `${BASE}/pdf.mjs`;
   const pdfjsLib = await import(PDFJS_PATH as any) as any;
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `file://${BASE}/pdf.worker.mjs`;
 
+  const FONTS_PATH = "/home/runner/workspace/node_modules/.pnpm/pdfjs-dist@5.4.296/node_modules/pdfjs-dist/standard_fonts/";
   const uint8 = new Uint8Array(buffer);
-  const doc = await pdfjsLib.getDocument({ data: uint8, useWorkerFetch: false, isEvalSupported: false, useSystemFonts: true }).promise;
+  const doc = await pdfjsLib.getDocument({
+    data: uint8,
+    useWorkerFetch: false,
+    isEvalSupported: false,
+    useSystemFonts: true,
+    standardFontDataUrl: `file://${FONTS_PATH}`,
+  }).promise;
 
   /* Collect logical lines from each page using Y-coordinate grouping */
   const logicalLines: string[] = [];

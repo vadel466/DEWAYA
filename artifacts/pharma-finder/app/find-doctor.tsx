@@ -105,6 +105,7 @@ export default function NursingCareScreen() {
   const [pendingRequestId, setPendingRequestId] = useState("");
   const [paymentConfirming, setPaymentConfirming] = useState(false);
   const [paymentDone, setPaymentDone] = useState(false);
+  const [confirmedNurseCount, setConfirmedNurseCount] = useState(0);
 
   const bellAnim = useRef(new Animated.Value(0)).current;
   const prevReqCountRef = useRef(-1);
@@ -141,12 +142,14 @@ export default function NursingCareScreen() {
   const handlePaymentConfirm = async () => {
     setPaymentConfirming(true);
     try {
-      await fetch(`${API_BASE}/nursing/requests/${pendingRequestId}/pay`, {
+      const resp = await fetch(`${API_BASE}/nursing/requests/${pendingRequestId}/pay`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId }),
       });
+      const data = await resp.json();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setConfirmedNurseCount(data.nurseCount ?? 0);
       setPaymentDone(true);
     } catch {
     } finally {
@@ -887,8 +890,8 @@ export default function NursingCareScreen() {
                 </Text>
                 <Text style={[styles.paySub, isRTL && styles.rtlText]}>
                   {isRTL
-                    ? "سيتواصل معك أحد الممرضين المتاحين في أقرب وقت ممكن"
-                    : "Un infirmier disponible vous contactera dès que possible"}
+                    ? `تم إرسال طلبك إلى ${confirmedNurseCount} ممرض متاح. سيتواصل معك أحدهم في أقرب وقت ممكن على رقم هاتفك.`
+                    : `Votre demande a été envoyée à ${confirmedNurseCount} infirmier(s) disponible(s). L'un d'eux vous contactera dès que possible.`}
                 </Text>
                 <TouchableOpacity
                   style={styles.payDoneBtn}

@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useState } from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { Image, Platform, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -19,6 +19,22 @@ import IntroScreen from "@/components/IntroScreen";
 import { AppProvider } from "@/context/AppContext";
 
 SplashScreen.preventAutoHideAsync();
+
+/*
+ * fontfaceobserver (used internally by expo-font on web) fires unhandled
+ * promise rejections when a font times out — those escape our .catch() because
+ * they originate inside a separate Promise.race() inside the library.
+ * We suppress them globally on web so they never surface as error overlays.
+ */
+if (Platform.OS === "web" && typeof window !== "undefined") {
+  window.addEventListener("unhandledrejection", (e) => {
+    const msg: string =
+      e?.reason?.message ?? e?.reason ?? String(e?.reason ?? "");
+    if (msg.includes("timed out") || msg.includes("Délai") || msg.includes("FontFaceObserver")) {
+      e.preventDefault();
+    }
+  });
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,6 +70,17 @@ export default function RootLayout() {
 
   useEffect(() => {
     let cancelled = false;
+
+    /*
+     * On web, fontfaceobserver cannot reliably load custom fonts from
+     * npm packages — it always races to a 6-second timeout and fires an
+     * unhandled rejection. We skip font-loading on web entirely; the
+     * browser will fall back to system fonts which render fine.
+     */
+    if (Platform.OS === "web") {
+      setReady(true);
+      return;
+    }
 
     const fallback = setTimeout(() => {
       if (!cancelled) setReady(true);

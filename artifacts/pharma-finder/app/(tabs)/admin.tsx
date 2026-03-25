@@ -483,36 +483,29 @@ export default function AdminScreen() {
   };
 
   const sendFileToApi = async (base64: string, mimeType: string, fileName: string) => {
-    const parseResp = await fetch(`${API_BASE}/drug-prices/parse-file`, {
+    const resp = await fetch(`${API_BASE}/drug-prices/upload-and-save`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
-      body: JSON.stringify({ fileData: base64, fileType: mimeType || "application/octet-stream", fileName }),
+      body: JSON.stringify({ fileData: base64, fileType: mimeType || "application/octet-stream", fileName, replaceAll: true }),
     });
-    const text = await parseResp.text();
-    if (!parseResp.ok) {
-      let detail = "";
-      try { detail = JSON.parse(text).detail || ""; } catch {}
+    const data = await resp.json();
+    if (!resp.ok) {
       Alert.alert(
-        isRTL ? "خطأ في تحليل الملف" : "Erreur d'analyse",
+        isRTL ? "خطأ في الملف" : "Erreur fichier",
         isRTL
-          ? `تأكد من صيغة الملف (.xlsx / .xls / .pdf)\n${detail}`
-          : `Vérifiez le format du fichier (.xlsx / .xls / .pdf)\n${detail}`
+          ? (data.errorAr || `تأكد من صيغة الملف (.xlsx / .csv)\nالتنسيق: الاسم | السعر | الاسم عربي | الوحدة | الفئة`)
+          : (data.error || `Vérifiez le format (.xlsx / .csv)\nFormat: Nom | Prix | NomAr | Unité | Catégorie`)
       );
       return;
     }
-    const parsed = JSON.parse(text);
-    if (!parsed.rows || parsed.rows.length === 0) {
-      Alert.alert(
-        isRTL ? "لا توجد بيانات" : "Aucune donnée",
-        isRTL
-          ? `لم يُعثر على صفوف صالحة.\n\nتنسيق Excel المطلوب:\nA = اسم الدواء\nB = السعر (رقم)\nC = الاسم بالعربية (اختياري)\nD = الوحدة (اختياري)\nE = الفئة (اختياري)`
-          : `Aucune ligne valide trouvée.\n\nFormat Excel requis:\nA = Nom du médicament\nB = Prix (nombre)\nC = Nom en arabe (optionnel)\nD = Unité (optionnel)\nE = Catégorie (optionnel)`
-      );
-      return;
-    }
-    setFileImportSource(parsed.source === "pdf" ? "pdf" : "excel");
-    setExcelRows(parsed.rows);
-    setShowFileImportModal(true);
+    qc.invalidateQueries({ queryKey: ["admin-drug-prices"] });
+    qc.invalidateQueries({ queryKey: ["drug-prices-stats"] });
+    Alert.alert(
+      isRTL ? "تم الاستيراد ✓" : "Import réussi ✓",
+      isRTL
+        ? `تمت إضافة ${data.imported} دواء إلى قاعدة البيانات بنجاح`
+        : `${data.imported} médicaments importés avec succès`
+    );
   };
 
   const pickAndParseExcel = async () => {
@@ -522,7 +515,7 @@ export default function AdminScreen() {
         await new Promise<void>((resolve) => {
           const input = document.createElement("input");
           input.type = "file";
-          input.accept = ".xlsx,.xls,.pdf,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf,text/csv";
+          input.accept = ".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv";
           input.onchange = async (e: Event) => {
             const file = (e.target as HTMLInputElement).files?.[0];
             if (!file) { resolve(); return; }
@@ -1866,7 +1859,7 @@ export default function AdminScreen() {
                 <TouchableOpacity style={[styles.addBtn, { backgroundColor: "#059669", marginBottom: 8 }]} onPress={pickAndParseExcel} disabled={fileImportLoading} activeOpacity={0.85}>
                   {fileImportLoading
                     ? <ActivityIndicator color="#fff" size="small" />
-                    : <><MaterialCommunityIcons name="file-upload-outline" size={20} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "رفع ملف Excel أو PDF لتحديث قاعدة الأدوية" : "Importer Excel ou PDF — mettre à jour la base"}</Text></>}
+                    : <><MaterialCommunityIcons name="file-upload-outline" size={20} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "رفع ملف Excel أو CSV لتحديث قاعدة الأدوية" : "Importer Excel ou CSV — mettre à jour la base"}</Text></>}
                 </TouchableOpacity>
                 {/* Clear all */}
                 {allDrugPrices.length > 0 && (

@@ -145,7 +145,114 @@ router.get("/", async (req, res) => {
   }
 });
 
-/* ─── ADMIN: parse file (Excel / PDF) ────────────────────────── */
+/* ─── Helper: parse Excel buffer ──────────────────────────────── */
+async function parseExcelBuffer(buffer: Buffer) {
+  const ExcelJS = (await import("exceljs")).default;
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buffer as unknown as ArrayBuffer);
+  const ws = wb.worksheets[0];
+  if (!ws) throw new Error("Aucune feuille trouvée dans le fichier Excel");
+  const raw: any[][] = [];
+  ws.eachRow({ includeEmpty: false }, (row) => {
+    const vals = (row.values as any[]).slice(1).map((v: any) =>
+      v === null || v === undefined ? "" :
+      typeof v === "object" && v.result !== undefined ? v.result :
+      typeof v === "object" && v.text !== undefined ? v.text : v
+    );
+    raw.push(vals);
+  });
+  const isHeaderRow = (r: any[]) => !r[1] || isNaN(parseFloat(String(r[1]).replace(",", ".")));
+  return raw
+    .filter((r, i) => !(i === 0 && isHeaderRow(r)) && r[0] && !isNaN(parseFloat(String(r[1]).replace(",", "."))))
+    .map(r => ({
+      name: String(r[0]).trim(),
+      price: parseFloat(String(r[1]).replace(",", ".")),
+      nameAr: r[2] ? String(r[2]).trim() : undefined,
+      unit: r[3] ? String(r[3]).trim() : undefined,
+      category: r[4] ? String(r[4]).trim() : undefined,
+      notes: r[5] ? String(r[5]).trim() : undefined,
+    }))
+    .filter(r => r.name.length >= 2 && r.price > 0 && r.price < 9_999_999);
+}
+
+/* ─── Helper: parse CSV text ──────────────────────────────────── */
+function parseCsvText(text: string) {
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 2);
+  const rows: { name: string; price: number; nameAr?: string; unit?: string; category?: string; notes?: string }[] = [];
+  for (const line of lines) {
+    const sep = line.includes(";") ? ";" : ",";
+    const parts = line.split(sep).map(p => p.trim().replace(/^["']|["']$/g, ""));
+    const name = parts[0];
+    const price = parseFloat(String(parts[1] ?? "").replace(",", "."));
+    if (!name || name.length < 2 || isNaN(price) || price <= 0) continue;
+    rows.push({
+      name,
+      price,
+      nameAr: parts[2] || undefined,
+      unit: parts[3] || undefined,
+      category: parts[4] || undefined,
+      notes: parts[5] || undefined,
+    });
+  }
+  return rows;
+}
+
+/* ─── ADMIN: upload file → parse → save in ONE step ──────────── */
+router.post("/upload-and-save", async (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: "Forbidden" });
+  const { fileData, fileType, fileName, replaceAll } = req.body;
+  if (!fileData) return res.status(400).json({ error: "fileData required" });
+
+  try {
+    const buffer = Buffer.from(fileData, "base64");
+    const lowerName = (fileName ?? "").toLowerCase();
+    const isCSV = fileType?.includes("csv") || lowerName.endsWith(".csv");
+
+    let rows: { name: string; price: number; nameAr?: string; unit?: string; category?: string; notes?: string }[];
+
+    if (isCSV) {
+      rows = parseCsvText(buffer.toString("utf8"));
+    } else {
+      rows = await parseExcelBuffer(buffer);
+    }
+
+    if (rows.length === 0) {
+      return res.status(422).json({
+        error: "Aucun médicament valide trouvé dans le fichier",
+        errorAr: "لم يُعثر على أدوية صالحة في الملف — تأكد من الصيغة: الاسم | السعر | الاسم عربي | الوحدة | الفئة",
+      });
+    }
+
+    if (replaceAll !== false) {
+      await db.delete(drugPricesTable);
+    }
+
+    const dbRows = rows.map(it => ({
+      id: randomUUID(),
+      name: it.name,
+      nameAr: it.nameAr ?? null,
+      nameLower: it.name.toLowerCase(),
+      price: it.price,
+      unit: it.unit ?? null,
+      category: it.category ?? null,
+      notes: it.notes ?? null,
+      isActive: true,
+    }));
+
+    await db.insert(drugPricesTable).values(dbRows);
+    console.log(`[upload-and-save] Imported ${dbRows.length} drugs from ${isCSV ? "csv" : "excel"}`);
+    return res.json({ imported: dbRows.length, source: isCSV ? "csv" : "excel" });
+  } catch (e: any) {
+    console.error("[upload-and-save]", e?.message);
+    return res.status(500).json({
+      error: "Erreur lors du traitement du fichier",
+      errorAr: `خطأ في معالجة الملف: ${e?.message ?? ""}`,
+      detail: String(e?.message || ""),
+    });
+  }
+});
+
+/* ─── ADMIN: parse file (legacy — preview only, no save) ─────── */
 router.post("/parse-file", async (req, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: "Forbidden" });
   const { fileData, fileType, fileName } = req.body;
@@ -153,51 +260,11 @@ router.post("/parse-file", async (req, res) => {
 
   try {
     const buffer = Buffer.from(fileData, "base64");
+    const lowerName = (fileName ?? "").toLowerCase();
+    const isCSV = fileType?.includes("csv") || lowerName.endsWith(".csv");
 
-    if (fileType?.includes("pdf")) {
-      const pdfParse = (await import("pdf-parse")).default;
-      const data = await pdfParse(buffer, { max: 0 });
-      const text: string = data.text;
-      const rows: { name: string; price: number; nameAr?: string; unit?: string; category?: string }[] = [];
-      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 2);
-      for (const line of lines) {
-        const priceMatch = line.match(/(\d[\d\s]*[.,]\d{1,2}|\d{2,})/g);
-        if (!priceMatch) continue;
-        const priceStr = priceMatch[priceMatch.length - 1].replace(/\s/g, "").replace(",", ".");
-        const price = parseFloat(priceStr);
-        if (isNaN(price) || price <= 0 || price > 999999) continue;
-        const name = line.replace(new RegExp(priceMatch[priceMatch.length - 1] + ".*$"), "").trim().replace(/^[\d\-\.\s]+/, "").trim();
-        if (name.length < 2) continue;
-        rows.push({ name, price });
-      }
-      return res.json({ rows, source: "pdf", count: rows.length, pages: data.numpages });
-    }
-
-    const ExcelJS = (await import("exceljs")).default;
-    const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(buffer as unknown as ArrayBuffer);
-    const ws = wb.worksheets[0];
-    const raw: any[][] = [];
-    ws.eachRow({ includeEmpty: false }, (row) => {
-      const vals = (row.values as any[]).slice(1).map((v: any) =>
-        v === null || v === undefined ? "" : typeof v === "object" && v.result !== undefined ? v.result : v
-      );
-      raw.push(vals);
-    });
-    const isHeaderRow = (r: any[]) => !r[1] || isNaN(parseFloat(String(r[1]).replace(",", ".")));
-    const rows = raw
-      .filter((r, i) => !(i === 0 && isHeaderRow(r)) && r[0] && !isNaN(parseFloat(String(r[1]).replace(",", "."))))
-      .map(r => ({
-        name: String(r[0]).trim(),
-        price: parseFloat(String(r[1]).replace(",", ".")),
-        nameAr: r[2] ? String(r[2]).trim() : undefined,
-        unit: r[3] ? String(r[3]).trim() : undefined,
-        category: r[4] ? String(r[4]).trim() : undefined,
-        notes: r[5] ? String(r[5]).trim() : undefined,
-      }))
-      .filter(r => r.name && r.price > 0);
-    const sheetNames = wb.worksheets.map(s => s.name);
-    return res.json({ rows, source: "excel", count: rows.length, sheets: sheetNames });
+    const rows = isCSV ? parseCsvText(buffer.toString("utf8")) : await parseExcelBuffer(buffer);
+    return res.json({ rows, source: isCSV ? "csv" : "excel", count: rows.length });
   } catch (e: any) {
     console.error("[parse-file]", e?.message);
     return res.status(500).json({ error: "Erreur lors du traitement du fichier", detail: String(e?.message || "") });

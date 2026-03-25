@@ -79,13 +79,26 @@ export default function NearestPharmacyScreen() {
 
   const detectLocation = async () => {
     if (Platform.OS === "web") {
-      Alert.alert(
-        isRTL ? "المتصفح" : "Navigateur",
-        isRTL
-          ? "تحديد الموقع التلقائي غير متاح على الويب"
-          : "Géolocalisation automatique non disponible sur web"
+      if (!("geolocation" in navigator)) {
+        fetchPharmacies();
+        return;
+      }
+      setLocating(true);
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          setUserLat(lat);
+          setUserLon(lon);
+          await fetchPharmacies(lat, lon);
+          setLocating(false);
+        },
+        () => {
+          fetchPharmacies();
+          setLocating(false);
+        },
+        { timeout: 12000, maximumAge: 60000, enableHighAccuracy: false }
       );
-      fetchPharmacies();
       return;
     }
     setLocating(true);

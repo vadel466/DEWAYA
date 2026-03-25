@@ -275,6 +275,11 @@ export default function HomeScreen() {
     router.push("/duty-and-price");
   };
 
+  const goToDrugPrice = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push("/drug-price");
+  };
+
   const goToFindDoctor = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push("/find-doctor");
@@ -536,6 +541,27 @@ export default function HomeScreen() {
             </View>
             <View style={[styles.cardChevron, { backgroundColor: "#3B5BDB14", marginTop: 0 }]}>
               <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#3B5BDB" />
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        {/* Row 3: أسعار الأدوية — full-width banner */}
+        <TouchableOpacity style={styles.dutyCard} onPress={goToDrugPrice} activeOpacity={0.82}>
+          <View style={[styles.cardAccent, { backgroundColor: "#0D9488" }]} />
+          <View style={[styles.dutyCardInner, isRTL && styles.rowReverse]}>
+            <View style={[styles.dutyIconCircle, { backgroundColor: "#0D948815" }]}>
+              <MaterialCommunityIcons name="pill" size={28} color="#0D9488" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.dutyCardTitle, { color: "#0D9488" }, isRTL && styles.textRight]} numberOfLines={1}>
+                {isRTL ? "أسعار الأدوية" : "Prix des Médicaments"}
+              </Text>
+              <Text style={[styles.dutyCardDesc, isRTL && styles.textRight]} numberOfLines={1}>
+                {isRTL ? "ابحث عن سعر أي دواء في نواكشوط" : "Recherchez le prix de n'importe quel médicament"}
+              </Text>
+            </View>
+            <View style={[styles.cardChevron, { backgroundColor: "#0D948814", marginTop: 0 }]}>
+              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#0D9488" />
             </View>
           </View>
         </TouchableOpacity>

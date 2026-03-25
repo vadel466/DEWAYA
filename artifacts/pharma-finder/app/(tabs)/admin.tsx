@@ -407,6 +407,27 @@ export default function AdminScreen() {
     onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل المسح" : "Échec de la suppression"),
   });
 
+  const seedNouakchottMutation = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`${API_BASE}/pharmacies/seed-nouakchott`, {
+        method: "POST",
+        headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      const text = await r.text();
+      if (!r.ok) throw new Error(`HTTP ${r.status}: ${text}`);
+      return JSON.parse(text);
+    },
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["admin-pharmacies"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        isRTL ? "✅ تم إضافة صيدليات نواكشوط" : "✅ Pharmacies de Nouakchott ajoutées",
+        isRTL ? `تم إضافة ${data.inserted} صيدلية بإحداثيات GPS` : `${data.inserted} pharmacies ajoutées avec coordonnées GPS`
+      );
+    },
+    onError: (e: any) => Alert.alert(isRTL ? "خطأ" : "Erreur", String(e?.message || e)),
+  });
+
   const seedDemoMutation = useMutation({
     mutationFn: async () => {
       const r = await fetch(`${API_BASE}/drug-prices/seed-demo`, {
@@ -466,63 +487,88 @@ export default function AdminScreen() {
     bulkImportMutation.mutate(rows);
   };
 
+  const sendFileToApi = async (base64: string, mimeType: string, fileName: string) => {
+    const parseResp = await fetch(`${API_BASE}/drug-prices/parse-file`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+      body: JSON.stringify({ fileData: base64, fileType: mimeType || "application/octet-stream", fileName }),
+    });
+    const text = await parseResp.text();
+    if (!parseResp.ok) {
+      let detail = "";
+      try { detail = JSON.parse(text).detail || ""; } catch {}
+      Alert.alert(
+        isRTL ? "خطأ في تحليل الملف" : "Erreur d'analyse",
+        isRTL
+          ? `تأكد من صيغة الملف (.xlsx / .xls / .pdf)\n${detail}`
+          : `Vérifiez le format du fichier (.xlsx / .xls / .pdf)\n${detail}`
+      );
+      return;
+    }
+    const parsed = JSON.parse(text);
+    if (!parsed.rows || parsed.rows.length === 0) {
+      Alert.alert(
+        isRTL ? "لا توجد بيانات" : "Aucune donnée",
+        isRTL
+          ? `لم يُعثر على صفوف صالحة.\n\nتنسيق Excel المطلوب:\nA = اسم الدواء\nB = السعر (رقم)\nC = الاسم بالعربية (اختياري)\nD = الوحدة (اختياري)\nE = الفئة (اختياري)`
+          : `Aucune ligne valide trouvée.\n\nFormat Excel requis:\nA = Nom du médicament\nB = Prix (nombre)\nC = Nom en arabe (optionnel)\nD = Unité (optionnel)\nE = Catégorie (optionnel)`
+      );
+      return;
+    }
+    setFileImportSource(parsed.source === "pdf" ? "pdf" : "excel");
+    setExcelRows(parsed.rows);
+    setShowFileImportModal(true);
+  };
+
   const pickAndParseExcel = async () => {
+    setFileImportLoading(true);
     try {
-      setFileImportLoading(true);
+      if (Platform.OS === "web") {
+        await new Promise<void>((resolve) => {
+          const input = document.createElement("input");
+          input.type = "file";
+          input.accept = ".xlsx,.xls,.pdf,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf,text/csv";
+          input.onchange = async (e: Event) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (!file) { resolve(); return; }
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+              try {
+                const dataUrl = reader.result as string;
+                const base64 = dataUrl.split(",")[1];
+                await sendFileToApi(base64, file.type || "application/octet-stream", file.name);
+              } catch (err: any) {
+                console.error("[pickAndParseExcel web]", err);
+                Alert.alert(
+                  isRTL ? "خطأ" : "Erreur",
+                  isRTL ? "تعذّر معالجة الملف. تحقق من التنسيق وحاول مجدداً." : "Impossible de traiter le fichier. Vérifiez le format et réessayez."
+                );
+              }
+              resolve();
+            };
+            reader.onerror = () => {
+              Alert.alert(isRTL ? "خطأ في القراءة" : "Erreur de lecture", isRTL ? "تعذّر قراءة الملف" : "Impossible de lire le fichier");
+              resolve();
+            };
+            reader.readAsDataURL(file);
+          };
+          input.oncancel = () => resolve();
+          input.click();
+        });
+        return;
+      }
 
       const { getDocumentAsync } = await import("expo-document-picker");
       const result = await getDocumentAsync({ type: ["*/*"], copyToCacheDirectory: true });
       if (result.canceled || !result.assets?.[0]) return;
 
       const asset = result.assets[0];
-      const mimeType: string = asset.mimeType || "";
+      const mimeType: string = asset.mimeType || "application/octet-stream";
       const name: string = asset.name || "";
 
-      let base64 = "";
-      if (Platform.OS === "web") {
-        const resp = await fetch(asset.uri);
-        const buf = await resp.arrayBuffer();
-        const bytes = new Uint8Array(buf);
-        let binary = "";
-        const CHUNK = 8192;
-        for (let i = 0; i < bytes.length; i += CHUNK) {
-          binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-        }
-        base64 = btoa(binary);
-      } else {
-        const FS = (await import("expo-file-system")) as any;
-        base64 = await FS.readAsStringAsync(asset.uri, { encoding: FS.EncodingType.Base64 });
-      }
-
-      const parseResp = await fetch(`${API_BASE}/drug-prices/parse-file`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
-        body: JSON.stringify({ fileData: base64, fileType: mimeType || "application/octet-stream", fileName: name }),
-      });
-
-      if (!parseResp.ok) {
-        const err = await parseResp.json().catch(() => ({}));
-        Alert.alert(
-          isRTL ? "خطأ في تحليل الملف" : "Erreur d'analyse",
-          isRTL ? `تأكد من صيغة الملف (.xlsx / .xls / .pdf)\n${err.detail || ""}` : `Vérifiez le format du fichier (.xlsx / .xls / .pdf)\n${err.detail || ""}`
-        );
-        return;
-      }
-
-      const parsed = await parseResp.json();
-      if (!parsed.rows || parsed.rows.length === 0) {
-        Alert.alert(
-          isRTL ? "لا توجد بيانات" : "Aucune donnée",
-          isRTL
-            ? `لم يُعثر على صفوف صالحة.\n\nتنسيق Excel المطلوب:\nA=اسم الدواء | B=السعر | C=عربي | D=وحدة | E=فئة`
-            : `Aucune ligne valide trouvée.\n\nFormat Excel requis:\nA=Nom | B=Prix | C=NomAr | D=Unité | E=Catégorie`
-        );
-        return;
-      }
-
-      setFileImportSource(parsed.source === "pdf" ? "pdf" : "excel");
-      setExcelRows(parsed.rows);
-      setShowFileImportModal(true);
+      const FS = (await import("expo-file-system")) as any;
+      const base64 = await FS.readAsStringAsync(asset.uri, { encoding: FS.EncodingType.Base64 });
+      await sendFileToApi(base64, mimeType, name);
     } catch (e: any) {
       console.error("[pickAndParseExcel]", e);
       Alert.alert(
@@ -1819,14 +1865,29 @@ export default function AdminScreen() {
                   <Text style={styles.addBtnText}>{isRTL ? "إضافة خدمة" : "Ajouter un service"}</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity
-                  style={styles.addBtn}
-                  onPress={() => { resetPharmacyForm(); setShowPharmacyModal(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                  <Text style={styles.addBtnText}>{isRTL ? "إضافة صيدلية" : "Ajouter une pharmacie"}</Text>
-                </TouchableOpacity>
+                <View>
+                  <TouchableOpacity
+                    style={styles.addBtn}
+                    onPress={() => { resetPharmacyForm(); setShowPharmacyModal(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                    <Text style={styles.addBtnText}>{isRTL ? "إضافة صيدلية" : "Ajouter une pharmacie"}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.addBtn, { backgroundColor: "#0D9488", marginTop: 8 }]}
+                    onPress={() => confirmDelete(
+                      isRTL ? "إضافة 15 صيدلية في نواكشوط مع إحداثيات GPS؟ (يعمل فقط إذا كانت القاعدة فارغة)" : "Ajouter 15 pharmacies de Nouakchott avec GPS ? (Uniquement si la base est vide)",
+                      () => seedNouakchottMutation.mutate()
+                    )}
+                    disabled={seedNouakchottMutation.isPending}
+                    activeOpacity={0.85}
+                  >
+                    {seedNouakchottMutation.isPending
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <><MaterialCommunityIcons name="map-marker-plus-outline" size={18} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "إضافة صيدليات نواكشوط التجريبية (15)" : "Seed pharmacies Nouakchott (15)"}</Text></>}
+                  </TouchableOpacity>
+                </View>
               )
             ) : null
           }

@@ -25,28 +25,33 @@ export function PharmacyMap({ pharmacies, userLat, userLon, language }: Pharmacy
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const defaultLat = userLat ?? 18.0735;
-    const defaultLon = userLon ?? -15.9582;
+    const isRTL = language === "ar";
+    const defaultLat = userLat ?? 18.0858;
+    const defaultLon = userLon ?? -15.9785;
+    const zoom = userLat ? 15 : 13;
 
     const markers = pharmacies
       .filter((p) => p.lat && p.lon)
       .map((p, i) => {
-        const label = language === "ar" ? (p.nameAr || p.name) : p.name;
-        const addr = language === "ar" ? (p.addressAr || p.address) : p.address;
+        const label = isRTL ? (p.nameAr || p.name) : p.name;
+        const addr = isRTL ? (p.addressAr || p.address) : p.address;
+        const gmapsUrl = `https://maps.google.com/?q=${p.lat},${p.lon}`;
+        const isFirst = i === 0;
+        const bg = isFirst ? "#1BB580" : "#0A7EA4";
+        const linkLabel = isRTL ? "افتح في خرائط غوغل ↗" : "Ouvrir dans Google Maps ↗";
         return `L.marker([${p.lat}, ${p.lon}], {
           icon: L.divIcon({
-            html: '<div style="background:#0A7EA4;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3)">${i + 1}</div>',
-            iconSize: [26, 26], iconAnchor: [13, 13], className: ''
+            html: '<div style="background:${bg};color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35)">${i + 1}</div>',
+            iconSize: [28, 28], iconAnchor: [14, 14], className: ''
           })
-        }).addTo(map).bindPopup('<b>${label.replace(/'/g, "\\'")}</b><br/>${addr.replace(/'/g, "\\'")}');`;
+        }).addTo(map).bindPopup('<div style="font-family:sans-serif;min-width:160px;direction:${isRTL ? "rtl" : "ltr"}"><b style="font-size:13px;color:#222">${label.replace(/'/g, "\\'")}</b><br/><span style="font-size:11px;color:#666">${addr.replace(/'/g, "\\'")}</span><br/><a href="${gmapsUrl}" target="_blank" style="font-size:11px;color:#0A7EA4;font-weight:600;text-decoration:none;display:inline-block;margin-top:5px">${linkLabel}</a></div>');`;
       })
       .join("\n");
 
     const userMarker = userLat && userLon
       ? `L.circleMarker([${userLat}, ${userLon}], {
-          color: '#1BB580', fillColor: '#1BB580', fillOpacity: 0.9, radius: 9,
-          weight: 3
-        }).addTo(map).bindPopup('${language === "ar" ? "موقعك الحالي" : "Votre position"}');`
+          color: '#fff', fillColor: '#1BB580', fillOpacity: 1, radius: 10, weight: 3
+        }).addTo(map).bindPopup('<div style="font-family:sans-serif;font-weight:600;color:#1BB580">${isRTL ? "📍 موقعك الحالي" : "📍 Votre position"}</div>');`
       : "";
 
     const html = `<!DOCTYPE html>
@@ -58,11 +63,13 @@ export function PharmacyMap({ pharmacies, userLat, userLon, language }: Pharmacy
 <style>
   html,body,#map{height:100%;margin:0;padding:0;font-family:sans-serif}
   .leaflet-container{border-radius:0}
+  .leaflet-popup-content-wrapper{border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.15)}
+  .leaflet-popup-content{margin:10px 14px}
 </style>
 </head><body>
 <div id="map"></div>
 <script>
-var map = L.map('map',{zoomControl:true}).setView([${defaultLat},${defaultLon}],13);
+var map = L.map('map',{zoomControl:true}).setView([${defaultLat},${defaultLon}],${zoom});
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   attribution:'&copy; <a href="https://openstreetmap.org/copyright">OSM</a>',
   maxZoom:19
@@ -77,6 +84,7 @@ ${markers}
     iframe.style.height = "100%";
     iframe.style.border = "none";
     iframe.srcdoc = html;
+    iframe.sandbox = "allow-scripts allow-popups allow-same-origin";
 
     while (containerRef.current.firstChild) {
       containerRef.current.removeChild(containerRef.current.firstChild);
@@ -89,7 +97,8 @@ ${markers}
 
 const styles = StyleSheet.create({
   map: {
-    height: 240,
+    flex: 1,
+    minHeight: 400,
     borderRadius: 12,
     overflow: "hidden",
     backgroundColor: "#e8f4f8",

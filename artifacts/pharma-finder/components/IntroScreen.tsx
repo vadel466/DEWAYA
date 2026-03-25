@@ -9,50 +9,40 @@ import {
   View,
 } from "react-native";
 import Colors from "@/constants/colors";
+import { useApp } from "@/context/AppContext";
 
 const { width } = Dimensions.get("window");
-const ND = Platform.OS !== "web"; // native driver on native, JS thread on web
+const ND = Platform.OS !== "web";
 
 interface IntroScreenProps {
   onFinish: () => void;
-  language?: "ar" | "fr";
 }
 
-export default function IntroScreen({
-  onFinish,
-  language = "ar",
-}: IntroScreenProps) {
-  // Icon is ALWAYS visible from the start — opacity stays at 1, no scale trick
-  const logoAnim    = useRef(new Animated.Value(0)).current; // controls icon entrance
-  const titleOpacity  = useRef(new Animated.Value(0)).current;
-  const titleY        = useRef(new Animated.Value(16)).current;
+export default function IntroScreen({ onFinish }: IntroScreenProps) {
+  const { language } = useApp();
+  const logoAnim       = useRef(new Animated.Value(0)).current;
+  const titleOpacity   = useRef(new Animated.Value(0)).current;
+  const titleY         = useRef(new Animated.Value(18)).current;
   const taglineOpacity = useRef(new Animated.Value(0)).current;
-  const screenOpacity = useRef(new Animated.Value(1)).current; // full-screen exit
+  const taglineY       = useRef(new Animated.Value(10)).current;
+  const screenOpacity  = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Safety fallback — if animation never completes, still call onFinish
     const fallback = setTimeout(onFinish, 5000);
 
     Animated.sequence([
-      // 1. Icon fades/scales in quickly
-      Animated.timing(logoAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: ND,
-      }),
-      // 2. Short pause so user can see the icon fully
-      Animated.delay(150),
-      // 3. Title slides up
+      Animated.timing(logoAnim, { toValue: 1, duration: 280, useNativeDriver: ND }),
+      Animated.delay(120),
       Animated.parallel([
-        Animated.timing(titleOpacity, { toValue: 1, duration: 300, useNativeDriver: ND }),
-        Animated.timing(titleY,       { toValue: 0, duration: 300, useNativeDriver: ND }),
+        Animated.timing(titleOpacity, { toValue: 1, duration: 280, useNativeDriver: ND }),
+        Animated.timing(titleY,       { toValue: 0, duration: 280, useNativeDriver: ND }),
       ]),
-      // 4. Tagline fades in
-      Animated.timing(taglineOpacity, { toValue: 1, duration: 260, useNativeDriver: ND }),
-      // 5. Hold — icon+text visible for ~2 seconds as requested
-      Animated.delay(2000),
-      // 6. Fade the whole screen out
-      Animated.timing(screenOpacity, { toValue: 0, duration: 350, useNativeDriver: ND }),
+      Animated.parallel([
+        Animated.timing(taglineOpacity, { toValue: 1, duration: 260, useNativeDriver: ND }),
+        Animated.timing(taglineY,       { toValue: 0, duration: 260, useNativeDriver: ND }),
+      ]),
+      Animated.delay(1600),
+      Animated.timing(screenOpacity, { toValue: 0, duration: 320, useNativeDriver: ND }),
     ]).start(() => {
       clearTimeout(fallback);
       onFinish();
@@ -63,23 +53,19 @@ export default function IntroScreen({
 
   const logoScale = logoAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.82, 1],
+    outputRange: [0.8, 1],
   });
 
   return (
     <Animated.View style={[styles.container, { opacity: screenOpacity }]}>
-      {/* Static decorative circles */}
       <View style={[styles.bgCircle, styles.bgCircle1]} />
       <View style={[styles.bgCircle, styles.bgCircle2]} />
+      <View style={[styles.bgCircle, styles.bgCircle3]} />
 
-      {/* Logo — animated entrance, then static */}
       <Animated.View
         style={[
           styles.logoWrapper,
-          {
-            opacity: logoAnim,
-            transform: [{ scale: logoScale }],
-          },
+          { opacity: logoAnim, transform: [{ scale: logoScale }] },
         ]}
       >
         <View style={styles.logoShadow}>
@@ -92,7 +78,6 @@ export default function IntroScreen({
         </View>
       </Animated.View>
 
-      {/* App name */}
       <Animated.View
         style={{
           opacity: titleOpacity,
@@ -100,22 +85,27 @@ export default function IntroScreen({
           alignItems: "center",
         }}
       >
-        <Text style={styles.titleAr}>أدْواَيَ</Text>
+        <Text style={styles.titleAr}>أدْواَيَة</Text>
         <Text style={styles.titleFr}>DEWAYA</Text>
       </Animated.View>
 
-      {/* Tagline */}
-      <Animated.Text style={[styles.tagline, { opacity: taglineOpacity }]}>
-        {language === "ar"
-          ? "أقرب صيدلية لدوائك"
-          : "La pharmacie la plus proche"}
-      </Animated.Text>
+      <Animated.View
+        style={[
+          styles.taglineWrap,
+          { opacity: taglineOpacity, transform: [{ translateY: taglineY }] },
+        ]}
+      >
+        <View style={styles.taglinePill}>
+          <Text style={styles.taglineText}>
+            {language === "ar" ? "خدمة صحية متكاملة" : "Service de santé intégré"}
+          </Text>
+        </View>
+      </Animated.View>
 
-      {/* Loading dots */}
       <View style={styles.dots}>
         <Dot delay={0} />
-        <Dot delay={220} />
-        <Dot delay={440} />
+        <Dot delay={200} />
+        <Dot delay={400} />
       </View>
     </Animated.View>
   );
@@ -128,8 +118,8 @@ function Dot({ delay }: { delay: number }) {
     const loop = Animated.loop(
       Animated.sequence([
         Animated.delay(delay),
-        Animated.timing(opacity, { toValue: 1,   duration: 380, useNativeDriver: ND }),
-        Animated.timing(opacity, { toValue: 0.3, duration: 380, useNativeDriver: ND }),
+        Animated.timing(opacity, { toValue: 1,   duration: 360, useNativeDriver: ND }),
+        Animated.timing(opacity, { toValue: 0.3, duration: 360, useNativeDriver: ND }),
       ])
     );
     loop.start();
@@ -151,71 +141,90 @@ const styles = StyleSheet.create({
   bgCircle: {
     position: "absolute",
     borderRadius: 9999,
-    backgroundColor: "rgba(255,255,255,0.07)",
   },
   bgCircle1: {
-    width: width * 1.5,
-    height: width * 1.5,
-    top: -width * 0.5,
-    left: -width * 0.25,
+    width: width * 1.6,
+    height: width * 1.6,
+    top: -width * 0.55,
+    left: -width * 0.3,
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
   bgCircle2: {
-    width: width * 1.2,
-    height: width * 1.2,
-    bottom: -width * 0.55,
-    right: -width * 0.3,
+    width: width * 1.1,
+    height: width * 1.1,
+    bottom: -width * 0.5,
+    right: -width * 0.25,
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  bgCircle3: {
+    width: width * 0.6,
+    height: width * 0.6,
+    bottom: width * 0.1,
+    left: -width * 0.15,
+    backgroundColor: "rgba(255,255,255,0.04)",
   },
   logoWrapper: {
-    marginBottom: 28,
+    marginBottom: 26,
     alignItems: "center",
     justifyContent: "center",
   },
   logoShadow: {
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 18,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 14,
     borderRadius: 48,
   },
   logoImage: {
-    width: 200,
-    height: 200,
-    borderRadius: 48,
+    width: 120,
+    height: 120,
+    borderRadius: 32,
   },
   titleAr: {
-    fontSize: 44,
+    fontSize: 42,
     fontFamily: "Inter_700Bold",
     color: "#fff",
     textAlign: "center",
-    marginBottom: 4,
-    letterSpacing: 1,
+    marginBottom: 3,
+    letterSpacing: 0.5,
   },
   titleFr: {
-    fontSize: 15,
+    fontSize: 13,
     fontFamily: "Inter_500Medium",
-    color: "rgba(255,255,255,0.72)",
-    letterSpacing: 9,
+    color: "rgba(255,255,255,0.65)",
+    letterSpacing: 10,
     textAlign: "center",
   },
-  tagline: {
-    marginTop: 20,
+  taglineWrap: {
+    marginTop: 22,
+    alignItems: "center",
+  },
+  taglinePill: {
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+    borderRadius: 100,
+    paddingHorizontal: 22,
+    paddingVertical: 8,
+  },
+  taglineText: {
     fontSize: 15,
-    fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.65)",
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.92)",
     textAlign: "center",
-    letterSpacing: 0.4,
+    letterSpacing: 0.3,
   },
   dots: {
     position: "absolute",
-    bottom: 60,
+    bottom: 56,
     flexDirection: "row",
-    gap: 9,
+    gap: 8,
   },
   dot: {
-    width: 8,
-    height: 8,
+    width: 7,
+    height: 7,
     borderRadius: 4,
-    backgroundColor: "rgba(255,255,255,0.9)",
+    backgroundColor: "rgba(255,255,255,0.85)",
   },
 });

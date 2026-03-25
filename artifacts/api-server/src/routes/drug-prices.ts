@@ -238,6 +238,12 @@ router.post("/bulk", async (req, res) => {
 router.post("/seed-demo", async (req, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: "Forbidden" });
 
+  /* If data already exists, wipe it first to avoid duplicates */
+  try {
+    const [countRow] = await db.select({ c: sql<number>`count(*)::int` }).from(drugPricesTable);
+    if (countRow.c > 0) await db.delete(drugPricesTable);
+  } catch {}
+
   const demoDrugs = [
     { name: "Amoxicilline 500mg", nameAr: "أموكسيسيلين 500 مغ", price: 120, unit: "boîte 24 gélules", category: "Antibiotiques" },
     { name: "Amoxicilline 250mg", nameAr: "أموكسيسيلين 250 مغ", price: 85, unit: "boîte 24 gélules", category: "Antibiotiques" },

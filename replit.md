@@ -165,6 +165,24 @@ Express 5 API server. All admin routes protected by `x-admin-secret: DEWAYA_ADMI
 - `requests.ts` DELETE handlers accept both admin (`x-admin-secret`) and pharmacy PIN (`x-pharmacy-pin`) auth; static imports used (no dynamic `await import()`)
 - **queryKey fix**: `deleteB2bMutation` + `deleteAllB2bMutation` invalidate `["admin-b2b"]` (was mistakenly `["admin-b2b-messages"]`)
 
+## IntroScreen (Splash Screen)
+
+- File: `artifacts/pharma-finder/components/IntroScreen.tsx`
+- Shows app icon + "أدواية" / "DEWAYA" + tagline pill **"خدمة صحية متكاملة"** before app loads
+- Reads language from `AppContext` directly (no `language` prop needed)
+- Animation sequence: icon scale-in → title slide-up → tagline slide-up → 1.6s hold → fade out
+- Total duration: ~2.6s with 5s safety fallback
+
+## Drug Price Database
+
+- API: `GET /api/drug-prices/search?q=...` — public search (no auth)
+- API: `GET /api/drug-prices/stats` — public stats
+- API: `POST /api/drug-prices/seed-demo` — admin: clears existing data then seeds 56 demo drugs (idempotent)
+- API: `POST /api/drug-prices/parse-file` — admin: parse Excel (.xlsx/.xls) or PDF and return rows
+- User screen: `artifacts/pharma-finder/app/drug-price.tsx` with debounced search, category browsing, error states
+- Error states: network error (shows retry button) vs. not found vs. empty database
+- **DB must be seeded**: run seed-demo from admin panel under "أسعار الدواء" tab
+
 ## Database Migrations
 
 Development: `pnpm --filter @workspace/db run push`

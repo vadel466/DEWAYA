@@ -101,9 +101,11 @@ export default function DrugPriceScreen() {
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [categoryResults, setCategoryResults] = useState<DrugResult[]>([]);
   const [categoryLoading, setCategoryLoading] = useState(false);
+  const [searchError, setSearchError] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<TextInput>(null);
@@ -117,10 +119,12 @@ export default function DrugPriceScreen() {
 
   const fetchStats = async () => {
     setStatsLoading(true);
+    setStatsError(false);
     try {
       const r = await fetch(`${API_BASE}/drug-prices/stats`);
       if (r.ok) setStats(await r.json());
-    } catch { /* silent */ }
+      else setStatsError(true);
+    } catch { setStatsError(true); }
     finally { setStatsLoading(false); }
   };
 
@@ -128,24 +132,27 @@ export default function DrugPriceScreen() {
   const search = useCallback(async (q: string, off = 0, append = false) => {
     const trimmed = q.trim();
     if (trimmed.length < 2) {
-      setResults([]); setSearched(false); setLoading(false); setHasMore(false); setOffset(0);
+      setResults([]); setSearched(false); setLoading(false);
+      setHasMore(false); setOffset(0); setSearchError(false);
       return;
     }
     if (append) setLoadingMore(true);
-    else setLoading(true);
+    else { setLoading(true); setSearchError(false); }
 
     try {
       const url = `${API_BASE}/drug-prices/search?q=${encodeURIComponent(trimmed)}&limit=${LIMIT}&offset=${off}`;
       const resp = await fetch(url);
-      if (!resp.ok) throw new Error();
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data: DrugResult[] = await resp.json();
       if (append) setResults(prev => [...prev, ...data]);
       else setResults(data);
       setHasMore(data.length === LIMIT);
       setOffset(off + data.length);
       setSearched(true);
-    } catch {
-      if (!append) { setResults([]); setSearched(true); }
+      setSearchError(false);
+    } catch (e) {
+      console.warn("[DrugPrice search error]", e);
+      if (!append) { setResults([]); setSearched(true); setSearchError(true); }
     } finally {
       if (append) setLoadingMore(false);
       else setLoading(false);
@@ -363,7 +370,7 @@ export default function DrugPriceScreen() {
             </View>
           )}
 
-          {stats && stats.total === 0 && (
+          {stats && stats.total === 0 && !statsError && (
             <View style={styles.emptyDbBanner}>
               <MaterialCommunityIcons name="database-off-outline" size={32} color={Colors.light.textTertiary} />
               <Text style={[styles.emptyDbText, isRTL && styles.rtlText]}>
@@ -372,6 +379,18 @@ export default function DrugPriceScreen() {
                   : "Base de données vide — veuillez demander à l'administrateur d'importer les prix"}
               </Text>
             </View>
+          )}
+          {statsError && (
+            <TouchableOpacity
+              style={[styles.emptyDbBanner, { borderColor: "#EF444430", backgroundColor: "#FEE2E220" }]}
+              onPress={fetchStats}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="wifi-alert" size={28} color="#EF4444" />
+              <Text style={[styles.emptyDbText, { color: "#EF4444" }, isRTL && styles.rtlText]}>
+                {isRTL ? "تعذّر تحميل قاعدة البيانات — اضغط للمحاولة مجدداً" : "Impossible de charger la base — Appuyez pour réessayer"}
+              </Text>
+            </TouchableOpacity>
           )}
 
           {/* Search hint */}
@@ -456,22 +475,47 @@ export default function DrugPriceScreen() {
 
       ) : activeResults.length === 0 ? (
 
-        /* ── No results ── */
+        /* ── No results / error ── */
         <View style={styles.emptyState}>
-          <View style={[styles.emptyIcon, { backgroundColor: "#FEF9EE" }]}>
-            <MaterialCommunityIcons name="pill-off" size={52} color={Colors.warning} />
-          </View>
-          <Text style={[styles.emptyTitle, isRTL && styles.rtlText]}>
-            {isRTL ? "لم يُعثر على هذا الدواء" : "Médicament introuvable"}
-          </Text>
-          <Text style={[styles.emptySub, isRTL && styles.rtlText]}>
-            {selectedCategory
-              ? (isRTL ? `لا يوجد دواء في فئة "${selectedCategory}"` : `Aucun médicament dans "${selectedCategory}"`)
-              : (isRTL ? `لا يوجد سعر مسجّل لـ "${query}"` : `Aucun prix enregistré pour "${query}"`)}
-          </Text>
-          <Text style={[styles.emptySub, isRTL && styles.rtlText, { marginTop: 4, fontSize: 12 }]}>
-            {isRTL ? "جرّب الاسم التجاري أو العلمي أو اسم المادة الفعّالة" : "Essayez le nom commercial, générique ou la DCI"}
-          </Text>
+          {searchError ? (
+            <>
+              <View style={[styles.emptyIcon, { backgroundColor: "#FEE2E2" }]}>
+                <MaterialCommunityIcons name="wifi-off" size={52} color="#EF4444" />
+              </View>
+              <Text style={[styles.emptyTitle, isRTL && styles.rtlText]}>
+                {isRTL ? "تعذّر الاتصال بالخادم" : "Erreur de connexion"}
+              </Text>
+              <Text style={[styles.emptySub, isRTL && styles.rtlText]}>
+                {isRTL ? "تحقق من اتصالك بالإنترنت وحاول مجدداً" : "Vérifiez votre connexion et réessayez"}
+              </Text>
+              <TouchableOpacity
+                style={{ marginTop: 14, backgroundColor: Colors.primary + "18", borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 }}
+                onPress={() => search(query, 0, false)}
+                activeOpacity={0.8}
+              >
+                <Text style={{ color: Colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
+                  {isRTL ? "إعادة المحاولة" : "Réessayer"}
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <View style={[styles.emptyIcon, { backgroundColor: "#FEF9EE" }]}>
+                <MaterialCommunityIcons name="pill-off" size={52} color={Colors.warning} />
+              </View>
+              <Text style={[styles.emptyTitle, isRTL && styles.rtlText]}>
+                {isRTL ? "لم يُعثر على هذا الدواء" : "Médicament introuvable"}
+              </Text>
+              <Text style={[styles.emptySub, isRTL && styles.rtlText]}>
+                {selectedCategory
+                  ? (isRTL ? `لا يوجد دواء في فئة "${selectedCategory}"` : `Aucun médicament dans "${selectedCategory}"`)
+                  : (isRTL ? `لا يوجد سعر مسجّل لـ "${query}"` : `Aucun prix enregistré pour "${query}"`)}
+              </Text>
+              <Text style={[styles.emptySub, isRTL && styles.rtlText, { marginTop: 4, fontSize: 12 }]}>
+                {isRTL ? "جرّب الاسم التجاري أو العلمي أو اسم المادة الفعّالة" : "Essayez le nom commercial, générique ou la DCI"}
+              </Text>
+            </>
+          )}
         </View>
 
       ) : (

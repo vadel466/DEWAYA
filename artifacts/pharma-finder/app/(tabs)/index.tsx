@@ -364,29 +364,8 @@ export default function HomeScreen() {
         <MaterialCommunityIcons name="map-marker-outline" size={11} color={Colors.primary + "70"} />
       </View>
 
-      {/* ─── REGION SELECTOR ─── */}
-      <View style={[styles.regionRow, isRTL && styles.rowReverse]}>
-        <Ionicons name="location-outline" size={16} color={Colors.primary} />
-        <TouchableOpacity style={styles.regionInput} onPress={() => setShowRegionPicker(true)} activeOpacity={0.8}>
-          <Text style={[styles.regionInputText, !region && styles.regionPlaceholder]} numberOfLines={1}>
-            {region ? (language === "ar" ? region.ar : region.fr) : t("regionPlaceholder")}
-          </Text>
-          <Ionicons name="chevron-down" size={14} color={Colors.light.textTertiary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.gpsBtn} onPress={detectLocation} activeOpacity={0.8} disabled={detectingLocation}>
-          {detectingLocation
-            ? <ActivityIndicator size="small" color={Colors.primary} />
-            : <>
-                <Ionicons name="navigate" size={13} color={Colors.primary} />
-                <Text style={styles.gpsBtnText}>{t("detectLocation")}</Text>
-              </>
-          }
-        </TouchableOpacity>
-      </View>
-
-      {/* ─── SEARCH SECTION ─── */}
+      {/* ─── UNIFIED SMART SEARCH BAR ─── */}
       {submitted ? (
-        /* Success card */
         <View style={styles.successCard}>
           <View style={styles.successIconRow}>
             <Ionicons name="checkmark-circle" size={36} color={Colors.accent} />
@@ -407,96 +386,102 @@ export default function HomeScreen() {
           </View>
         </View>
       ) : (
-        /* Search card */
         <View style={styles.searchCard}>
           <Text style={[styles.searchCardLabel, isRTL && styles.textRight]}>{t("searchTitle")}</Text>
 
-          {/* Input row + camera icons */}
-          <View style={[styles.inputOuterRow, isRTL && styles.rowReverse]}>
-            <View style={[styles.inputInner, isRTL && styles.rowReverse]}>
-              <Ionicons name="search-outline" size={18} color={Colors.light.textSecondary} />
+          {/* ── Unified input bar: [📍 Region] | [Drug input] [📷] ── */}
+          <View style={[styles.unifiedBar, isRTL && styles.rowReverse, inputFocused && styles.unifiedBarFocused]}>
+            {/* Region chip */}
+            <TouchableOpacity
+              style={[styles.regionChip, isRTL && styles.rowReverse]}
+              onPress={() => setShowRegionPicker(true)}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="location" size={13} color={Colors.primary} />
+              <Text style={[styles.regionChipText, !region && styles.regionChipPlaceholder]} numberOfLines={1}>
+                {region ? (language === "ar" ? region.ar : region.fr) : (isRTL ? "المنطقة" : "Région")}
+              </Text>
+              <Ionicons name="chevron-down" size={11} color={Colors.primary + "80"} />
+            </TouchableOpacity>
+
+            {/* Divider */}
+            <View style={styles.barDivider} />
+
+            {/* Drug name input */}
+            {capturedImage ? (
+              <View style={[styles.thumbWrap, { marginLeft: 4, marginRight: 4 }]}>
+                <Image source={{ uri: capturedImage }} style={styles.thumb} />
+                <TouchableOpacity style={styles.thumbRemove} onPress={() => setCapturedImage(null)}>
+                  <Ionicons name="close-circle" size={16} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
+            ) : (
               <TextInput
                 ref={inputRef}
                 style={[styles.textField, isRTL && styles.textRight]}
-                placeholder={t("searchPlaceholder")}
-                placeholderTextColor={Colors.light.textSecondary}
+                placeholder={isRTL ? "اكتب اسم الدواء..." : "Nom du médicament..."}
+                placeholderTextColor={Colors.light.textTertiary}
                 value={drugName}
                 onChangeText={setDrugName}
                 textAlign={isRTL ? "right" : "left"}
                 returnKeyType="search"
                 onSubmitEditing={handleSearch}
-                editable={!capturedImage}
                 onFocus={() => setInputFocused(true)}
                 onBlur={() => setInputFocused(false)}
               />
-              {drugName.length > 0 && !capturedImage && (
-                <TouchableOpacity onPress={() => setDrugName("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
-                </TouchableOpacity>
-              )}
-              {/* Captured image thumbnail */}
-              {capturedImage && (
-                <View style={styles.thumbWrap}>
-                  <Image source={{ uri: capturedImage }} style={styles.thumb} />
-                  <TouchableOpacity style={styles.thumbRemove} onPress={() => setCapturedImage(null)}>
-                    <Ionicons name="close-circle" size={16} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
+            )}
 
-            {/* Camera icon button */}
-            <TouchableOpacity
-              style={[styles.iconBtn, { backgroundColor: Colors.primary + "14", borderColor: Colors.primary + "30" }]}
-              onPress={() => setShowImgMenu(true)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="camera" size={20} color={Colors.primary} />
+            {drugName.length > 0 && !capturedImage && (
+              <TouchableOpacity onPress={() => setDrugName("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
+              </TouchableOpacity>
+            )}
+
+            {/* Camera button */}
+            <TouchableOpacity style={styles.cameraChip} onPress={() => setShowImgMenu(true)} activeOpacity={0.8}>
+              <Ionicons name="camera" size={19} color={Colors.primary} />
             </TouchableOpacity>
           </View>
 
-          {/* Search hint — shown when input is focused and empty */}
-          {inputFocused && !drugName && !capturedImage && (
-            <View style={[styles.searchHintRow, isRTL && styles.rowReverse]}>
-              <View style={styles.searchHintItem}>
-                <Ionicons name="create-outline" size={14} color={Colors.primary} />
-                <Text style={styles.searchHintText}>{isRTL ? "اكتب اسم دوائك" : "Tapez le nom"}</Text>
-              </View>
-              <Text style={styles.searchHintOr}>{isRTL ? "أو" : "ou"}</Text>
-              <View style={styles.searchHintItem}>
-                <Ionicons name="camera-outline" size={14} color={Colors.primary} />
-                <Text style={styles.searchHintText}>{isRTL ? "ارفع صورته" : "Prenez une photo"}</Text>
-              </View>
-            </View>
-          )}
+          {/* GPS + Submit row */}
+          <View style={[styles.searchActions, isRTL && styles.rowReverse]}>
+            <TouchableOpacity style={[styles.gpsBtn, isRTL && styles.rowReverse]} onPress={detectLocation} activeOpacity={0.8} disabled={detectingLocation}>
+              {detectingLocation
+                ? <ActivityIndicator size="small" color={Colors.primary} />
+                : <>
+                    <Ionicons name="navigate" size={13} color={Colors.primary} />
+                    <Text style={styles.gpsBtnText}>{t("detectLocation")}</Text>
+                  </>
+              }
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.submitBtn, (!canSubmit || loading) && styles.submitBtnDisabled]}
+              onPress={handleSearch}
+              activeOpacity={0.85}
+              disabled={!canSubmit || loading}
+            >
+              {loading
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <>
+                    <Ionicons name="paper-plane" size={16} color="#fff" />
+                    <Text style={styles.submitBtnText}>{t("searchButton")}</Text>
+                  </>
+              }
+            </TouchableOpacity>
+          </View>
 
           {error && <Text style={styles.errorText}>{error}</Text>}
-
-          {/* Submit button */}
-          <TouchableOpacity
-            style={[styles.submitBtn, (!canSubmit || loading) && styles.submitBtnDisabled]}
-            onPress={handleSearch}
-            activeOpacity={0.85}
-            disabled={!canSubmit || loading}
-          >
-            {loading
-              ? <ActivityIndicator color="#fff" size="small" />
-              : <>
-                  <Ionicons name="paper-plane" size={16} color="#fff" />
-                  <Text style={styles.submitBtnText}>{t("searchButton")}</Text>
-                </>
-            }
-          </TouchableOpacity>
         </View>
       )}
 
       {/* ─── ACTION GRID ─── */}
       <View style={styles.grid}>
+        {/* Row 1: أقرب صيدلية | التمريض المنزلي */}
         <View style={styles.gridRow}>
-          {/* أقرب صيدلية */}
-          <TouchableOpacity style={[styles.card, { backgroundColor: "#EBF6FB" }]} onPress={goToNearest} activeOpacity={0.82}>
+          <TouchableOpacity style={[styles.card, { backgroundColor: "#E8F4FB" }]} onPress={goToNearest} activeOpacity={0.82}>
             <View style={[styles.cardAccent, { backgroundColor: Colors.primary }]} />
-            <View style={[styles.cardIconCircle, { backgroundColor: Colors.primary + "20" }]}>
+            <View style={[styles.cardIconCircle, { backgroundColor: Colors.primary + "1E" }]}>
               <MaterialCommunityIcons name="map-marker-radius" size={22} color={Colors.primary} />
             </View>
             <Text style={[styles.cardTitle, { color: Colors.primary }, isRTL && styles.textRight]} numberOfLines={2}>
@@ -505,39 +490,14 @@ export default function HomeScreen() {
             <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
               {t("nearestPharmacyDesc")}
             </Text>
-            <View style={[styles.cardChevron, { backgroundColor: Colors.primary + "18" }]}>
+            <View style={[styles.cardChevron, { backgroundColor: Colors.primary + "14" }]}>
               <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color={Colors.primary} />
             </View>
           </TouchableOpacity>
 
-          {/* خدمات أخرى */}
-          <TouchableOpacity
-            style={[styles.card, { backgroundColor: SERVICES_LIGHT }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/other-services"); }}
-            activeOpacity={0.82}
-          >
-            <View style={[styles.cardAccent, { backgroundColor: SERVICES_PURPLE }]} />
-            <View style={[styles.cardIconCircle, { backgroundColor: SERVICES_PURPLE + "18" }]}>
-              <MaterialCommunityIcons name="view-grid-plus-outline" size={22} color={SERVICES_PURPLE} />
-            </View>
-            <Text style={[styles.cardTitle, { color: SERVICES_PURPLE }, isRTL && styles.textRight]} numberOfLines={2}>
-              {t("otherServices")}
-            </Text>
-            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
-              {t("otherServicesDesc")}
-            </Text>
-            <View style={[styles.cardChevron, { backgroundColor: SERVICES_PURPLE + "18" }]}>
-              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color={SERVICES_PURPLE} />
-            </View>
-          </TouchableOpacity>
-
-        </View>
-
-        <View style={styles.gridRow}>
-          {/* التمريض المنزلي */}
-          <TouchableOpacity style={[styles.card, { backgroundColor: "#EBF9F4" }]} onPress={goToFindDoctor} activeOpacity={0.82}>
+          <TouchableOpacity style={[styles.card, { backgroundColor: "#E8F7F4" }]} onPress={goToFindDoctor} activeOpacity={0.82}>
             <View style={[styles.cardAccent, { backgroundColor: "#0D9488" }]} />
-            <View style={[styles.cardIconCircle, { backgroundColor: "#0D948820" }]}>
+            <View style={[styles.cardIconCircle, { backgroundColor: "#0D94881E" }]}>
               <MaterialCommunityIcons name="needle" size={22} color="#0D9488" />
             </View>
             <Text style={[styles.cardTitle, { color: "#0D9488" }, isRTL && styles.textRight]} numberOfLines={2}>
@@ -546,49 +506,33 @@ export default function HomeScreen() {
             <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
               {t("findDoctorDesc")}
             </Text>
-            <View style={[styles.cardChevron, { backgroundColor: "#0D948818" }]}>
+            <View style={[styles.cardChevron, { backgroundColor: "#0D948814" }]}>
               <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#0D9488" />
             </View>
           </TouchableOpacity>
-
-          {/* صيدليات المداومة وسعر الدواء */}
-          <TouchableOpacity style={[styles.card, { backgroundColor: DUTY_RED_LIGHT }]} onPress={goToDutyAndPrice} activeOpacity={0.82}>
-            <View style={[styles.cardAccent, { backgroundColor: DUTY_RED }]} />
-            <View style={[styles.cardIconCircle, { backgroundColor: DUTY_RED + "18" }]}>
-              <MaterialCommunityIcons name="hospital-building" size={22} color={DUTY_RED} />
-            </View>
-            <Text style={[styles.cardTitle, { color: DUTY_RED }, isRTL && styles.textRight]} numberOfLines={2}>
-              {t("dutyAndPrice")}
-            </Text>
-            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
-              {t("dutyAndPriceDesc")}
-            </Text>
-            <View style={[styles.cardChevron, { backgroundColor: DUTY_RED + "18" }]}>
-              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color={DUTY_RED} />
-            </View>
-          </TouchableOpacity>
         </View>
+
+        {/* Row 2: صيدليات المداومة وسعر الدواء — full-width banner card */}
+        <TouchableOpacity style={styles.dutyCard} onPress={goToDutyAndPrice} activeOpacity={0.82}>
+          <View style={[styles.cardAccent, { backgroundColor: "#1565C0" }]} />
+          <View style={[styles.dutyCardInner, isRTL && styles.rowReverse]}>
+            <View style={[styles.dutyIconCircle, { backgroundColor: "#1565C015" }]}>
+              <MaterialCommunityIcons name="hospital-building" size={28} color="#1565C0" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.dutyCardTitle, { color: "#1565C0" }, isRTL && styles.textRight]} numberOfLines={1}>
+                {t("dutyAndPrice")}
+              </Text>
+              <Text style={[styles.dutyCardDesc, isRTL && styles.textRight]} numberOfLines={1}>
+                {t("dutyAndPriceDesc")}
+              </Text>
+            </View>
+            <View style={[styles.cardChevron, { backgroundColor: "#1565C014", marginTop: 0 }]}>
+              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#1565C0" />
+            </View>
+          </View>
+        </TouchableOpacity>
       </View>
-
-      {/* ─── DRUG PRICE QUICK ACCESS ─── */}
-      <TouchableOpacity
-        style={[styles.drugPriceBtn, isRTL && styles.rowReverse]}
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/drug-price"); }}
-        activeOpacity={0.82}
-      >
-        <View style={styles.drugPriceBtnIcon}>
-          <MaterialCommunityIcons name="pill" size={20} color="#fff" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.drugPriceBtnTitle, isRTL && styles.textRight]}>
-            {isRTL ? "سعر الدواء" : "Prix des médicaments"}
-          </Text>
-          <Text style={[styles.drugPriceBtnSub, isRTL && styles.textRight]}>
-            {isRTL ? "ابحث عن سعر أي دواء مباشرة" : "Recherchez le prix de n'importe quel médicament"}
-          </Text>
-        </View>
-        <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={18} color={AMBER} />
-      </TouchableOpacity>
 
       {/* ─── PORTAL LINKS ─── */}
       <View style={[styles.portalRow, isRTL && styles.rowReverse]}>
@@ -1035,42 +979,6 @@ const styles = StyleSheet.create({
   },
   bellDotTxt: { color: "#fff", fontSize: 8, fontFamily: "Inter_700Bold", lineHeight: 10 },
 
-  /* REGION ROW */
-  regionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.light.card,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    marginBottom: 5,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
-  },
-  regionInput: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 4,
-  },
-  regionInputText: { flex: 1, fontFamily: "Inter_500Medium", fontSize: 13, color: Colors.light.text },
-  regionPlaceholder: { color: Colors.light.textTertiary },
-  gpsBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    backgroundColor: Colors.primary + "10",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: Colors.primary + "22",
-  },
-  gpsBtnText: { color: Colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 11 },
-
   /* SEARCH CARD */
   searchCard: {
     backgroundColor: Colors.light.card,
@@ -1079,7 +987,11 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     borderWidth: 1,
     borderColor: Colors.light.border,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
   searchCardLabel: {
     fontSize: 13,
@@ -1087,29 +999,83 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     marginBottom: 8,
   },
-  inputOuterRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 8,
-  },
-  inputInner: {
-    flex: 1,
+
+  /* UNIFIED SMART BAR */
+  unifiedBar: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colors.light.inputBackground,
-    borderRadius: 11,
-    paddingHorizontal: 11,
-    gap: 6,
-    minHeight: 44,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    marginBottom: 8,
+    minHeight: 52,
+    overflow: "hidden",
   },
+  unifiedBarFocused: {
+    borderColor: Colors.primary + "60",
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  regionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    maxWidth: 110,
+  },
+  regionChipText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
+    color: Colors.primary,
+    flexShrink: 1,
+  },
+  regionChipPlaceholder: { color: Colors.light.textTertiary, fontFamily: "Inter_400Regular" },
+  barDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: Colors.light.border,
+    marginHorizontal: 2,
+  },
+  cameraChip: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderLeftWidth: 1,
+    borderLeftColor: Colors.light.border,
+  },
+  searchActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 2,
+  },
+
   textField: {
     flex: 1,
     paddingVertical: 10,
+    paddingHorizontal: 8,
     fontSize: 15,
     fontFamily: "Inter_400Regular",
     color: Colors.light.text,
   },
+  gpsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: Colors.primary + "10",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: Colors.primary + "22",
+  },
+  gpsBtnText: { color: Colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 11 },
   thumbWrap: { position: "relative", width: 36, height: 36, borderRadius: 8, overflow: "visible" },
   thumb: { width: 36, height: 36, borderRadius: 8 },
   thumbRemove: { position: "absolute", top: -6, right: -6, backgroundColor: "#fff", borderRadius: 9 },
@@ -1213,6 +1179,47 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
+  /* DUTY+PRICE FULL-WIDTH BANNER CARD */
+  dutyCard: {
+    backgroundColor: "#EEF4FD",
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "#1565C022",
+    overflow: "hidden",
+    shadowColor: "#1565C0",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+    marginTop: 4,
+  },
+  dutyCardInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  dutyIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  dutyCardTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 15,
+    marginBottom: 3,
+  },
+  dutyCardDesc: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+    lineHeight: 16,
+  },
+
   /* SEARCH HINT */
   searchHintRow: {
     flexDirection: "row",
@@ -1300,20 +1307,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.inputBackground, marginTop: 4,
   },
   menuCancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary },
-
-  drugPriceBtn: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    marginHorizontal: 12, marginTop: 8,
-    backgroundColor: AMBER_LIGHT,
-    borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14,
-    borderWidth: 1.5, borderColor: AMBER + "40",
-  },
-  drugPriceBtnIcon: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: AMBER, alignItems: "center", justifyContent: "center",
-  },
-  drugPriceBtnTitle: { fontFamily: "Inter_700Bold", fontSize: 14, color: Colors.light.text },
-  drugPriceBtnSub: { fontFamily: "Inter_400Regular", fontSize: 11, color: Colors.light.textSecondary, marginTop: 2 },
 
   portalRow: {
     flexDirection: "row",

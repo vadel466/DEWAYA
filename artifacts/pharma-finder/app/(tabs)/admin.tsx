@@ -101,7 +101,7 @@ export default function AdminScreen() {
   const { playAlertBell } = useBell("alert");
 
 
-  const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal" | "prices" | "b2b" | "companies" | "services">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "responded" | "payments" | "pharmacies" | "duty" | "portal" | "prices" | "b2b" | "companies" | "nursing">("pending");
   const [hasNewRequests, setHasNewRequests] = useState(false);
   const [diagTesting, setDiagTesting] = useState(false);
 
@@ -182,13 +182,7 @@ export default function AdminScreen() {
   const [coCode, setCoCode] = useState(""); const [coContact, setCoContact] = useState("");
   const [coNotes, setCoNotes] = useState("");
 
-  type OtherService = { id: string; nameAr: string; nameFr: string; descAr: string | null; descFr: string | null; icon: string; color: string; isActive: boolean; sortOrder: number };
-  const [showServiceModal, setShowServiceModal] = useState(false);
-  const [editingService, setEditingService] = useState<OtherService | null>(null);
-  const [svNameAr, setSvNameAr] = useState(""); const [svNameFr, setSvNameFr] = useState("");
-  const [svDescAr, setSvDescAr] = useState(""); const [svDescFr, setSvDescFr] = useState("");
-  const [svIcon, setSvIcon] = useState("star-outline"); const [svColor, setSvColor] = useState("#7C3AED");
-  const [svIsActive, setSvIsActive] = useState(true); const [svSortOrder, setSvSortOrder] = useState("0");
+  type AdminNursingRequest = { id: string; userId: string; phone: string; region: string; careType: string; description: string | null; status: string; nurseName: string | null; nursePhone: string | null; paymentCode: string | null; paymentStatus: string; nurseCount: number | null; createdAt: string; respondedAt: string | null };
 
   const reqTabActive = isAdmin && (activeTab === "pending" || activeTab === "responded");
   const payTabActive = isAdmin && activeTab === "payments";
@@ -265,13 +259,14 @@ export default function AdminScreen() {
     ? allDrugPrices.filter(p => p.name.toLowerCase().includes(prSearch.toLowerCase()) || (p.nameAr && p.nameAr.includes(prSearch)))
     : allDrugPrices;
 
-  const { data: allServices = [], isLoading: servicesLoading, refetch: refetchServices, isRefetching: servicesRefetching } = useQuery<OtherService[]>({
-    queryKey: ["admin-services"],
+  const { data: allNursingReqs = [], isLoading: nursingLoading, refetch: refetchNursing, isRefetching: nursingRefetching } = useQuery<AdminNursingRequest[]>({
+    queryKey: ["admin-nursing-requests"],
     queryFn: async () => {
-      const r = await fetch(`${API_BASE}/other-services`, { headers: { "x-admin-secret": ADMIN_SECRET } });
+      const r = await fetch(`${API_BASE}/nursing/requests`, { headers: { "x-admin-secret": ADMIN_SECRET } });
       if (!r.ok) throw new Error(); return r.json();
     },
-    enabled: isAdmin && activeTab === "services",
+    enabled: isAdmin && activeTab === "nursing",
+    refetchInterval: activeTab === "nursing" ? 30000 : false,
   });
 
   type DailyStats = { today: number; total: number; pending: number; responded: number; todayPending: number };
@@ -929,67 +924,6 @@ export default function AdminScreen() {
 
   const usePortalResponseMutation = { isPending: false };
 
-  const saveServiceMutation = useMutation({
-    mutationFn: async (body: object) => {
-      const url = editingService ? `${API_BASE}/other-services/${editingService.id}` : `${API_BASE}/other-services`;
-      const r = await fetch(url, {
-        method: editingService ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
-        body: JSON.stringify(body),
-      });
-      if (!r.ok) throw new Error();
-      return r.json();
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin-services"] });
-      qc.invalidateQueries({ queryKey: ["other-services"] });
-      setShowServiceModal(false); setEditingService(null);
-      setSvNameAr(""); setSvNameFr(""); setSvDescAr(""); setSvDescFr("");
-      setSvIcon("star-outline"); setSvColor("#7C3AED"); setSvIsActive(true); setSvSortOrder("0");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    },
-    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل الحفظ" : "Échec de la sauvegarde"),
-  });
-
-  const deleteServiceMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const r = await fetch(`${API_BASE}/other-services/${id}`, {
-        method: "DELETE",
-        headers: { "x-admin-secret": ADMIN_SECRET },
-      });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin-services"] });
-      qc.invalidateQueries({ queryKey: ["other-services"] });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(isRTL ? "✅ تم الحذف" : "✅ Supprimé", isRTL ? "تم حذف الخدمة بنجاح" : "Service supprimé");
-    },
-    onError: (e: any) => Alert.alert(isRTL ? "خطأ في الحذف" : "Erreur", isRTL ? `فشل الحذف: ${e?.message || ""}` : `Échec: ${e?.message || ""}`),
-  });
-
-  const openEditService = (s: OtherService) => {
-    setEditingService(s);
-    setSvNameAr(s.nameAr); setSvNameFr(s.nameFr);
-    setSvDescAr(s.descAr ?? ""); setSvDescFr(s.descFr ?? "");
-    setSvIcon(s.icon); setSvColor(s.color);
-    setSvIsActive(s.isActive); setSvSortOrder(String(s.sortOrder));
-    setShowServiceModal(true);
-  };
-
-  const submitService = () => {
-    if (!svNameAr.trim() || !svNameFr.trim()) {
-      Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "اسم الخدمة (ع/ف) إلزامي" : "Nom du service (ar/fr) obligatoire");
-      return;
-    }
-    saveServiceMutation.mutate({
-      nameAr: svNameAr.trim(), nameFr: svNameFr.trim(),
-      descAr: svDescAr.trim() || null, descFr: svDescFr.trim() || null,
-      icon: svIcon.trim() || "star-outline", color: svColor.trim() || "#7C3AED",
-      isActive: svIsActive, sortOrder: parseInt(svSortOrder) || 0,
-    });
-  };
-
   const resetPharmacyForm = () => { setPName(""); setPNameAr(""); setPAddress(""); setPAddressAr(""); setPPhone(""); setPLat(""); setPLon(""); setPRegion(""); setPPin(""); setEditingPharmacy(null); };
 
   const openEditPharmacy = (p: Pharmacy) => {
@@ -1076,7 +1010,7 @@ export default function AdminScreen() {
     { id: "portal", label: isRTL ? `ردود${pendingPortalCount > 0 ? ` ⚡${pendingPortalCount}` : (portalResponses.length > 0 ? ` (${portalResponses.length})` : "")}` : `Portail${pendingPortalCount > 0 ? ` ⚡${pendingPortalCount}` : (portalResponses.length > 0 ? ` (${portalResponses.length})` : "")}` },
     { id: "pharma-group", label: isRTL ? "الصيدليات" : "Officine" },
     { id: "b2b-group", label: isRTL ? `الشركات${b2bPendingCount > 0 ? ` ⚡${b2bPendingCount}` : ""}` : `Sociétés${b2bPendingCount > 0 ? ` ⚡${b2bPendingCount}` : ""}` },
-    { id: "services", label: isRTL ? "خدماتي" : "Services" },
+    { id: "nursing", label: isRTL ? "التمريض" : "Soins infirmiers" },
   ];
 
   const PHARMA_SUB_TABS = [
@@ -1097,7 +1031,7 @@ export default function AdminScreen() {
     activeTab === "prices" ? priceLoading :
     activeTab === "b2b" ? b2bLoading :
     activeTab === "companies" ? companyLoading :
-    activeTab === "services" ? servicesLoading :
+    activeTab === "nursing" ? nursingLoading :
     reqLoading;
 
   const isRefetching =
@@ -1107,7 +1041,7 @@ export default function AdminScreen() {
     activeTab === "prices" ? priceRefetching :
     activeTab === "b2b" ? b2bRefetching :
     activeTab === "companies" ? companyRefetching :
-    activeTab === "services" ? servicesRefetching :
+    activeTab === "nursing" ? nursingRefetching :
     reqRefetching;
 
   const onRefresh = () => {
@@ -1117,7 +1051,7 @@ export default function AdminScreen() {
     else if (activeTab === "prices") refetchPrices();
     else if (activeTab === "b2b") refetchB2b();
     else if (activeTab === "companies") refetchCompanies();
-    else if (activeTab === "services") refetchServices();
+    else if (activeTab === "nursing") refetchNursing();
     else refetchReq();
   };
 
@@ -1562,43 +1496,56 @@ export default function AdminScreen() {
     </View>
   );
 
-  const renderService = ({ item }: { item: OtherService }) => (
-    <View style={styles.requestCard}>
-      <View style={[styles.cardRow, isRTL && styles.rtlRow]}>
-        <View style={[styles.cardIconCircle2, { backgroundColor: (item.color || "#7C3AED") + "20" }]}>
-          <MaterialCommunityIcons name={item.icon as any} size={22} color={item.color || "#7C3AED"} />
-        </View>
-        <View style={[styles.requestInfo, isRTL && styles.rtlInfo, { flex: 1 }]}>
-          <Text style={[styles.drugName, isRTL && styles.rtlText]}>{item.nameAr}</Text>
-          <Text style={[styles.userId, isRTL && styles.rtlText]}>{item.nameFr}</Text>
-          {item.descAr ? <Text style={[styles.requestTime, isRTL && styles.rtlText]} numberOfLines={1}>{item.descAr}</Text> : null}
-          <View style={{ flexDirection: "row", gap: 6, marginTop: 4 }}>
-            <View style={[styles.tag, { backgroundColor: item.isActive ? Colors.accent + "18" : Colors.danger + "18" }]}>
-              <Text style={[styles.tagText, { color: item.isActive ? Colors.accent : Colors.danger }]}>
-                {item.isActive ? (isRTL ? "نشط" : "Actif") : (isRTL ? "مخفي" : "Masqué")}
+  const NURSING_TEAL = "#0D9488";
+  const renderNursingRequest = ({ item }: { item: AdminNursingRequest }) => {
+    const responded = item.status === "responded";
+    const payOk = item.paymentStatus === "claimed";
+    return (
+      <View style={[styles.requestCard, responded && styles.respondedCard]}>
+        <View style={[styles.cardRow, isRTL && styles.rtlRow]}>
+          <View style={[styles.cardIconCircle2, { backgroundColor: NURSING_TEAL + "18" }]}>
+            <MaterialCommunityIcons name={responded ? "account-check" : "needle"} size={22} color={NURSING_TEAL} />
+          </View>
+          <View style={[styles.requestInfo, isRTL && styles.rtlInfo, { flex: 1 }]}>
+            <Text style={[styles.drugName, isRTL && styles.rtlText]}>{item.careType}</Text>
+            <Text style={[styles.userId, isRTL && styles.rtlText]}>{item.phone} • {item.region}</Text>
+            <Text style={[styles.requestTime, isRTL && styles.rtlText]}>
+              {new Date(item.createdAt).toLocaleString(isRTL ? "ar-SA" : "fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 5 }}>
+              <View style={[styles.tag, { backgroundColor: responded ? Colors.accent + "18" : NURSING_TEAL + "12" }]}>
+                <Text style={[styles.tagText, { color: responded ? Colors.accent : NURSING_TEAL }]}>
+                  {responded ? (isRTL ? "✅ تم الرد" : "✅ Traité") : (isRTL ? "⏳ بانتظار" : "⏳ En attente")}
+                </Text>
+              </View>
+              <View style={[styles.tag, { backgroundColor: payOk ? Colors.accent + "18" : Colors.warning + "18" }]}>
+                <Text style={[styles.tagText, { color: payOk ? Colors.accent : Colors.warning }]}>
+                  {payOk ? (isRTL ? "💰 دُفع" : "💰 Payé") : (isRTL ? "💳 لم يُدفع" : "💳 Non payé")}
+                </Text>
+              </View>
+              {item.paymentCode ? (
+                <View style={[styles.tag, { backgroundColor: Colors.light.inputBackground }]}>
+                  <Text style={[styles.tagText, { color: Colors.light.textSecondary }]}>{item.paymentCode}</Text>
+                </View>
+              ) : null}
+              <View style={[styles.tag, { backgroundColor: Colors.light.border }]}>
+                <Text style={[styles.tagText, { color: Colors.light.textSecondary }]}>
+                  {isRTL ? `${item.nurseCount ?? 0} ممرض متاح` : `${item.nurseCount ?? 0} infirmier(s) dispo`}
+                </Text>
+              </View>
+            </View>
+            {responded && item.nurseName ? (
+              <Text style={[styles.requestTime, isRTL && styles.rtlText, { color: Colors.accent, marginTop: 3 }]}>
+                {isRTL ? `الممرض: ${item.nurseName} - ${item.nursePhone}` : `Infirmier: ${item.nurseName} - ${item.nursePhone}`}
               </Text>
-            </View>
-            <View style={[styles.tag, { backgroundColor: Colors.light.border }]}>
-              <Text style={[styles.tagText, { color: Colors.light.textSecondary }]}>#{item.sortOrder}</Text>
-            </View>
+            ) : null}
           </View>
         </View>
-        <View style={{ flexDirection: "column", gap: 8, alignItems: "center" }}>
-          <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); openEditService(item); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="pencil-outline" size={18} color={Colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => confirmDelete(isRTL ? `حذف "${item.nameAr}"؟` : `Supprimer "${item.nameFr}" ?`, () => deleteServiceMutation.mutate(item.id))}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="trash-outline" size={18} color={Colors.danger} />
-          </TouchableOpacity>
-        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
-  const isAddTab = activeTab === "pharmacies" || activeTab === "prices" || activeTab === "companies" || activeTab === "services";
+  const isAddTab = activeTab === "pharmacies" || activeTab === "prices" || activeTab === "companies";
   const currentData: any[] =
     activeTab === "pending" ? pendingRequests :
     activeTab === "responded" ? respondedRequests :
@@ -1607,7 +1554,7 @@ export default function AdminScreen() {
     activeTab === "prices" ? filteredDrugPrices :
     activeTab === "b2b" ? b2bMessages :
     activeTab === "companies" ? filteredCompanies :
-    activeTab === "services" ? allServices :
+    activeTab === "nursing" ? allNursingReqs :
     portalResponses;
 
   return (
@@ -1775,7 +1722,7 @@ export default function AdminScreen() {
             activeTab === "prices" ? renderDrugPrice :
             activeTab === "b2b" ? renderB2b :
             activeTab === "companies" ? renderCompany :
-            activeTab === "services" ? renderService :
+            activeTab === "nursing" ? renderNursingRequest :
             renderRequest) as any
           }
           contentContainerStyle={[styles.list, currentData.length === 0 && styles.emptyList, { paddingBottom: Platform.OS === "web" ? 34 : 0 }]}
@@ -1855,15 +1802,6 @@ export default function AdminScreen() {
                     </View>
                   )}
                 </View>
-              ) : activeTab === "services" ? (
-                <TouchableOpacity
-                  style={[styles.addBtn, { backgroundColor: "#7C3AED" }]}
-                  onPress={() => { setEditingService(null); setSvNameAr(""); setSvNameFr(""); setSvDescAr(""); setSvDescFr(""); setSvIcon("star-outline"); setSvColor("#7C3AED"); setSvIsActive(true); setSvSortOrder("0"); setShowServiceModal(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                  <Text style={styles.addBtnText}>{isRTL ? "إضافة خدمة" : "Ajouter un service"}</Text>
-                </TouchableOpacity>
               ) : (
                 <View>
                   <TouchableOpacity
@@ -1900,7 +1838,7 @@ export default function AdminScreen() {
                  activeTab === "prices" ? (isRTL ? "لا توجد أسعار مسجلة" : "Aucun médicament enregistré") :
                  activeTab === "b2b" ? (isRTL ? "لا توجد رسائل B2B" : "Aucun message B2B") :
                  activeTab === "companies" ? (isRTL ? "لا توجد شركات مسجلة" : "Aucune société enregistrée") :
-                 activeTab === "services" ? (isRTL ? "لا توجد خدمات مضافة" : "Aucun service ajouté") :
+                 activeTab === "nursing" ? (isRTL ? "لا توجد طلبات تمريض بعد" : "Aucune demande de soins") :
                  t("noPendingRequests")}
               </Text>
             </View>
@@ -2315,58 +2253,6 @@ export default function AdminScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Service Add/Edit Modal */}
-      <Modal visible={showServiceModal} transparent animationType="slide" onRequestClose={() => setShowServiceModal(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalSheet, { maxHeight: "85%" }]}>
-              <View style={[{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 }, isRTL && styles.rtlRow]}>
-                <MaterialCommunityIcons name="view-grid-plus-outline" size={22} color="#7C3AED" />
-                <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>
-                  {editingService ? (isRTL ? "تعديل الخدمة" : "Modifier le service") : (isRTL ? "إضافة خدمة" : "Ajouter un service")}
-                </Text>
-                <TouchableOpacity onPress={() => setShowServiceModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                  <Ionicons name="close" size={24} color={Colors.light.textSecondary} />
-                </TouchableOpacity>
-              </View>
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20, gap: 2 }}>
-                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "الاسم بالعربية *" : "Nom en arabe *"}</Text>
-                <TextInput style={[styles.input, isRTL && styles.rtlText]} value={svNameAr} onChangeText={setSvNameAr} placeholder="خدمة جديدة" placeholderTextColor={Colors.light.textTertiary} />
-                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "الاسم بالفرنسية *" : "Nom en français *"}</Text>
-                <TextInput style={[styles.input, isRTL && styles.rtlText]} value={svNameFr} onChangeText={setSvNameFr} placeholder="Nouveau service" placeholderTextColor={Colors.light.textTertiary} />
-                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "الوصف (عربي)" : "Description (arabe)"}</Text>
-                <TextInput style={[styles.input, styles.textArea, isRTL && styles.rtlText]} value={svDescAr} onChangeText={setSvDescAr} placeholder="وصف مختصر..." placeholderTextColor={Colors.light.textTertiary} multiline numberOfLines={2} />
-                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "الوصف (فرنسي)" : "Description (français)"}</Text>
-                <TextInput style={[styles.input, styles.textArea, isRTL && styles.rtlText]} value={svDescFr} onChangeText={setSvDescFr} placeholder="Description courte..." placeholderTextColor={Colors.light.textTertiary} multiline numberOfLines={2} />
-                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "أيقونة (MaterialCommunityIcons)" : "Icône (MaterialCommunityIcons)"}</Text>
-                <TextInput style={[styles.input, isRTL && styles.rtlText]} value={svIcon} onChangeText={setSvIcon} placeholder="star-outline" placeholderTextColor={Colors.light.textTertiary} autoCapitalize="none" />
-                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "اللون (hex)" : "Couleur (hex)"}</Text>
-                <TextInput style={[styles.input, isRTL && styles.rtlText]} value={svColor} onChangeText={setSvColor} placeholder="#7C3AED" placeholderTextColor={Colors.light.textTertiary} autoCapitalize="none" />
-                <Text style={[styles.fieldLabel, isRTL && styles.rtlText]}>{isRTL ? "الترتيب" : "Ordre"}</Text>
-                <TextInput style={[styles.input, isRTL && styles.rtlText]} value={svSortOrder} onChangeText={setSvSortOrder} placeholder="0" placeholderTextColor={Colors.light.textTertiary} keyboardType="numeric" />
-                <View style={{ flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                  <Text style={[styles.fieldLabel, { marginBottom: 0, flex: 1 }, isRTL && styles.rtlText]}>{isRTL ? "نشط" : "Actif"}</Text>
-                  <TouchableOpacity
-                    onPress={() => setSvIsActive(v => !v)}
-                    style={{ backgroundColor: svIsActive ? Colors.accent : Colors.light.border, borderRadius: 16, width: 46, height: 26, alignItems: svIsActive ? "flex-end" : "flex-start", justifyContent: "center", padding: 2 }}
-                  >
-                    <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: "#fff", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 2 }} />
-                  </TouchableOpacity>
-                </View>
-                <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
-                  <TouchableOpacity style={[styles.addBtn, { flex: 1, backgroundColor: "#7C3AED" }]} onPress={submitService} activeOpacity={0.85} disabled={saveServiceMutation.isPending}>
-                    <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
-                    <Text style={styles.addBtnText}>{saveServiceMutation.isPending ? (isRTL ? "جارٍ الحفظ..." : "Enregistrement...") : (isRTL ? "حفظ" : "Enregistrer")}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.addBtn, { flex: 0.5, backgroundColor: Colors.light.inputBackground }]} onPress={() => setShowServiceModal(false)} activeOpacity={0.7}>
-                    <Text style={[styles.addBtnText, { color: Colors.light.textSecondary }]}>{t("cancel")}</Text>
-                  </TouchableOpacity>
-                </View>
-              </ScrollView>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </View>
   );
 }

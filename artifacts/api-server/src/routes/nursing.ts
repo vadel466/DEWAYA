@@ -11,6 +11,13 @@ function generateId(): string {
   return crypto.randomUUID();
 }
 
+function generatePaymentCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "DW";
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
 function isAdmin(req: any): boolean {
   return req.headers["x-admin-secret"] === ADMIN_SECRET;
 }
@@ -34,12 +41,16 @@ router.post("/request", async (req, res) => {
       res.status(400).json({ error: "Champs obligatoires manquants" }); return;
     }
     const id = generateId();
+    const paymentCode = generatePaymentCode();
+    const nurses = await db.select().from(nursesTable)
+      .where(and(eq(nursesTable.isActive, true)));
+    const nurseCount = nurses.length;
     await db.insert(nursingRequestsTable).values({
       id, userId, phone: phone.trim(), region: region.trim(),
       careType: careType.trim(), description: description?.trim() ?? null,
-      status: "pending",
+      status: "pending", paymentCode, paymentStatus: "pending", nurseCount,
     });
-    res.json({ ok: true, id });
+    res.json({ ok: true, id, paymentCode, nurseCount });
   } catch (err) {
     console.error("[nursing/request]", err);
     res.status(500).json({ error: "Erreur serveur" });
@@ -103,6 +114,23 @@ router.patch("/requests/:id/respond", async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error("[nursing/requests PATCH]", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+router.patch("/requests/:id/pay", async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) { res.status(400).json({ error: "userId requis" }); return; }
+    const [row] = await db.select().from(nursingRequestsTable).where(eq(nursingRequestsTable.id, req.params.id));
+    if (!row) { res.status(404).json({ error: "Demande introuvable" }); return; }
+    if (row.userId !== userId) { res.status(403).json({ error: "Non autorisé" }); return; }
+    await db.update(nursingRequestsTable)
+      .set({ paymentStatus: "claimed" })
+      .where(eq(nursingRequestsTable.id, req.params.id));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[nursing/requests PATCH pay]", err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });

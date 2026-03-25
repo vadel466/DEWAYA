@@ -53,6 +53,8 @@ type NursingRequest = {
   status: string;
   nurseName: string | null;
   nursePhone: string | null;
+  paymentCode: string | null;
+  paymentStatus: string;
   createdAt: string;
 };
 
@@ -98,6 +100,11 @@ export default function NursingCareScreen() {
   const [showPasswordText, setShowPasswordText] = useState(false);
   const [newReqCount, setNewReqCount] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [pendingPaymentCode, setPendingPaymentCode] = useState("");
+  const [pendingRequestId, setPendingRequestId] = useState("");
+  const [paymentConfirming, setPaymentConfirming] = useState(false);
+  const [paymentDone, setPaymentDone] = useState(false);
 
   const bellAnim = useRef(new Animated.Value(0)).current;
   const prevReqCountRef = useRef(-1);
@@ -118,12 +125,32 @@ export default function NursingCareScreen() {
         body: JSON.stringify({ userId, phone: phone.trim(), region: selectedRegion, careType, description: description.trim() || null }),
       });
       if (!resp.ok) throw new Error();
+      const data = await resp.json();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setSubmitted(true);
+      setPendingPaymentCode(data.paymentCode || "");
+      setPendingRequestId(data.id || "");
+      setPaymentDone(false);
+      setShowPaymentModal(true);
     } catch {
       Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "حدث خطأ، حاول مجدداً" : "Une erreur s'est produite, réessayez");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handlePaymentConfirm = async () => {
+    setPaymentConfirming(true);
+    try {
+      await fetch(`${API_BASE}/nursing/requests/${pendingRequestId}/pay`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setPaymentDone(true);
+    } catch {
+    } finally {
+      setPaymentConfirming(false);
     }
   };
 
@@ -279,32 +306,40 @@ export default function NursingCareScreen() {
   };
 
   const handleDeleteRequest = (reqId: string) => {
-    Alert.alert(
-      isRTL ? "حذف الطلب" : "Supprimer la demande",
-      isRTL ? "هل تريد حذف هذا الطلب نهائياً؟" : "Voulez-vous supprimer définitivement cette demande?",
-      [
-        { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
-        {
-          text: isRTL ? "حذف" : "Supprimer", style: "destructive",
-          onPress: async () => {
-            if (!nurseSession) return;
-            setDeletingId(reqId);
-            try {
-              await fetch(`${API_BASE}/nursing/requests/${reqId}`, {
-                method: "DELETE",
-                headers: { "x-nurse-id": nurseSession.id, "x-nurse-token": nurseSession.token },
-              });
-              setNurseRequests(prev => prev.filter(r => r.id !== reqId));
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            } catch {
-              Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل الحذف" : "Échec de la suppression");
-            } finally {
-              setDeletingId(null);
-            }
-          }
+    const doDelete = async () => {
+      if (!nurseSession) return;
+      setDeletingId(reqId);
+      try {
+        await fetch(`${API_BASE}/nursing/requests/${reqId}`, {
+          method: "DELETE",
+          headers: { "x-nurse-id": nurseSession.id, "x-nurse-token": nurseSession.token },
+        });
+        setNurseRequests(prev => prev.filter(r => r.id !== reqId));
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch {
+        if (Platform.OS === "web") {
+          window.alert(isRTL ? "فشل الحذف" : "Échec de la suppression");
+        } else {
+          Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل الحذف" : "Échec de la suppression");
         }
-      ]
-    );
+      } finally {
+        setDeletingId(null);
+      }
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm(isRTL ? "هل تريد حذف هذا الطلب نهائياً؟" : "Voulez-vous supprimer définitivement cette demande?")) {
+        doDelete();
+      }
+    } else {
+      Alert.alert(
+        isRTL ? "حذف الطلب" : "Supprimer la demande",
+        isRTL ? "هل تريد حذف هذا الطلب نهائياً؟" : "Voulez-vous supprimer définitivement cette demande?",
+        [
+          { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+          { text: isRTL ? "حذف" : "Supprimer", style: "destructive", onPress: doDelete },
+        ]
+      );
+    }
   };
 
   React.useEffect(() => {
@@ -837,6 +872,99 @@ export default function NursingCareScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Payment Modal */}
+      <Modal visible={showPaymentModal} transparent animationType="fade" onRequestClose={() => {}}>
+        <View style={styles.payModalOverlay}>
+          <View style={styles.payModalCard}>
+            {paymentDone ? (
+              <>
+                <View style={styles.paySuccessIcon}>
+                  <Ionicons name="checkmark-circle" size={56} color={TEAL} />
+                </View>
+                <Text style={[styles.payTitle, isRTL && styles.rtlText]}>
+                  {isRTL ? "شكراً! تم تأكيد طلبك" : "Merci! Votre demande est confirmée"}
+                </Text>
+                <Text style={[styles.paySub, isRTL && styles.rtlText]}>
+                  {isRTL
+                    ? "سيتواصل معك أحد الممرضين المتاحين في أقرب وقت ممكن"
+                    : "Un infirmier disponible vous contactera dès que possible"}
+                </Text>
+                <TouchableOpacity
+                  style={styles.payDoneBtn}
+                  onPress={() => {
+                    setShowPaymentModal(false);
+                    setSubmitted(true);
+                    setPhone(""); setSelectedRegion(""); setCareType(""); setDescription("");
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.payDoneBtnText}>{isRTL ? "إغلاق" : "Fermer"}</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <View style={styles.payIconWrap}>
+                  <MaterialCommunityIcons name="bank-transfer" size={38} color={TEAL} />
+                </View>
+                <Text style={[styles.payTitle, isRTL && styles.rtlText]}>
+                  {isRTL ? "أكمل الدفع عبر بنكيلي" : "Finalisez le paiement via Bankily"}
+                </Text>
+                <Text style={[styles.paySub, isRTL && styles.rtlText]}>
+                  {isRTL
+                    ? "يرجى دفع 50 أوقية عبر بنكيلي باستخدام الكود التالي كمرجع للتحويل:"
+                    : "Veuillez payer 50 MRU via Bankily en utilisant le code suivant comme référence:"}
+                </Text>
+
+                <View style={styles.payCodeBox}>
+                  <Text style={styles.payCodeLabel}>{isRTL ? "كود المعاملة" : "Code transaction"}</Text>
+                  <Text style={styles.payCode}>{pendingPaymentCode}</Text>
+                  <Text style={styles.payAmount}>50 MRU</Text>
+                </View>
+
+                <View style={styles.paySteps}>
+                  <Text style={[styles.payStepText, isRTL && styles.rtlText]}>
+                    {isRTL ? "١. افتح تطبيق بنكيلي" : "1. Ouvrez l'appli Bankily"}
+                  </Text>
+                  <Text style={[styles.payStepText, isRTL && styles.rtlText]}>
+                    {isRTL ? `٢. ادفع 50 أوقية بمرجع: ${pendingPaymentCode}` : `2. Payez 50 MRU avec référence: ${pendingPaymentCode}`}
+                  </Text>
+                  <Text style={[styles.payStepText, isRTL && styles.rtlText]}>
+                    {isRTL ? "٣. اضغط 'لقد دفعت' أدناه" : "3. Appuyez sur 'J'ai payé' ci-dessous"}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.payConfirmBtn, paymentConfirming && { opacity: 0.7 }]}
+                  onPress={handlePaymentConfirm}
+                  disabled={paymentConfirming}
+                  activeOpacity={0.85}
+                >
+                  {paymentConfirming
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <>
+                        <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                        <Text style={styles.payConfirmBtnText}>{isRTL ? "لقد دفعت" : "J'ai payé"}</Text>
+                      </>
+                  }
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.payLaterBtn}
+                  onPress={() => {
+                    setShowPaymentModal(false);
+                    setSubmitted(true);
+                    setPhone(""); setSelectedRegion(""); setCareType(""); setDescription("");
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.payLaterText}>{isRTL ? "سأدفع لاحقاً" : "Je paierai plus tard"}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1046,4 +1174,37 @@ const styles = StyleSheet.create({
   pickerItemActive: { backgroundColor: TEAL + "08" },
   pickerItemText: { flex: 1, fontFamily: "Inter_400Regular", fontSize: 15, color: Colors.light.text },
   pickerItemTextActive: { fontFamily: "Inter_600SemiBold", color: TEAL },
+
+  payModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "center", alignItems: "center", padding: 20 },
+  payModalCard: {
+    backgroundColor: Colors.light.background, borderRadius: 24, padding: 24,
+    width: "100%", maxWidth: 400, alignItems: "center", gap: 16,
+  },
+  paySuccessIcon: { marginBottom: 4 },
+  payIconWrap: {
+    width: 70, height: 70, borderRadius: 35,
+    backgroundColor: TEAL + "15", alignItems: "center", justifyContent: "center", marginBottom: 4,
+  },
+  payTitle: { fontFamily: "Inter_700Bold", fontSize: 18, color: Colors.light.text, textAlign: "center" },
+  paySub: { fontFamily: "Inter_400Regular", fontSize: 13, color: Colors.light.textSecondary, textAlign: "center", lineHeight: 19 },
+  payCodeBox: {
+    backgroundColor: TEAL + "10", borderRadius: 16, padding: 16, alignItems: "center", gap: 4,
+    borderWidth: 1.5, borderColor: TEAL + "30", width: "100%",
+  },
+  payCodeLabel: { fontFamily: "Inter_500Medium", fontSize: 11, color: TEAL, textTransform: "uppercase", letterSpacing: 1 },
+  payCode: { fontFamily: "Inter_700Bold", fontSize: 28, color: TEAL, letterSpacing: 6 },
+  payAmount: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: Colors.light.textSecondary },
+  paySteps: { backgroundColor: Colors.light.card, borderRadius: 12, padding: 14, gap: 6, width: "100%" },
+  payStepText: { fontFamily: "Inter_400Regular", fontSize: 13, color: Colors.light.text, lineHeight: 20 },
+  payConfirmBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: TEAL, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 24, width: "100%",
+  },
+  payConfirmBtnText: { fontFamily: "Inter_700Bold", fontSize: 15, color: "#fff" },
+  payLaterBtn: { paddingVertical: 8 },
+  payLaterText: { fontFamily: "Inter_400Regular", fontSize: 13, color: Colors.light.textSecondary },
+  payDoneBtn: {
+    backgroundColor: TEAL, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 32, marginTop: 4,
+  },
+  payDoneBtnText: { fontFamily: "Inter_700Bold", fontSize: 15, color: "#fff" },
 });

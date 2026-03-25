@@ -344,6 +344,9 @@ export const nursingRequestsTable = pgTable("nursing_requests", {
   nurseId: text("nurse_id"),
   nurseName: text("nurse_name"),
   nursePhone: text("nurse_phone"),
+  paymentCode: text("payment_code"),
+  paymentStatus: text("payment_status").notNull().default("pending"),
+  nurseCount: integer("nurse_count").default(0),
   respondedAt: timestamp("responded_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [

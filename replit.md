@@ -65,6 +65,8 @@ A bilingual **Arabic/French** (RTL-aware) mobile app for finding pharmacies in M
 - **Admin panel** (PIN `2026`): 8 sub-tabs:
   - Pending requests (with delete), Payments, Portal responses, Pharmacies (with delete), Duty schedule, Drug prices (Excel upload only + clear all + per-item delete), B2B (legacy), Companies (CRUD + subscription toggle + B2B monitoring)
   - Doctors section removed completely
+  - "خدماتي" (Services) tab removed; replaced with "التمريض" tab showing all nursing requests with payment status, payment code, nurse count at request time, response status
+- **Nursing care** (`find-doctor.tsx`): 50 MRU Bankily payment flow after form submission. Generates unique `DW-XXXXXX` code, shows payment modal with steps, user confirms payment ("لقد دفعت"). Delete button fixed for web (window.confirm pattern).
 - Language switcher (Arabic/French, RTL support)
 
 **Screens (tabs):**
@@ -129,6 +131,8 @@ Express 5 API server. All admin routes protected by `x-admin-secret: DEWAYA_ADMI
 - `companies` — Company profiles (code, subscriptionActive)
 - `company_orders` — Direct pharmacy→company orders
 - `company_inventory` — Company stock + announcements (isAd flag)
+- `nurses` — Nurse profiles with login/auth
+- `nursing_requests` — Home care requests (paymentCode DW-XXXXXX, paymentStatus, nurseCount at request time)
 
 ## Two-Portal Architecture
 

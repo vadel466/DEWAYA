@@ -1,13 +1,8 @@
 {
   "expo": {
-    
-    
-  
-
     "name": "DEWAYA",
-    "slug": "dewaya",
+    "slug": "dewayya",
     "version": "1.0.1",
-
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -18,16 +13,21 @@
     },
     "assetBundlePatterns": [
       "**/*"
-    
-
+    ],
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "package": "com.vadel466.dewaya",
+      "package": "com.vadel.dewayya",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       }
     },
-    "owner": "vadel466s-organization"
+    "extra": {
+      "eas": {
+        "projectId": "859c7674-8848-4394-9122-6b9f4a9b407a"
+      }
+    }
+  }
+}

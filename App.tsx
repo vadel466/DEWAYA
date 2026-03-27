@@ -11,14 +11,16 @@ import {
   Platform,
   Alert,
 } from "react-native";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
-import Colors from "./constants/colors;
+import Colors from "./constants/colors";
 import { useAppContext } from "./context/AppContext";
-import { PharmacyMap } from "./components/PharmacyMap
+import { PharmacyMap } from "./components/PharmacyMap";
+
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`

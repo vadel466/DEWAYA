@@ -2,6 +2,7 @@
   "build": {
     "production": {
       "android": {
+        "distribution": "store",
         "buildType": "app-bundle"
       }
     },

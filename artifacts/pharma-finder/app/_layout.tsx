@@ -23,7 +23,7 @@ import { AppProvider } from "@/context/AppContext";
 /* ─────────────────────────────────────────────────────────────── */
 
 const INTRO_KEY = "@dewaya_intro_shown";
-const ICON      = require("../assets/images/icon_v2.png");
+const ICON      = require("../assets/images/icon_v3.png");
 
 if (Platform.OS !== "web") {
   SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -175,7 +175,7 @@ export default function RootLayout() {
             <Image
               source={ICON}
               style={styles.icon}
-              contentFit="cover"
+              contentFit="contain"
               priority="high"
               cachePolicy="memory"
               onLoadEnd={() => setImageLoaded(true)}
@@ -184,7 +184,8 @@ export default function RootLayout() {
           </View>
           <Text style={styles.nameAr}>أدوايـا</Text>
           <Text style={styles.nameLat}>D E W A Y A</Text>
-          <Text style={styles.sub}>خدمة صحية متكاملة · موريتانيا</Text>
+          <View style={styles.divider} />
+          <Text style={styles.sub}>خدمة صحية متكاملة</Text>
         </Animated.View>
       )}
     </SafeAreaProvider>
@@ -205,46 +206,59 @@ const styles = StyleSheet.create({
   },
 
   iconWrap: {
-    width:           144,
-    height:          144,
-    borderRadius:    36,
-    backgroundColor: "#fff",
+    width:           170,
+    height:          170,
+    borderRadius:    85,
+    backgroundColor: "rgba(255,255,255,0.12)",
     alignItems:      "center",
     justifyContent:  "center",
-    marginBottom:    28,
+    marginBottom:    24,
     overflow:        "hidden",
     shadowColor:     "#000",
-    shadowOffset:    { width: 0, height: 8 },
-    shadowOpacity:   0.25,
-    shadowRadius:    20,
-    elevation:       12,
+    shadowOffset:    { width: 0, height: 10 },
+    shadowOpacity:   0.3,
+    shadowRadius:    24,
+    elevation:       14,
+    borderWidth:     2,
+    borderColor:     "rgba(255,255,255,0.2)",
   },
 
-  icon: { width: 144, height: 144 },
+  icon: { width: 170, height: 170 },
 
   nameAr: {
     color:            "#fff",
-    fontSize:         36,
+    fontSize:         38,
     fontWeight:       "800",
     letterSpacing:    0.5,
     marginBottom:     4,
-    textShadowColor:  "rgba(0,0,0,0.15)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowColor:  "rgba(0,0,0,0.18)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
 
   nameLat: {
-    color:         "rgba(255,255,255,0.7)",
-    fontSize:      12,
+    color:         "rgba(255,255,255,0.65)",
+    fontSize:      11,
     fontWeight:    "700",
-    letterSpacing: 6,
-    marginBottom:  20,
+    letterSpacing: 7,
+    marginBottom:  18,
+  },
+
+  divider: {
+    width:           60,
+    height:          1.5,
+    backgroundColor: "rgba(255,255,255,0.35)",
+    borderRadius:    2,
+    marginBottom:    14,
   },
 
   sub: {
-    color:         "rgba(255,255,255,0.45)",
-    fontSize:      12,
-    fontWeight:    "400",
-    letterSpacing: 0.3,
+    color:         "rgba(255,255,255,0.82)",
+    fontSize:      15,
+    fontWeight:    "500",
+    letterSpacing: 1.2,
+    textShadowColor:  "rgba(0,0,0,0.1)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 });

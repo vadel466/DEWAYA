@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, ActivityIndicator, Linking,
@@ -81,8 +81,17 @@ export default function NearestPharmacyScreen() {
   const [showMap, setShowMap]         = useState(false);
   const [fromCache, setFromCache]     = useState(false);
 
+  /* Prevent setState after unmount */
+  const mountedRef   = useRef(true);
+  const fetchAbortRef = useRef<AbortController | null>(null);
+
   /* ── build list from online API ── */
   const fetchOnline = useCallback(async (lat?: number, lon?: number, isRefresh = false) => {
+    if (!mountedRef.current) return;
+    fetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
+
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
@@ -92,23 +101,31 @@ export default function NearestPharmacyScreen() {
         params.set("lon", String(lon));
       }
       if (region?.id) params.set("region", region.id);
-      const resp = await fetch(`${API_BASE}/pharmacies/nearest?${params}`);
+      const resp = await fetch(`${API_BASE}/pharmacies/nearest?${params}`, {
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted || !mountedRef.current) return;
       if (resp.ok) {
         const data: NearestPharmacy[] = await resp.json();
-        setPharmacies(data);
-        setFromCache(false);
+        if (!controller.signal.aborted && mountedRef.current) {
+          setPharmacies(data);
+          setFromCache(false);
+        }
       } else {
         throw new Error("API error");
       }
-    } catch {
+    } catch (err: any) {
+      if (err?.name === "AbortError" || !mountedRef.current) return;
       /* fallback to local cache */
       if (cachedPharmacies.length > 0) {
         setPharmacies(sortByDistance(cachedPharmacies, lat ?? null, lon ?? null, region?.id ?? null));
         setFromCache(true);
       }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (mountedRef.current && !controller.signal.aborted) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [region, cachedPharmacies]);
 
@@ -194,9 +211,14 @@ export default function NearestPharmacyScreen() {
   };
 
   useEffect(() => {
+    mountedRef.current = true;
     /* sync cache in background, then fetch */
-    if (isOnline) syncPharmacies().then(() => {});
+    if (isOnline) syncPharmacies().catch(() => {});
     detectLocation();
+    return () => {
+      mountedRef.current = false;
+      fetchAbortRef.current?.abort();
+    };
   }, []);
 
   /* when location becomes known but list is already loaded, re-sort in place */

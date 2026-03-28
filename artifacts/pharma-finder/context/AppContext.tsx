@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Vibration, Platform, AppState } from "react-native";
+import { Vibration, Platform, AppState, InteractionManager } from "react-native";
 import * as Notifications from "expo-notifications";
 import { Audio } from "expo-av";
 import type { Region } from "@/constants/regions";
@@ -25,7 +25,6 @@ const translations: Record<Language, Record<string, string>> = {
     appName: "أدْواَيَ",
     appNameSub: "DEWAYA",
     appTagline: "أقرب صيدلية لدوائك",
-
     nearestPharmacy: "أقرب صيدلية",
     nearestPharmacyDesc: "ابحث عن أقرب صيدلية في منطقتك",
     searchDrug: "ابحث عن دواء",
@@ -40,7 +39,6 @@ const translations: Record<Language, Record<string, string>> = {
     findDoctorDesc: "طلب ممرض في المنزل ورعاية صحية",
     otherServices: "خدمات أخرى",
     otherServicesDesc: "خدمات متنوعة إضافية",
-
     regionLabel: "اختر منطقتك",
     regionPlaceholder: "حدد منطقتك...",
     detectLocation: "تحديد موقعي",
@@ -49,7 +47,6 @@ const translations: Record<Language, Record<string, string>> = {
     selectRegion: "اختر المنطقة",
     comingSoon: "قريباً",
     comingSoonMsg: "هذه الخدمة ستكون متاحة قريباً",
-
     searchTitle: "البحث عن دواء",
     searchPlaceholder: "أدخل اسم الدواء...",
     searchButton: "إرسال الطلب",
@@ -100,7 +97,6 @@ const translations: Record<Language, Record<string, string>> = {
     notifAlertBody: "تم العثور على الدواء الذي بحثت عنه. اضغط للاطلاع على التفاصيل.",
     notifUnlockedTitle: "✅ تم فتح الإشعار",
     notifUnlockedBody: "يمكنك الآن رؤية تفاصيل الصيدلية.",
-
     directionsLabel: "الاتجاهات",
     locatingLabel: "جارٍ تحديد الموقع...",
     locationDetectedLabel: "تم تحديد موقعك • مرتّب حسب القرب",
@@ -117,7 +113,6 @@ const translations: Record<Language, Record<string, string>> = {
     appName: "DEWAYA",
     appNameSub: "أدْواَيَ",
     appTagline: "La pharmacie la plus proche",
-
     nearestPharmacy: "Pharmacie la plus proche",
     nearestPharmacyDesc: "Trouvez la pharmacie la plus proche de vous",
     searchDrug: "Chercher un médicament",
@@ -132,7 +127,6 @@ const translations: Record<Language, Record<string, string>> = {
     findDoctorDesc: "Demander un infirmier ou une aide soignante",
     otherServices: "Autres services",
     otherServicesDesc: "Prix médicaments & plus",
-
     regionLabel: "Votre région",
     regionPlaceholder: "Sélectionnez votre région...",
     detectLocation: "Ma position",
@@ -141,7 +135,6 @@ const translations: Record<Language, Record<string, string>> = {
     selectRegion: "Choisir la région",
     comingSoon: "Bientôt disponible",
     comingSoonMsg: "Ce service sera disponible prochainement",
-
     searchTitle: "Rechercher un médicament",
     searchPlaceholder: "Entrez le nom du médicament...",
     searchButton: "Envoyer la demande",
@@ -192,7 +185,6 @@ const translations: Record<Language, Record<string, string>> = {
     notifAlertBody: "Le médicament recherché a été trouvé. Appuyez pour voir les détails.",
     notifUnlockedTitle: "✅ Notification débloquée",
     notifUnlockedBody: "Vous pouvez maintenant consulter les détails de la pharmacie.",
-
     directionsLabel: "Itinéraire",
     locatingLabel: "Localisation en cours...",
     locationDetectedLabel: "Position détectée • Triées par distance",
@@ -211,6 +203,11 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : "/api";
 
+/* Polling interval — 15s instead of 6s to save battery & network */
+const POLL_INTERVAL_MS = 15_000;
+/* Delay before first poll — let the UI settle first */
+const POLL_STARTUP_DELAY_MS = 3_000;
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -225,24 +222,28 @@ const AppContext = createContext<AppContextType | null>(null);
 
 async function requestNotificationPermissions() {
   if (Platform.OS === "web") return;
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  if (existing !== "granted") {
-    await Notifications.requestPermissionsAsync();
-  }
+  try {
+    const { status: existing } = await Notifications.getPermissionsAsync();
+    if (existing !== "granted") {
+      await Notifications.requestPermissionsAsync();
+    }
+  } catch {}
 }
 
-async function fireLocalNotification(title: string, body: string, lockedCount: number) {
+async function fireLocalNotification(title: string, body: string, count: number) {
   if (Platform.OS === "web") return;
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title,
-      body,
-      sound: true,
-      badge: lockedCount,
-      data: { screen: "notifications" },
-    },
-    trigger: null,
-  });
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        sound: true,
+        badge: count,
+        data: { screen: "notifications" },
+      },
+      trigger: null,
+    });
+  } catch {}
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -260,22 +261,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const languageRef = useRef<Language>(language);
   languageRef.current = language;
 
+  /* ── Load sound AFTER interactions settle — non-blocking ── */
   useEffect(() => {
-    let mounted = true;
-    (async () => {
+    if (Platform.OS === "web") return;
+    let cancelled = false;
+
+    const task = InteractionManager.runAfterInteractions(async () => {
+      if (cancelled) return;
       try {
         await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, shouldDuckAndroid: true });
         const { sound } = await Audio.Sound.createAsync(
           require("../assets/sounds/bell-soft.mp3"),
-          { volume: 0.55 }
+          { volume: 0.55, shouldPlay: false }
         );
-        if (mounted) softSoundRef.current = sound;
-        else sound.unloadAsync();
+        if (!cancelled) {
+          softSoundRef.current = sound;
+        } else {
+          sound.unloadAsync();
+        }
       } catch {}
-    })();
+    });
+
     return () => {
-      mounted = false;
-      softSoundRef.current?.unloadAsync();
+      cancelled = true;
+      task.cancel();
+      softSoundRef.current?.unloadAsync().catch(() => {});
+      softSoundRef.current = null;
     };
   }, []);
 
@@ -287,32 +298,59 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   };
 
+  /* ── Batch-load all stored prefs in ONE AsyncStorage call ── */
   useEffect(() => {
-    (async () => {
-      const saved = await AsyncStorage.getItem("language");
-      if (saved === "ar" || saved === "fr") setLanguageSt(saved as Language);
+    let cancelled = false;
 
-      let uid = await AsyncStorage.getItem("userId");
-      if (!uid) {
-        uid = "user_" + Date.now().toString() + Math.random().toString(36).substr(2, 6);
-        await AsyncStorage.setItem("userId", uid);
-      }
-      setUserId(uid);
+    AsyncStorage.multiGet(["language", "userId", "isAdmin"])
+      .then(async (pairs) => {
+        if (cancelled) return;
 
-      const adminSaved = await AsyncStorage.getItem("isAdmin");
-      if (adminSaved === "true") setIsAdminSt(true);
+        const langVal   = pairs[0][1];
+        const userIdVal = pairs[1][1];
+        const adminVal  = pairs[2][1];
 
-      await requestNotificationPermissions();
-    })();
+        if (langVal === "ar" || langVal === "fr") setLanguageSt(langVal as Language);
+        if (adminVal === "true") setIsAdminSt(true);
+
+        let uid = userIdVal;
+        if (!uid) {
+          uid = "user_" + Date.now().toString() + Math.random().toString(36).substr(2, 6);
+          await AsyncStorage.setItem("userId", uid);
+        }
+        if (!cancelled) setUserId(uid);
+
+        /* Request permissions after prefs are loaded */
+        requestNotificationPermissions();
+      })
+      .catch(() => {
+        /* Fallback: generate userId if storage fails */
+        if (!cancelled) {
+          const uid = "user_" + Date.now().toString() + Math.random().toString(36).substr(2, 6);
+          setUserId(uid);
+        }
+      });
+
+    return () => { cancelled = true; };
   }, []);
 
+  /* ── Notification polling — starts after delay, pauses in background ── */
   useEffect(() => {
     if (!userId) return;
 
+    let cancelled = false;
+
     const poll = async () => {
+      if (cancelled || appStateRef.current === "background") return;
       try {
-        const resp = await fetch(`${API_BASE}/notifications/${userId}`);
-        if (!resp.ok) return;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const resp = await fetch(`${API_BASE}/notifications/${userId}`, {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        if (!resp.ok || cancelled) return;
+
         const notifs: Array<{
           id: string;
           isLocked: boolean;
@@ -320,10 +358,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           paymentPending: boolean;
         }> = await resp.json();
 
-        const locked = notifs.filter((n) => n.isLocked);
-        setLockedCount(locked.length);
+        if (cancelled) return;
 
-        await Notifications.setBadgeCountAsync(locked.length);
+        const locked = notifs.filter((n) => n.isLocked);
+        const newCount = locked.length;
+        setLockedCount(newCount);
+
+        /* Only update badge on native */
+        if (Platform.OS !== "web") {
+          Notifications.setBadgeCountAsync(newCount).catch(() => {});
+        }
 
         for (const n of notifs) {
           if (!knownIdsRef.current.has(n.id)) {
@@ -333,44 +377,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 Vibration.vibrate([0, 400, 200, 400, 200, 400]);
               }
               playSoftBell();
-              await fireLocalNotification(
+              fireLocalNotification(
                 translations[languageRef.current].notifAlertTitle,
                 translations[languageRef.current].notifAlertBody,
-                locked.length
+                newCount
               );
             }
           }
-          if (knownUnlockedRef.current.has(n.id) && !n.isLocked) {
-          } else if (!knownUnlockedRef.current.has(n.id) && !n.isLocked && knownIdsRef.current.has(n.id)) {
-            knownUnlockedRef.current.add(n.id);
-          }
-          const wasLocked = !knownUnlockedRef.current.has(n.id);
-          if (wasLocked && !n.isLocked && knownIdsRef.current.has(n.id)) {
+          if (!knownUnlockedRef.current.has(n.id) && !n.isLocked && knownIdsRef.current.has(n.id)) {
             knownUnlockedRef.current.add(n.id);
             if (Platform.OS !== "web") {
               Vibration.vibrate([0, 300, 100, 300]);
             }
             playSoftBell();
-            await fireLocalNotification(
+            fireLocalNotification(
               translations[languageRef.current].notifUnlockedTitle,
               translations[languageRef.current].notifUnlockedBody,
-              Math.max(0, locked.length - 1)
+              Math.max(0, newCount - 1)
             );
           }
         }
       } catch {
+        /* Network errors are silent */
       }
     };
 
-    poll();
-    intervalRef.current = setInterval(poll, 6000);
+    /* Delay first poll so the home screen renders before network activity */
+    const startDelay = setTimeout(() => {
+      if (cancelled) return;
+      poll();
+      intervalRef.current = setInterval(poll, POLL_INTERVAL_MS);
+    }, POLL_STARTUP_DELAY_MS);
 
     const sub = AppState.addEventListener("change", (state) => {
       appStateRef.current = state;
-      if (state === "active") poll();
+      if (state === "active" && intervalRef.current) poll();
     });
 
     return () => {
+      cancelled = true;
+      clearTimeout(startDelay);
       if (intervalRef.current) clearInterval(intervalRef.current);
       sub.remove();
     };
@@ -378,7 +424,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setLanguage = async (lang: Language) => {
     setLanguageSt(lang);
-    await AsyncStorage.setItem("language", lang);
+    AsyncStorage.setItem("language", lang).catch(() => {});
   };
 
   const setRegion = (r: Region | null) => setRegionSt(r);
@@ -396,7 +442,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const t = (key: string) => translations[language][key] ?? key;
 
   return (
-    <AppContext.Provider value={{ language, setLanguage, userId, t, lockedCount, region, setRegion, isAdmin, setIsAdmin, adminLogout }}>
+    <AppContext.Provider
+      value={{ language, setLanguage, userId, t, lockedCount, region, setRegion, isAdmin, setIsAdmin, adminLogout }}
+    >
       {children}
     </AppContext.Provider>
   );

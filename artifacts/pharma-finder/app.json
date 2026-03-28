@@ -8,6 +8,7 @@
     "scheme": "dewaya",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "jsEngine": "hermes",
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
@@ -17,6 +18,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.dewaya.app",
       "buildNumber": "1",
+      "jsEngine": "hermes",
       "infoPlist": {
         "NSCameraUsageDescription": "يحتاج التطبيق إلى الكاميرا لتصوير علبة الدواء / L'application a besoin de la caméra pour photographier la boîte du médicament",
         "NSPhotoLibraryUsageDescription": "يحتاج التطبيق إلى معرض الصور لاختيار صورة علبة الدواء / L'application a besoin de la galerie pour sélectionner une image",
@@ -33,6 +35,8 @@
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#0D9488"
       },
+      "enableProguardInReleaseBuilds": true,
+      "enableShrinkResourcesInReleaseBuilds": true,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -43,7 +47,7 @@
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
-      ],
+      ]
     },
     "web": {
       "favicon": "./assets/images/icon.png",

@@ -679,7 +679,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   bellBtn: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 48, height: 48, borderRadius: 24,
     backgroundColor: "#fff",
     alignItems: "center", justifyContent: "center",
     borderWidth: 1, borderColor: "#E8EDF3",
@@ -739,7 +739,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 9,
   },
   cameraBtn: {
-    width: 33, height: 33, borderRadius: 9,
+    width: 44, height: 44, borderRadius: 11,
     backgroundColor: "#F0F4F8",
     alignItems: "center", justifyContent: "center",
   },

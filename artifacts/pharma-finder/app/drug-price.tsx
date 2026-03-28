@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
@@ -139,7 +138,7 @@ export default function DrugPriceScreen() {
 
     return (
       <View style={styles.card}>
-        <View style={[styles.cardLeft, isRTL && styles.row]}>
+        <View style={[styles.cardLeft, isRTL && styles.rowReverse]}>
           <View style={styles.pillWrap}>
             <MaterialCommunityIcons name="pill" size={20} color={Colors.warning} />
           </View>
@@ -168,7 +167,7 @@ export default function DrugPriceScreen() {
     <View style={[styles.root, { paddingTop: topPad }]}>
 
       {/* ── Header ── */}
-      <View style={[styles.header, isRTL && styles.row]}>
+      <View style={[styles.header, isRTL && styles.rowReverse]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
           <Ionicons name={isRTL ? "chevron-forward" : "chevron-back"} size={24} color={Colors.primary} />
         </TouchableOpacity>
@@ -185,8 +184,29 @@ export default function DrugPriceScreen() {
         </View>
       </View>
 
+      {/* ══════════════════════════════════════════════════════════
+          تنبيه رسمي ثابت — فوق شريط البحث مباشرة
+          Bandeau d'avertissement officiel — au-dessus de la recherche
+         ══════════════════════════════════════════════════════════ */}
+      <View style={[
+        styles.officialBanner,
+        isRTL && { borderLeftWidth: 0, borderRightWidth: 4, borderRightColor: "#B45309", flexDirection: "row-reverse" },
+      ]}>
+        <MaterialCommunityIcons name="shield-check" size={18} color="#92400E" style={{ marginTop: 1 }} />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.officialBannerTitle, isRTL && styles.rtl]}>
+            {isRTL ? "تنبيه رسمي" : "Avertissement officiel"}
+          </Text>
+          <Text style={[styles.officialBannerText, isRTL && styles.rtl]}>
+            {isRTL
+              ? "هذه الأدوية وأسعارها موحَّدة ومعتمَدة من طرف وزارة الصحة الموريتانية، وأي زيادة في السعر قد تُعدّ غشّاً."
+              : "Ces médicaments et leurs prix sont homologués par le Ministère de la Santé mauritanien. Toute hausse de prix peut être considérée comme une fraude."}
+          </Text>
+        </View>
+      </View>
+
       {/* ── Search bar ── */}
-      <View style={[styles.searchRow, isRTL && styles.row]}>
+      <View style={[styles.searchRow, isRTL && styles.rowReverse]}>
         <Ionicons name="search-outline" size={20} color={Colors.light.textSecondary} />
         <TextInput
           ref={inputRef}
@@ -209,28 +229,25 @@ export default function DrugPriceScreen() {
         )}
       </View>
 
-      {/* ── Info banners ── */}
-      <View style={styles.bannerWrap}>
-        <View style={[
-          styles.bannerOfficial,
-          isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#D97706", flexDirection: "row-reverse" },
-        ]}>
-          <MaterialCommunityIcons name="shield-check-outline" size={15} color="#B45309" />
-          <Text style={[styles.bannerText, isRTL && { textAlign: "right" }]}>
+      {/* ══════════════════════════════════════════════════════════
+          توجيه الاسم العلمي (DCI) — ثابت أسفل البحث
+          Guide DCI — fixe sous la barre de recherche
+         ══════════════════════════════════════════════════════════ */}
+      <View style={[
+        styles.dciBanner,
+        isRTL && { borderLeftWidth: 0, borderRightWidth: 4, borderRightColor: "#2563EB", flexDirection: "row-reverse" },
+      ]}>
+        <MaterialCommunityIcons name="flask-outline" size={17} color="#1D4ED8" style={{ marginTop: 2 }} />
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={[styles.dciBannerText, isRTL && styles.rtl]}>
             {isRTL
-              ? "الأسعار المعروضة رسمية — أي ارتفاع ملحوظ قد يكون مؤشراً على الغش"
-              : "Prix officiels — toute hausse notable peut indiquer une malhonnêteté"}
+              ? "إن لم تجد الدواء باسمه التجاري، فقد يعني ذلك أنه غير مرخَّص من طرف الشركة الموريتانية للأدوية — في هذه الحالة ابحث عن اسمه العلمي (DCI) الذي ستجده مكتوباً تحت الاسم التجاري مباشرةً على العلبة."
+              : "Si le médicament est introuvable par son nom commercial, cela peut signifier qu'il n'est pas homologué par la société mauritanienne du médicament — cherchez alors son nom scientifique (DCI) inscrit juste en dessous du nom commercial sur la boîte."}
           </Text>
-        </View>
-        <View style={[
-          styles.bannerLang,
-          isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#3B82F6", flexDirection: "row-reverse" },
-        ]}>
-          <MaterialCommunityIcons name="translate" size={15} color="#1D4ED8" />
-          <Text style={[styles.bannerText, { color: "#1D4ED8" }, isRTL && { textAlign: "right" }]}>
+          <Text style={[styles.dciBannerExample, isRTL && styles.rtl]}>
             {isRTL
-              ? "لعرض أسماء الأدوية بشكل صحيح، اضبط لغة هاتفك على الفرنسية"
-              : "Réglez la langue du téléphone en français pour afficher les noms correctement"}
+              ? "مثال: إذا لم تجد اسماً تجارياً معيناً، ابحث عن Paracétamol"
+              : "Exemple : si vous ne trouvez pas un nom commercial, cherchez Paracétamol"}
           </Text>
         </View>
       </View>
@@ -252,7 +269,7 @@ export default function DrugPriceScreen() {
             </Text>
           ) : (
             <Text style={[styles.placeholderSub, isRTL && styles.rtl]}>
-              {isRTL ? "حرفان كافيان — بالعربية أو الفرنسية" : "2 caractères suffisent — arabe ou français"}
+              {isRTL ? "حرفان كافيان — بالاسم التجاري أو العلمي" : "2 caractères suffisent — nom commercial ou DCI"}
             </Text>
           )}
         </View>
@@ -292,8 +309,11 @@ export default function DrugPriceScreen() {
           </Text>
           <Text style={[styles.placeholderSub, isRTL && styles.rtl]}>
             {isRTL
-              ? "جرّب الاسم التجاري أو العلمي أو المادة الفعّالة"
-              : "Essayez le nom commercial, générique ou la DCI"}
+              ? "جرّب البحث بالاسم العلمي (DCI) المكتوب تحت الاسم التجاري على العلبة"
+              : "Essayez le nom scientifique (DCI) inscrit sous le nom commercial sur la boîte"}
+          </Text>
+          <Text style={[styles.placeholderExample, isRTL && styles.rtl]}>
+            {isRTL ? "مثال: Paracétamol، Amoxicillin، Ibuprofen" : "Ex: Paracétamol, Amoxicillin, Ibuprofen"}
           </Text>
         </View>
 
@@ -333,7 +353,7 @@ export default function DrugPriceScreen() {
 /* ─── styles ─────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.light.background },
-  row: { flexDirection: "row-reverse" },
+  rowReverse: { flexDirection: "row-reverse" },
   rtl: { textAlign: "right", writingDirection: "rtl" },
   hl: { backgroundColor: Colors.warning + "35", color: Colors.warning, borderRadius: 3 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
@@ -357,12 +377,41 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF9EE", alignItems: "center", justifyContent: "center",
   },
 
+  /* official warning banner — ABOVE search bar */
+  officialBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 9,
+    backgroundColor: "#FFFBEB",
+    borderLeftWidth: 4,
+    borderLeftColor: "#B45309",
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  officialBannerTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 12,
+    color: "#92400E",
+    marginBottom: 2,
+    letterSpacing: 0.3,
+  },
+  officialBannerText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    color: "#78350F",
+    lineHeight: 18,
+  },
+
   /* search */
   searchRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     backgroundColor: Colors.light.card,
     borderWidth: 1.5, borderColor: Colors.light.border,
-    borderRadius: 14, marginHorizontal: 16, marginTop: 14, marginBottom: 8,
+    borderRadius: 14, marginHorizontal: 16, marginTop: 8, marginBottom: 4,
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === "web" ? 12 : 0,
     minHeight: 52,
@@ -370,6 +419,35 @@ const styles = StyleSheet.create({
   input: {
     flex: 1, fontFamily: "Inter_400Regular",
     fontSize: 16, color: Colors.light.text, paddingVertical: 14,
+  },
+
+  /* DCI guidance banner — BELOW search bar */
+  dciBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 9,
+    backgroundColor: "#EFF6FF",
+    borderLeftWidth: 4,
+    borderLeftColor: "#2563EB",
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 8,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  dciBannerText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    color: "#1E3A8A",
+    lineHeight: 18,
+  },
+  dciBannerExample: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 11,
+    color: "#2563EB",
+    lineHeight: 16,
+    fontStyle: "italic",
   },
 
   /* placeholder */
@@ -380,7 +458,17 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center", marginBottom: 4,
   },
   placeholderTitle: { fontFamily: "Inter_700Bold", fontSize: 18, color: Colors.light.text, textAlign: "center" },
-  placeholderSub: { fontFamily: "Inter_400Regular", fontSize: 13, color: Colors.light.textSecondary, textAlign: "center", lineHeight: 20 },
+  placeholderSub: {
+    fontFamily: "Inter_400Regular", fontSize: 13,
+    color: Colors.light.textSecondary, textAlign: "center", lineHeight: 20,
+  },
+  placeholderExample: {
+    fontFamily: "Inter_600SemiBold", fontSize: 12,
+    color: Colors.primary, textAlign: "center",
+    backgroundColor: Colors.primary + "10",
+    paddingHorizontal: 14, paddingVertical: 6,
+    borderRadius: 8, overflow: "hidden",
+  },
 
   /* retry */
   retryBtn: {
@@ -426,25 +514,6 @@ const styles = StyleSheet.create({
   },
   priceNum: { fontFamily: "Inter_700Bold", fontSize: 18, color: Colors.warning },
   priceCur: { fontFamily: "Inter_400Regular", fontSize: 10, color: Colors.warning + "AA", marginTop: -1 },
-
-  /* info banners */
-  bannerWrap: { paddingHorizontal: 16, paddingBottom: 6, gap: 6 },
-  bannerOfficial: {
-    flexDirection: "row", alignItems: "flex-start", gap: 7,
-    backgroundColor: "#FEF3C7", borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderLeftWidth: 3, borderLeftColor: "#D97706",
-  },
-  bannerLang: {
-    flexDirection: "row", alignItems: "flex-start", gap: 7,
-    backgroundColor: "#EFF6FF", borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderLeftWidth: 3, borderLeftColor: "#3B82F6",
-  },
-  bannerText: {
-    flex: 1, fontFamily: "Inter_400Regular",
-    fontSize: 12, color: "#92400E", lineHeight: 17,
-  },
 
   /* load more */
   moreBtn: {

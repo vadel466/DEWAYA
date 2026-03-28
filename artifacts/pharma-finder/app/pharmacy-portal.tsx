@@ -368,7 +368,7 @@ export default function PharmacyPortalScreen() {
         const asset = result.assets[0];
         const ext = asset.uri.split(".").pop()?.toLowerCase() || "jpg";
         const mimeType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
-        setAttachment({ data: asset.base64, type: mimeType, name: `photo.${ext}` });
+        setAttachment({ data: asset.base64!, type: mimeType, name: `photo.${ext}` });
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     } catch (e) {
@@ -388,7 +388,7 @@ export default function PharmacyPortalScreen() {
       });
       if (!result.canceled && result.assets[0].base64) {
         const asset = result.assets[0];
-        setAttachment({ data: asset.base64, type: "image/jpeg", name: "photo.jpg" });
+        setAttachment({ data: asset.base64!, type: "image/jpeg", name: "photo.jpg" });
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     } catch (e) {

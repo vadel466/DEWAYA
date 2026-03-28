@@ -255,7 +255,7 @@ export default function CompanyPortalScreen() {
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
         const FS = await import("expo-file-system");
-        const base64 = await FS.readAsStringAsync(asset.uri, { encoding: FS.EncodingType.Base64 });
+        const base64 = await FS.readAsStringAsync(asset.uri, { encoding: "base64" as any });
         setInvAttachment({ data: base64, type: asset.mimeType || "application/pdf", name: asset.name });
       }
     } catch {}

@@ -908,7 +908,7 @@ const styles = StyleSheet.create({
   adminPinRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: Colors.light.card,
     borderWidth: 1.5,
     borderColor: Colors.light.border,
     borderRadius: 12,

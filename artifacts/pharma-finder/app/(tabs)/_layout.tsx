@@ -1,7 +1,8 @@
 import { BlurView } from "expo-blur";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
-import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
+// @ts-ignore — unstable API, types may not be fully exported
+import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
@@ -13,14 +14,8 @@ function NativeTabLayout() {
   const { t } = useApp();
   return (
     <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "magnifyingglass", selected: "magnifyingglass" }} />
-        <Label>{t("home")}</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="admin">
-        <Icon sf={{ default: "shield", selected: "shield.fill" }} />
-        <Label>{t("admin")}</Label>
-      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="index" />
+      <NativeTabs.Trigger name="admin" />
     </NativeTabs>
   );
 }

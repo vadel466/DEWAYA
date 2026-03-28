@@ -1019,7 +1019,7 @@ const styles = StyleSheet.create({
   label: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: Colors.light.text },
   inputRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: Colors.light.card,
     borderWidth: 1.5, borderColor: Colors.light.border,
     borderRadius: 14, paddingHorizontal: 14, minHeight: 52,
   },
@@ -1028,7 +1028,7 @@ const styles = StyleSheet.create({
     fontSize: 15, color: Colors.light.text, paddingVertical: 14,
   },
   textArea: {
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: Colors.light.card,
     borderWidth: 1.5, borderColor: Colors.light.border,
     borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12,
     fontFamily: "Inter_400Regular", fontSize: 15, color: Colors.light.text,
@@ -1036,7 +1036,7 @@ const styles = StyleSheet.create({
   },
   selectBox: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: Colors.light.card,
     borderWidth: 1.5, borderColor: Colors.light.border,
     borderRadius: 14, paddingHorizontal: 14, minHeight: 52,
   },
@@ -1100,7 +1100,7 @@ const styles = StyleSheet.create({
 
   reqList: { padding: 16, gap: 12 },
   reqCard: {
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: Colors.light.card,
     borderRadius: 16, padding: 14, borderWidth: 1, borderColor: Colors.light.border,
     gap: 10,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,

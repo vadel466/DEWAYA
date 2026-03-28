@@ -198,21 +198,35 @@ export default function DrugPriceScreen() {
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
             <Ionicons name={isRTL ? "chevron-forward" : "chevron-back"} size={24} color={Colors.primary} />
           </TouchableOpacity>
+          {/* Offline chip — inline, non-intrusive */}
+          {!isOnline && (
+            <View style={[styles.offlineChip, isRTL && { marginRight: "auto", marginLeft: 0 }]}>
+              <MaterialCommunityIcons name="cloud-off-outline" size={11} color="#7C3AED" />
+              <Text style={styles.offlineChipText}>{isRTL ? "بيانات محلية" : "Données locales"}</Text>
+            </View>
+          )}
         </View>
 
-        {/* ── التنبيه — يظهر فوق حقل البحث عند التركيز ───────── */}
-        {searchFocused && (
-          <View style={styles.alertsBox}>
-            <View style={[styles.alertRow, styles.alertBlue, isRTL && styles.rtlRow]}>
-              <MaterialCommunityIcons name="flask-outline" size={13} color="#2563EB" />
-              <Text style={[styles.alertText, { color: "#1E40AF" }, isRTL && styles.rtl]} numberOfLines={2}>
-                {isRTL
-                  ? "لم تجده؟ ابحث بالاسم العلمي (DCI) على العلبة — مثال: Paracétamol"
-                  : "Introuvable ? Cherchez le DCI sur la boîte — Ex. : Paracétamol"}
-              </Text>
-            </View>
+        {/* ── بطاقة معلومات ثابتة فوق حقل البحث ──────────────── */}
+        <View style={[styles.infoCard, isRTL && { borderRightWidth: 3, borderLeftWidth: 0, borderRightColor: Colors.primary + "60" }]}>
+          <View style={[styles.infoRow, isRTL && styles.rtlRow]}>
+            <Ionicons name="shield-checkmark-outline" size={14} color="#059669" style={{ marginTop: 1 }} />
+            <Text style={[styles.infoText, isRTL && styles.rtl]}>
+              {isRTL
+                ? "الأسعار المعروضة رسميّة وموحَّدة — أي ارتفاع ملحوظ عن السعر المذكور هنا قد يُشكّل مخالفة تجارية"
+                : "Les prix affichés sont officiels et uniformes — tout écart significatif peut constituer une infraction commerciale"}
+            </Text>
           </View>
-        )}
+          <View style={styles.infoSep} />
+          <View style={[styles.infoRow, isRTL && styles.rtlRow]}>
+            <MaterialCommunityIcons name="flask-outline" size={14} color="#2563EB" style={{ marginTop: 1 }} />
+            <Text style={[styles.infoText, styles.infoTextBlue, isRTL && styles.rtl]}>
+              {isRTL
+                ? "إن لم تجد الدواء فهو غير معتمد — ابحث بالاسم العلمي (DCI) المكتوب تحت الاسم التجاري على العلبة، مثل: Paracétamol"
+                : "Médicament introuvable = non homologué — cherchez son DCI inscrit sous le nom commercial sur la boîte, ex. : Paracétamol"}
+            </Text>
+          </View>
+        </View>
 
         {/* ── حقل البحث ────────────────────────────────────────── */}
         <View style={[styles.searchBar, isRTL && styles.rtlRow, searchFocused && styles.searchBarFocused]}>
@@ -242,28 +256,7 @@ export default function DrugPriceScreen() {
                 </TouchableOpacity>
               : null}
         </View>
-
-        {/* ── offline banners ─────────────────────────────────── */}
-        {!isOnline && hasCacheData && (
-          <View style={[styles.offlineBanner, isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#7C3AED", flexDirection: "row-reverse" }]}>
-            <MaterialCommunityIcons name="cloud-off-outline" size={13} color="#7C3AED" />
-            <Text style={[styles.offlineText, isRTL && styles.rtl]}>
-              {isRTL
-                ? "أنت تصفح قاعدة البيانات المخزنة • بيانات رسمية من وزارة الصحة"
-                : "Vous consultez la base locale • Données officielles du Ministère de la Santé"}
-            </Text>
-          </View>
-        )}
-        {!isOnline && !hasCacheData && (
-          <View style={[styles.offlineBannerWarn, isRTL && { flexDirection: "row-reverse" }]}>
-            <MaterialCommunityIcons name="wifi-off" size={13} color="#DC2626" />
-            <Text style={[styles.offlineWarnText, isRTL && styles.rtl]}>
-              {isRTL
-                ? "لا يوجد اتصال ولا توجد بيانات مخزنة. يُرجى الاتصال بالإنترنت مرة واحدة للتحميل."
-                : "Pas de connexion et aucune donnée locale. Connectez-vous une fois pour télécharger."}
-            </Text>
-          </View>
-        )}
+        {/* لا يوجد أي نص أو تنبيه تحت حقل البحث */}
 
         {/* ── قائمة الأدوية ────────────────────────────────── */}
         {showResults && (
@@ -380,7 +373,8 @@ const styles = StyleSheet.create({
   /* compact top bar */
   topBar: {
     flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 12, paddingVertical: 6,
+    paddingHorizontal: 12, paddingVertical: 4,
+    gap: 10,
   },
   backBtn: {
     width: 36, height: 36, borderRadius: 18,
@@ -388,49 +382,35 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
 
-  /* offline banners */
-  offlineBanner: {
-    flexDirection: "row", alignItems: "center", gap: 7,
-    backgroundColor: "#F5F3FF",
-    borderLeftWidth: 3, borderLeftColor: "#7C3AED",
-    marginHorizontal: 14, marginTop: 6, marginBottom: 0,
-    paddingHorizontal: 11, paddingVertical: 7,
-    borderRadius: 10,
+  /* offline chip — minimal, inside top bar */
+  offlineChip: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "#EDE9FE", borderRadius: 20,
+    paddingHorizontal: 9, paddingVertical: 4,
+    marginLeft: "auto" as any,
   },
-  offlineText: {
-    flex: 1, fontFamily: "Inter_400Regular",
-    fontSize: 11, color: "#4C1D95", lineHeight: 16,
-  },
-  offlineBannerWarn: {
-    flexDirection: "row", alignItems: "center", gap: 7,
-    backgroundColor: "#FEE2E2",
-    borderLeftWidth: 3, borderLeftColor: "#DC2626",
-    marginHorizontal: 14, marginTop: 6, marginBottom: 0,
-    paddingHorizontal: 11, paddingVertical: 7,
-    borderRadius: 10,
-  },
-  offlineWarnText: {
-    flex: 1, fontFamily: "Inter_400Regular",
-    fontSize: 11, color: "#7F1D1D", lineHeight: 16,
+  offlineChipText: {
+    fontFamily: "Inter_600SemiBold", fontSize: 10, color: "#7C3AED",
   },
 
-  /* مستطيل التنبيهات الموحَّد */
-  alertsBox: {
-    marginHorizontal: 14, marginTop: 4, marginBottom: 4,
+  /* بطاقة معلومات ثابتة فوق البحث */
+  infoCard: {
+    marginHorizontal: 14, marginBottom: 8,
     borderRadius: 12, overflow: "hidden",
-    borderWidth: 1.5, borderColor: "#BFDBFE",
+    backgroundColor: "#F8FFFE",
+    borderWidth: 1, borderColor: Colors.primary + "30",
+    borderLeftWidth: 3, borderLeftColor: Colors.primary + "60",
   },
-  alertRow: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    paddingHorizontal: 12, paddingVertical: 9,
+  infoRow: {
+    flexDirection: "row", alignItems: "flex-start", gap: 8,
+    paddingHorizontal: 12, paddingVertical: 8,
   },
-  alertAmber: { backgroundColor: "#FFFBEB", borderLeftWidth: 3, borderLeftColor: "#B45309" },
-  alertBlue:  { backgroundColor: "#EFF6FF", borderLeftWidth: 3, borderLeftColor: "#2563EB" },
-  alertSep:   { height: 1, backgroundColor: "#DBEAFE" },
-  alertText: {
+  infoSep: { height: 1, backgroundColor: Colors.primary + "15", marginHorizontal: 12 },
+  infoText: {
     flex: 1, fontFamily: "Inter_400Regular",
-    fontSize: 11.5, lineHeight: 17,
+    fontSize: 11.5, lineHeight: 17, color: "#065F46",
   },
+  infoTextBlue: { color: "#1E40AF" },
 
   /* search bar */
   searchBar: {

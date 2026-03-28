@@ -8,8 +8,5 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"
-  },
-  "dependencies": {
-    "expo": "^55.0.10-canary-20260328-2049187"
   }
 }

@@ -39,3 +39,7 @@ yarn-error.*
 .vercel
 
 .env
+
+# npm lock file (project uses pnpm — do not commit npm artifacts)
+package-lock.json
+yarn.lock

@@ -18,7 +18,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import * as Location from "expo-location";
 import Colors from "@/constants/colors";
 import { REGIONS, getNearestRegion } from "@/constants/regions";
 import { useApp } from "@/context/AppContext";
@@ -200,20 +199,7 @@ export default function HomeScreen() {
 
   const goToNearest = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (Platform.OS === "web") {
-      Linking.openURL("https://www.google.com/maps/search/pharmacy+near+me");
-      return;
-    }
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === "granted") {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        const { latitude, longitude } = loc.coords;
-        Linking.openURL(`https://www.google.com/maps/search/pharmacy/@${latitude},${longitude},15z`);
-        return;
-      }
-    } catch { /* fallback */ }
-    Linking.openURL("https://www.google.com/maps/search/pharmacy+Nouakchott/@18.0857,-15.9785,13z");
+    router.push("/nearest-pharmacy");
   };
 
   const goToDutyDirect = () => {

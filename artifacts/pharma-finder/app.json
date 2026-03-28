@@ -5,7 +5,7 @@
     "owner": "vadel466",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/icon_v2.png",
     "scheme": "dewaya",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -74,7 +74,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
+          "icon": "./assets/images/icon_v2.png",
           "color": "#0D9488",
           "sounds": [],
           "androidMode": "default",

@@ -11,7 +11,6 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
-import { PharmacyMap } from "@/components/PharmacyMap";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useOfflineCache, haversineKm, type CachedPharmacy } from "@/hooks/useOfflineCache";
 
@@ -78,7 +77,6 @@ export default function NearestPharmacyScreen() {
   const [userLat, setUserLat]         = useState<number | null>(null);
   const [userLon, setUserLon]         = useState<number | null>(null);
   const [locating, setLocating]       = useState(false);
-  const [showMap, setShowMap]         = useState(false);
   const [fromCache, setFromCache]     = useState(false);
 
   /* Prevent setState after unmount */
@@ -277,8 +275,6 @@ export default function NearestPharmacyScreen() {
       .catch(() => Linking.openURL(fallback));
   };
 
-  const validMapPharmacies = pharmacies.filter(p => isValidCoord(p.lat, p.lon));
-
   const renderItem = ({ item, index }: { item: NearestPharmacy; index: number }) => (
     <View style={styles.card}>
       <View style={[styles.cardHeader, isRTL && styles.rtlRow]}>
@@ -350,13 +346,6 @@ export default function NearestPharmacyScreen() {
             <MaterialCommunityIcons name="google-maps" size={20} color="#34A853" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.gpsBtn, showMap && { backgroundColor: Colors.primary + "20" }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowMap(v => !v); }}
-            activeOpacity={0.8}
-          >
-            <Ionicons name={showMap ? "list" : "map"} size={20} color={Colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity
             style={[styles.gpsBtn, locating && { opacity: 0.7 }]}
             onPress={detectLocation}
             disabled={locating}
@@ -395,20 +384,6 @@ export default function NearestPharmacyScreen() {
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>{t("loading")}</Text>
-        </View>
-      ) : showMap ? (
-        <View style={styles.mapContainer}>
-          <PharmacyMap
-            pharmacies={pharmacies}
-            userLat={userLat}
-            userLon={userLon}
-            language={language}
-          />
-          <Text style={[styles.mapHint, isRTL && styles.rtlText]}>
-            {isRTL
-              ? `${validMapPharmacies.length} صيدلية على الخريطة`
-              : `${validMapPharmacies.length} pharmacies sur la carte`}
-          </Text>
         </View>
       ) : (
         <FlatList

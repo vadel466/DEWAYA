@@ -19,6 +19,11 @@ interface PharmacyMapProps {
   language: string;
 }
 
+function isValidMauritaniaCoord(lat: number | null, lon: number | null): boolean {
+  if (lat === null || lon === null) return false;
+  return lat >= 14 && lat <= 26 && lon >= -21 && lon <= -4;
+}
+
 export function PharmacyMap({ pharmacies, userLat, userLon, language }: PharmacyMapProps) {
   const containerRef = useRef<any>(null);
 
@@ -31,7 +36,7 @@ export function PharmacyMap({ pharmacies, userLat, userLon, language }: Pharmacy
     const zoom = userLat ? 15 : 13;
 
     const markers = pharmacies
-      .filter((p) => p.lat && p.lon)
+      .filter((p) => isValidMauritaniaCoord(p.lat, p.lon))
       .map((p, i) => {
         const label = isRTL ? (p.nameAr || p.name) : p.name;
         const addr = isRTL ? (p.addressAr || p.address) : p.address;

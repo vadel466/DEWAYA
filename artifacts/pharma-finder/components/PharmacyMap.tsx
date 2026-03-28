@@ -21,11 +21,16 @@ interface PharmacyMapProps {
   language: string;
 }
 
+function isValidMauritaniaCoord(lat: number | null, lon: number | null): boolean {
+  if (lat === null || lon === null) return false;
+  return lat >= 14 && lat <= 26 && lon >= -21 && lon <= -4;
+}
+
 export function PharmacyMap({ pharmacies, userLat, userLon, language }: PharmacyMapProps) {
   const defaultLat = userLat ?? 18.0735;
   const defaultLon = userLon ?? -15.9582;
 
-  const withCoords = pharmacies.filter((p) => p.lat && p.lon);
+  const withCoords = pharmacies.filter((p) => isValidMauritaniaCoord(p.lat, p.lon));
 
   return (
     <MapView
@@ -39,7 +44,7 @@ export function PharmacyMap({ pharmacies, userLat, userLon, language }: Pharmacy
       showsUserLocation={false}
       showsMyLocationButton={false}
     >
-      {userLat && userLon && (
+      {userLat && userLon && isValidMauritaniaCoord(userLat, userLon) && (
         <Circle
           center={{ latitude: userLat, longitude: userLon }}
           radius={80}
@@ -66,9 +71,7 @@ export function PharmacyMap({ pharmacies, userLat, userLon, language }: Pharmacy
 
 const styles = StyleSheet.create({
   map: {
-    height: 240,
-    borderRadius: 12,
-    overflow: "hidden",
+    flex: 1,
   },
   markerPin: {
     backgroundColor: Colors.primary,

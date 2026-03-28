@@ -349,8 +349,8 @@ export default function NearestPharmacyScreen() {
           />
           <Text style={[styles.mapHint, isRTL && styles.rtlText]}>
             {isRTL
-              ? `${pharmacies.filter((p) => p.lat && p.lon).length} صيدلية على الخريطة`
-              : `${pharmacies.filter((p) => p.lat && p.lon).length} pharmacies sur la carte`}
+              ? `${pharmacies.filter((p) => p.lat && p.lon && p.lat >= 14 && p.lat <= 26 && p.lon >= -21 && p.lon <= -4).length} صيدلية على الخريطة`
+              : `${pharmacies.filter((p) => p.lat && p.lon && p.lat >= 14 && p.lat <= 26 && p.lon >= -21 && p.lon <= -4).length} pharmacies sur la carte`}
           </Text>
         </View>
       ) : (

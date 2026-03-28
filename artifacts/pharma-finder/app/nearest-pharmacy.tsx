@@ -15,9 +15,12 @@ import { PharmacyMap } from "@/components/PharmacyMap";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useOfflineCache, haversineKm, type CachedPharmacy } from "@/hooks/useOfflineCache";
 
-const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-  : "/api";
+const API_BASE =
+  Platform.OS === "web"
+    ? "/api"
+    : process.env.EXPO_PUBLIC_DOMAIN
+      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+      : "/api";
 
 const MAURITANIA_LAT_MIN = 14, MAURITANIA_LAT_MAX = 26;
 const MAURITANIA_LON_MIN = -21, MAURITANIA_LON_MAX = -4;

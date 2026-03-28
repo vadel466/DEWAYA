@@ -10,7 +10,7 @@ import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 
 const VERSION = "1.0.0";
-const PRIVACY_URL = "https://dewaya.app/privacy";
+const EMAIL    = "vadel466@gmail.com";
 
 export default function AboutScreen() {
   const insets = useSafeAreaInsets();
@@ -49,15 +49,33 @@ export default function AboutScreen() {
         </View>
 
         {/* Initiative card */}
-        <SectionCard icon="hand-heart" color={Colors.primary}>
+        <SectionCard icon="account-heart" color={Colors.primary}>
           <Text style={[styles.cardTitle, isRTL && styles.rtl]}>
-            {isRTL ? "مبادرة مجتمعية" : "Initiative Citoyenne"}
+            {isRTL ? "مبادرة شخصية" : "Initiative Personnelle"}
           </Text>
           <Text style={[styles.cardBody, isRTL && styles.rtl]}>
             {isRTL
-              ? "دواية مبادرة مجتمعية مجانية تهدف إلى مساعدة المواطن الموريتاني على معرفة السعر الرسمي للدواء، والعثور على أقرب صيدلية، ومتابعة صيدليات المداومة — كل ذلك بضغطة واحدة."
-              : "Dewaya est une initiative citoyenne gratuite visant à aider les Mauritaniens à connaître le prix officiel des médicaments, à trouver la pharmacie la plus proche et à suivre les pharmacies de garde — en un seul clic."}
+              ? "دواية مبادرة شخصية لصالح المواطن الموريتاني، تُمكِّنك من معرفة السعر الرسمي للدواء، والعثور على أقرب صيدلية، ومتابعة صيدليات المداومة وطلب خدمة التمريض المنزلي — كل ذلك في مكان واحد."
+              : "Dewaya est une initiative personnelle au service du citoyen mauritanien, vous permettant de connaître le prix officiel des médicaments, de trouver la pharmacie la plus proche, de suivre les pharmacies de garde et de demander des soins infirmiers à domicile — le tout en un seul endroit."}
           </Text>
+        </SectionCard>
+
+        {/* Pricing card */}
+        <SectionCard icon="tag-heart-outline" color="#F59E0B">
+          <Text style={[styles.cardTitle, isRTL && styles.rtl]}>
+            {isRTL ? "خدمة شبه مجانية" : "Service Semi-Gratuit"}
+          </Text>
+          <Text style={[styles.cardBody, isRTL && styles.rtl]}>
+            {isRTL
+              ? "البحث عن أسعار الأدوية والعثور على الصيدليات مجاني تماماً. خدمة التمريض المنزلي رمزية لا تتجاوز 30 إلى 50 أوقية موريتانية، تُدفع مباشرةً لمزود الخدمة."
+              : "La recherche de prix de médicaments et la localisation des pharmacies sont entièrement gratuites. Le service de soins infirmiers à domicile est symbolique — entre 30 et 50 MRU — payé directement au prestataire."}
+          </Text>
+          <View style={[styles.badge, { backgroundColor: "#FEF3C7" }]}>
+            <MaterialCommunityIcons name="currency-usd-off" size={14} color="#92400E" />
+            <Text style={[styles.badgeText, { color: "#92400E" }, isRTL && styles.rtl]}>
+              {isRTL ? "البحث عن الأدوية والصيدليات: مجاني" : "Médicaments & pharmacies : gratuit"}
+            </Text>
+          </View>
         </SectionCard>
 
         {/* Data source card */}
@@ -73,7 +91,7 @@ export default function AboutScreen() {
           <View style={[styles.badge, { backgroundColor: "#D1FAE5" }]}>
             <MaterialCommunityIcons name="check-circle" size={14} color="#059669" />
             <Text style={[styles.badgeText, { color: "#059669" }, isRTL && styles.rtl]}>
-              {isRTL ? "بيانات رسمية من وزارة الصحة الموريتانية" : "Données officielles — Ministère de la Santé"}
+              {isRTL ? "بيانات رسمية — وزارة الصحة الموريتانية" : "Données officielles — Ministère de la Santé"}
             </Text>
           </View>
         </SectionCard>
@@ -86,7 +104,7 @@ export default function AboutScreen() {
           <Text style={[styles.cardBody, isRTL && styles.rtl]}>
             {isRTL
               ? "التطبيق يحفظ قاعدة بيانات الأدوية والصيدليات على هاتفك، ويمكنك البحث حتى بدون اتصال بالإنترنت. تُحدَّث البيانات تلقائياً كل 24 ساعة عند توفر الاتصال."
-              : "L'application sauvegarde la base de données des médicaments et des pharmacies localement. Vous pouvez effectuer des recherches même sans connexion internet. Les données sont mises à jour automatiquement toutes les 24 heures."}
+              : "L'application sauvegarde localement la base de données des médicaments et des pharmacies. Vous pouvez effectuer des recherches même sans connexion. Les données sont mises à jour automatiquement toutes les 24 heures."}
           </Text>
         </SectionCard>
 
@@ -97,19 +115,9 @@ export default function AboutScreen() {
           </Text>
           <Text style={[styles.cardBody, isRTL && styles.rtl]}>
             {isRTL
-              ? "لا نجمع أي بيانات شخصية. التطبيق يستخدم معرِّفاً مجهولاً لتسليم إشعارات الأدوية فقط. لا يُشارك أي معلومة مع طرف ثالث."
-              : "Nous ne collectons aucune donnée personnelle. L'application utilise un identifiant anonyme uniquement pour la livraison des notifications de médicaments. Aucune information n'est partagée avec des tiers."}
+              ? "لا نجمع أي بيانات شخصية تعريفية. في حال طلبت خدمة التمريض المنزلي صراحةً، تُشارَك معلومات الاتصال الخاصة بك فقط مع مزود الخدمة (الممرض المختص) لتنسيق الزيارة. لا تُشارَك أي بيانات مع أي طرف آخر."
+              : "Nous ne collectons aucune donnée personnelle identifiable. Si vous demandez explicitement le service de soins infirmiers à domicile, vos coordonnées sont partagées uniquement avec le prestataire de soins (infirmier habilité) pour coordonner la visite. Aucune donnée n'est partagée avec un tiers quelconque."}
           </Text>
-          <TouchableOpacity
-            style={styles.linkBtn}
-            onPress={() => Linking.openURL(PRIVACY_URL)}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons name="open-in-new" size={14} color={Colors.primary} />
-            <Text style={[styles.linkText, isRTL && styles.rtl]}>
-              {isRTL ? "قراءة سياسة الخصوصية الكاملة" : "Lire la politique complète"}
-            </Text>
-          </TouchableOpacity>
         </SectionCard>
 
         {/* Contact */}
@@ -119,16 +127,16 @@ export default function AboutScreen() {
           </Text>
           <Text style={[styles.cardBody, isRTL && styles.rtl]}>
             {isRTL
-              ? "للإبلاغ عن خطأ في البيانات، أو اقتراح تحسين، أو إدراج صيدليتك في الدليل، تواصل معنا عبر:"
-              : "Pour signaler une erreur, proposer une amélioration ou référencer votre pharmacie, contactez-nous via :"}
+              ? "للإبلاغ عن خطأ في البيانات، أو اقتراح تحسين، أو إدراج صيدليتك في الدليل، تواصل معنا عبر البريد الإلكتروني:"
+              : "Pour signaler une erreur, proposer une amélioration ou référencer votre pharmacie, contactez-nous par e-mail :"}
           </Text>
           <TouchableOpacity
             style={styles.linkBtn}
-            onPress={() => Linking.openURL("mailto:contact@dewaya.app")}
+            onPress={() => Linking.openURL(`mailto:${EMAIL}`)}
             activeOpacity={0.7}
           >
             <MaterialCommunityIcons name="email" size={14} color={Colors.primary} />
-            <Text style={[styles.linkText, isRTL && styles.rtl]}>contact@dewaya.app</Text>
+            <Text style={[styles.linkText, isRTL && styles.rtl]}>{EMAIL}</Text>
           </TouchableOpacity>
         </SectionCard>
 
@@ -143,7 +151,9 @@ export default function AboutScreen() {
 
         {/* Footer */}
         <Text style={[styles.footer, isRTL && styles.rtl]}>
-          {isRTL ? `© ${new Date().getFullYear()} دواية — موريتانيا` : `© ${new Date().getFullYear()} Dewaya — Mauritanie`}
+          {isRTL
+            ? `© ${new Date().getFullYear()} دواية — موريتانيا`
+            : `© ${new Date().getFullYear()} Dewaya — Mauritanie`}
         </Text>
       </ScrollView>
     </View>

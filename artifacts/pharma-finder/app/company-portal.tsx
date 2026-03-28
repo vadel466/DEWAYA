@@ -14,9 +14,12 @@ import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { DewyaBrand } from "@/components/DewyaBrand";
 
-const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-  : "/api";
+const API_BASE =
+  Platform.OS === "web"
+    ? "/api"
+    : process.env.EXPO_PUBLIC_DOMAIN
+      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+      : "/api";
 
 const COMPANY_COLOR = "#7C3AED";
 const COMPANY_LIGHT = "#7C3AED12";

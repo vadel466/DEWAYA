@@ -21,9 +21,12 @@ import * as Clipboard from "expo-clipboard";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 
-const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-  : "/api";
+const API_BASE =
+  Platform.OS === "web"
+    ? "/api"
+    : process.env.EXPO_PUBLIC_DOMAIN
+      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+      : "/api";
 
 const PAYMENT_METHODS = [
   { id: "masrafi", name: "مصرفي", nameFr: "Masrafi", number: "20479725", color: "#1A56DB", icon: "university" as const },

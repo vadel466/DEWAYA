@@ -15,9 +15,12 @@ import { useApp } from "@/context/AppContext";
 import { useBell } from "@/hooks/useBell";
 import { DewyaBrand, DewyaFooter } from "@/components/DewyaBrand";
 
-const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-  : "/api";
+const API_BASE =
+  Platform.OS === "web"
+    ? "/api"
+    : process.env.EXPO_PUBLIC_DOMAIN
+      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+      : "/api";
 
 const PARTNER_COLOR = "#7C3AED";
 

@@ -12,9 +12,14 @@ import { useApp } from "@/context/AppContext";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useOfflineCache, localDrugSearch, type CachedDrug } from "@/hooks/useOfflineCache";
 
-const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-  : "/api";
+/* ── For web: use relative path (same origin, routed by Replit proxy)
+   For native: use absolute URL to reach the API server            ── */
+const API_BASE =
+  Platform.OS === "web"
+    ? "/api"
+    : process.env.EXPO_PUBLIC_DOMAIN
+      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+      : "/api";
 
 const LIMIT = 20;
 
@@ -118,23 +123,21 @@ export default function DrugPriceScreen() {
     setHasMore(false); setOffset(0); setSearchError(false);
   };
 
-  /* debounce */
+  /* debounce — always try API first; fallback to cache on failure */
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (query.trim().length < 2) { reset(); return; }
     setLoading(true);
     debounceRef.current = setTimeout(() => {
-      if (isOnline) searchOnline(query, 0, false);
-      else searchOffline(query, 0, false);
-      setLoading(false);
-    }, 240);
+      /* always attempt online search; searchOnline falls back to cache on error */
+      searchOnline(query, 0, false);
+    }, 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query, isOnline]);
+  }, [query]);
 
   const loadMore = () => {
     if (!loadingMore && hasMore && query.trim().length >= 2) {
-      if (isOnline) searchOnline(query, offset, true);
-      else searchOffline(query, offset, true);
+      searchOnline(query, offset, true);
     }
   };
 

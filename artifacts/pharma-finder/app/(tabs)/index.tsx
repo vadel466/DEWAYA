@@ -23,9 +23,12 @@ import { REGIONS, getNearestRegion } from "@/constants/regions";
 import { useApp } from "@/context/AppContext";
 import { router } from "expo-router";
 
-const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-  : "/api";
+const API_BASE =
+  Platform.OS === "web"
+    ? "/api"
+    : process.env.EXPO_PUBLIC_DOMAIN
+      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+      : "/api";
 
 const DUTY_RED = "#DC3545";
 const DUTY_RED_LIGHT = "#FEF0F0";
@@ -525,7 +528,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Row 2: صيدليات المداومة | سعر الدواء */}
-        <View style={styles.gridRow}>
+        <View style={[styles.gridRow, { marginTop: 6 }]}>
           {/* صيدليات المداومة */}
           <TouchableOpacity style={[styles.card, { backgroundColor: "#EEF4FD" }]} onPress={goToDutyDirect} activeOpacity={0.82}>
             <View style={[styles.cardAccent, { backgroundColor: "#3B5BDB" }]} />
@@ -562,29 +565,46 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* ─── PORTAL LINKS ─── */}
+      {/* ─── PORTAL CARDS ─── */}
       <View style={[styles.portalRow, isRTL && styles.rowReverse]}>
+        {/* بوابة الصيدليات — خضراء */}
         <TouchableOpacity
-          style={[styles.portalLink, { flex: 1 }, isRTL && styles.rowReverse]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/pharmacy-portal"); }}
-          activeOpacity={0.7}
+          style={[styles.portalCard, styles.portalCardPharmacy, isRTL && styles.rowReverse]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/pharmacy-portal"); }}
+          activeOpacity={0.78}
         >
-          <MaterialCommunityIcons name="shield-key-outline" size={14} color={Colors.light.textTertiary} />
-          <Text style={styles.portalLinkText}>
-            {isRTL ? "بوابة الصيدليات" : "Portail Pharmacies"}
-          </Text>
-          <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color={Colors.light.textTertiary} />
+          <View style={[styles.portalCardIcon, { backgroundColor: "#059669" + "1A" }]}>
+            <MaterialCommunityIcons name="store-plus-outline" size={18} color="#059669" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.portalCardTitle, { color: "#059669" }, isRTL && styles.textRight]} numberOfLines={1}>
+              {isRTL ? "بوابة الصيدليات" : "Portail Pharmacies"}
+            </Text>
+            <Text style={[styles.portalCardSub, isRTL && styles.textRight]} numberOfLines={1}>
+              {isRTL ? "أدر صيدليتك" : "Gérez votre pharmacie"}
+            </Text>
+          </View>
+          <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={14} color="#059669" />
         </TouchableOpacity>
+
+        {/* بوابة الشركاء — بنفسجية */}
         <TouchableOpacity
-          style={[styles.portalLink, styles.portalLinkCompany, { flex: 1 }, isRTL && styles.rowReverse]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/company-portal"); }}
-          activeOpacity={0.7}
+          style={[styles.portalCard, styles.portalCardCompany, isRTL && styles.rowReverse]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/company-portal"); }}
+          activeOpacity={0.78}
         >
-          <MaterialCommunityIcons name="domain" size={14} color="#7C3AED" />
-          <Text style={[styles.portalLinkText, { color: "#7C3AED" }]}>
-            {isRTL ? "بوابة الشركاء" : "Portail Partenaires"}
-          </Text>
-          <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#7C3AED" />
+          <View style={[styles.portalCardIcon, { backgroundColor: "#7C3AED" + "1A" }]}>
+            <MaterialCommunityIcons name="domain" size={18} color="#7C3AED" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.portalCardTitle, { color: "#7C3AED" }, isRTL && styles.textRight]} numberOfLines={1}>
+              {isRTL ? "بوابة الشركاء" : "Portail Partenaires"}
+            </Text>
+            <Text style={[styles.portalCardSub, isRTL && styles.textRight]} numberOfLines={1}>
+              {isRTL ? "الشركات والموزعين" : "Entreprises et distributeurs"}
+            </Text>
+          </View>
+          <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={14} color="#7C3AED" />
         </TouchableOpacity>
       </View>
 
@@ -1415,27 +1435,50 @@ const styles = StyleSheet.create({
 
   portalRow: {
     flexDirection: "row",
-    gap: 6,
-    marginTop: 2,
+    gap: 8,
+    marginTop: 10,
   },
-  portalLink: {
+
+  /* بطاقة بوابة */
+  portalCard: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    paddingVertical: 8,
-    marginTop: 2,
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  portalLinkCompany: {
-    backgroundColor: "#7C3AED08",
+  portalCardPharmacy: {
+    backgroundColor: "#F0FDF4",
+    borderColor: "#059669" + "35",
+  },
+  portalCardCompany: {
+    backgroundColor: "#F5F3FF",
+    borderColor: "#7C3AED" + "35",
+  },
+  portalCardIcon: {
+    width: 34,
+    height: 34,
     borderRadius: 10,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: "#7C3AED18",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
-  portalLinkText: {
-    fontSize: 12,
+  portalCardTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 13,
+    marginBottom: 1,
+  },
+  portalCardSub: {
     fontFamily: "Inter_400Regular",
+    fontSize: 11,
     color: Colors.light.textTertiary,
   },
 
@@ -1445,7 +1488,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 5,
     paddingVertical: 10,
-    marginTop: 4,
+    marginTop: 6,
     marginBottom: 2,
   },
   aboutLinkText: {

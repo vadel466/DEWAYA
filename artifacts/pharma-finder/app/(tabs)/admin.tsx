@@ -30,9 +30,12 @@ import { useApp } from "@/context/AppContext";
 import { REGIONS } from "@/constants/regions";
 import { DewyaBrand, DewyaFooter } from "@/components/DewyaBrand";
 
-const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-  : "/api";
+const API_BASE =
+  Platform.OS === "web"
+    ? "/api"
+    : process.env.EXPO_PUBLIC_DOMAIN
+      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+      : "/api";
 
 const ADMIN_SECRET = "DEWAYA_ADMIN_2026";
 

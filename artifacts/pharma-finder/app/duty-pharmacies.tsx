@@ -21,9 +21,12 @@ import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { DUTY_REGIONS, type DutyRegion } from "@/constants/duty-regions";
 
-const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-  : "/api";
+const API_BASE =
+  Platform.OS === "web"
+    ? "/api"
+    : process.env.EXPO_PUBLIC_DOMAIN
+      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+      : "/api";
 
 const DUTY_RED = "#DC3545";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");

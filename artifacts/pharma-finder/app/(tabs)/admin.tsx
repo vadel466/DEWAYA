@@ -250,10 +250,26 @@ export default function AdminScreen() {
     ? companies.filter(c => c.name.toLowerCase().includes(coSearch.toLowerCase()) || (c.nameAr && c.nameAr.includes(coSearch)))
     : companies;
 
+  /* ── Drug prices: load first 500 only (perf) + full count from stats ── */
+  const PRICE_DISPLAY_LIMIT = 500;
+
+  const { data: drugTotalStats } = useQuery<{ total: number }>({
+    queryKey: ["drug-prices-total"],
+    queryFn: async () => {
+      const r = await fetch(`${API_BASE}/drug-prices/stats`);
+      if (!r.ok) return { total: 0 };
+      const d = await r.json();
+      return { total: d.total ?? 0 };
+    },
+    enabled: isAdmin && activeTab === "prices",
+    staleTime: 30_000,
+  });
+  const drugTotalCount = drugTotalStats?.total ?? 0;
+
   const { data: allDrugPrices = [], isLoading: priceLoading, refetch: refetchPrices, isRefetching: priceRefetching } = useQuery<DrugPrice[]>({
     queryKey: ["admin-drug-prices"],
     queryFn: async () => {
-      const r = await fetch(`${API_BASE}/drug-prices?limit=10000`, { headers: { "x-admin-secret": ADMIN_SECRET } });
+      const r = await fetch(`${API_BASE}/drug-prices?limit=${PRICE_DISPLAY_LIMIT}`, { headers: { "x-admin-secret": ADMIN_SECRET } });
       if (!r.ok) throw new Error(); return r.json();
     },
     enabled: isAdmin && activeTab === "prices",
@@ -418,6 +434,8 @@ export default function AdminScreen() {
     },
     onSuccess: (data: any) => {
       qc.invalidateQueries({ queryKey: ["admin-drug-prices"] });
+      qc.invalidateQueries({ queryKey: ["drug-prices-total"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(isRTL ? "تم المسح" : "Suppression effectuée", isRTL ? `تم حذف ${data.deleted} دواء من القاعدة` : `${data.deleted} médicaments supprimés de la base`);
     },
     onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "فشل المسح" : "Échec de la suppression"),
@@ -533,6 +551,7 @@ export default function AdminScreen() {
       }
       qc.invalidateQueries({ queryKey: ["admin-drug-prices"] });
       qc.invalidateQueries({ queryKey: ["drug-prices-stats"] });
+      qc.invalidateQueries({ queryKey: ["drug-prices-total"] });
       webAlert(
         isRTL ? "تم الاستيراد ✓" : "Import réussi ✓",
         isRTL
@@ -1947,23 +1966,28 @@ export default function AdminScreen() {
           }
           contentContainerStyle={[styles.list, currentData.length === 0 && styles.emptyList, { paddingBottom: Platform.OS === "web" ? 34 : 0 }]}
           showsVerticalScrollIndicator={false}
+          maxToRenderPerBatch={15}
+          initialNumToRender={15}
+          windowSize={5}
+          removeClippedSubviews={Platform.OS !== "web"}
           refreshControl={<RefreshControl refreshing={!!isRefetching} onRefresh={onRefresh} tintColor={Colors.primary} />}
           ListHeaderComponent={
             activeTab === "prices" ? (
               <View>
-                {/* Stats banner */}
-                {allDrugPrices.length > 0 && (() => {
+                {/* Stats banner — always visible on prices tab */}
+                {(() => {
                   const activeCount = allDrugPrices.filter(d => d.isActive).length;
                   const hiddenCount = allDrugPrices.length - activeCount;
+                  const dbTotal = drugTotalCount || allDrugPrices.length;
                   return (
                     <View style={{ gap: 8, marginBottom: 10 }}>
-                      {/* Active count row */}
+                      {/* Total count row */}
                       <View style={{ flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", backgroundColor: "#F0FDF4", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, gap: 8, borderWidth: 1, borderColor: "#86EFAC" }}>
-                        <Ionicons name="eye-outline" size={18} color="#059669" />
+                        <MaterialCommunityIcons name="database-outline" size={18} color="#059669" />
                         <Text style={{ fontFamily: "Inter_700Bold", fontSize: 13, color: "#065F46", flex: 1, textAlign: isRTL ? "right" : "left" }}>
                           {isRTL
-                            ? `${activeCount} دواء ظاهر للمستخدمين  •  ${allDrugPrices.length} إجمالي`
-                            : `${activeCount} visible(s) · ${allDrugPrices.length} total`}
+                            ? `${dbTotal} دواء في القاعدة  •  يُعرض أول ${allDrugPrices.length}`
+                            : `${dbTotal} médicaments en base · affichage: ${allDrugPrices.length}`}
                         </Text>
                       </View>
                       {/* Hidden drugs warning */}
@@ -1972,16 +1996,27 @@ export default function AdminScreen() {
                           <Ionicons name="eye-off-outline" size={18} color="#D97706" />
                           <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 12, color: "#92400E", flex: 1, textAlign: isRTL ? "right" : "left" }}>
                             {isRTL
-                              ? `⚠️ ${hiddenCount} دواء مخفي — لا يظهر للمستخدمين في البحث. لم يُحذف. اضغط أيقونة 👁 لإعادة تفعيله.`
-                              : `⚠️ ${hiddenCount} médicament(s) caché(s) — pas visible dans la recherche. Non supprimé(s). Appuyez sur 👁 pour réactiver.`}
+                              ? `⚠️ ${hiddenCount} دواء مخفي — اضغط 👁 لإعادة تفعيله.`
+                              : `⚠️ ${hiddenCount} caché(s) — appuyez sur 👁 pour réactiver.`}
+                          </Text>
+                        </View>
+                      )}
+                      {dbTotal === 0 && !priceLoading && (
+                        <View style={{ flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", backgroundColor: "#FEF2F2", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, gap: 8, borderWidth: 1, borderColor: "#FECACA" }}>
+                          <Ionicons name="warning-outline" size={18} color="#DC2626" />
+                          <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 12, color: "#DC2626", flex: 1, textAlign: isRTL ? "right" : "left" }}>
+                            {isRTL
+                              ? "القاعدة فارغة — ارفع ملف Excel أو CSV أو PDF لتعبئتها"
+                              : "Base vide — importez un fichier Excel, CSV ou PDF"}
                           </Text>
                         </View>
                       )}
                     </View>
                   );
                 })()}
-                {/* Upload + Clear row */}
+                {/* Upload + Clear + Refresh row */}
                 <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+                  {/* Upload button */}
                   <TouchableOpacity
                     style={[styles.addBtn, { backgroundColor: "#059669", flex: 1 }]}
                     onPress={pickAndParseExcel}
@@ -1992,43 +2027,58 @@ export default function AdminScreen() {
                       ? <ActivityIndicator color="#fff" size="small" />
                       : <><MaterialCommunityIcons name="file-upload-outline" size={20} color="#fff" /><Text style={styles.addBtnText}>{isRTL ? "رفع ملف (Excel / CSV / PDF)" : "Importer Excel / CSV / PDF"}</Text></>}
                   </TouchableOpacity>
+                  {/* Refresh button */}
                   <TouchableOpacity
                     style={[styles.addBtn, {
-                      backgroundColor: allDrugPrices.length > 0 ? Colors.danger : "#D1D5DB",
-                      paddingHorizontal: 14, flexDirection: "row", gap: 6, alignItems: "center",
+                      backgroundColor: Colors.primary,
+                      paddingHorizontal: 14, flexDirection: "row", gap: 4, alignItems: "center",
+                    }]}
+                    onPress={() => { refetchPrices(); qc.invalidateQueries({ queryKey: ["drug-prices-total"] }); }}
+                    disabled={priceRefetching}
+                    activeOpacity={0.85}
+                  >
+                    {priceRefetching
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <Ionicons name="refresh-outline" size={20} color="#fff" />}
+                  </TouchableOpacity>
+                  {/* Delete all button — ALWAYS active when drugTotalCount > 0 */}
+                  <TouchableOpacity
+                    style={[styles.addBtn, {
+                      backgroundColor: drugTotalCount > 0 ? Colors.danger : "#D1D5DB",
+                      paddingHorizontal: 14, flexDirection: "row", gap: 4, alignItems: "center",
                     }]}
                     onPress={handleClearAllPrices}
-                    disabled={clearAllPricesMutation.isPending || allDrugPrices.length === 0}
+                    disabled={clearAllPricesMutation.isPending || drugTotalCount === 0}
                     activeOpacity={0.85}
                   >
                     {clearAllPricesMutation.isPending
                       ? <ActivityIndicator color="#fff" size="small" />
                       : <MaterialCommunityIcons name="delete-sweep-outline" size={20} color="#fff" />}
-                    <Text style={[styles.addBtnText, { marginLeft: 0 }]}>{isRTL ? "مسح الكل" : "Tout effacer"}</Text>
                   </TouchableOpacity>
                 </View>
-                {/* Search */}
-                {allDrugPrices.length > 0 && (
-                  <View style={styles.searchBarWrap}>
-                    <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />
-                    <TextInput
-                      style={[styles.searchBarInput, isRTL && styles.rtlText]}
-                      placeholder={isRTL ? "بحث عن دواء..." : "Rechercher un médicament..."}
-                      placeholderTextColor={Colors.light.textTertiary}
-                      value={prSearch}
-                      onChangeText={setPrSearch}
-                      returnKeyType="search"
-                    />
-                    {prSearch.length > 0 && (
-                      <TouchableOpacity onPress={() => setPrSearch("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
-                {allDrugPrices.length > 0 && (
-                  <Text style={[styles.countLabel, isRTL && styles.rtlText]}>{isRTL ? `${filteredDrugPrices.length} دواء` : `${filteredDrugPrices.length} médicament(s)`}</Text>
-                )}
+                {/* Search — always visible */}
+                <View style={styles.searchBarWrap}>
+                  <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />
+                  <TextInput
+                    style={[styles.searchBarInput, isRTL && styles.rtlText]}
+                    placeholder={isRTL ? "بحث في أول 500 دواء..." : "Rechercher (500 premiers)..."}
+                    placeholderTextColor={Colors.light.textTertiary}
+                    value={prSearch}
+                    onChangeText={setPrSearch}
+                    returnKeyType="search"
+                  />
+                  {prSearch.length > 0 && (
+                    <TouchableOpacity onPress={() => setPrSearch("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <Text style={[styles.countLabel, isRTL && styles.rtlText]}>
+                  {prSearch.trim()
+                    ? (isRTL ? `${filteredDrugPrices.length} نتيجة` : `${filteredDrugPrices.length} résultat(s)`)
+                    : (isRTL ? `يُعرض ${allDrugPrices.length} من ${drugTotalCount || allDrugPrices.length}` : `Affichage: ${allDrugPrices.length} / ${drugTotalCount || allDrugPrices.length}`)
+                  }
+                </Text>
               </View>
             ) : isAddTab ? (
               activeTab === "companies" ? (

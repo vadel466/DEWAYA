@@ -588,6 +588,18 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* ─── ABOUT LINK ─── */}
+      <TouchableOpacity
+        style={[styles.aboutLink, isRTL && styles.rowReverse]}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/about"); }}
+        activeOpacity={0.7}
+      >
+        <MaterialCommunityIcons name="information-outline" size={13} color={Colors.light.textTertiary} />
+        <Text style={styles.aboutLinkText}>
+          {isRTL ? "عن دواية • سياسة الخصوصية" : "À propos de Dewaya • Confidentialité"}
+        </Text>
+      </TouchableOpacity>
+
       {/* ─── REGION PICKER MODAL ─── */}
       <Modal visible={showRegionPicker} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowRegionPicker(false)}>
         <View style={styles.pickerContainer}>
@@ -1423,6 +1435,21 @@ const styles = StyleSheet.create({
   },
   portalLinkText: {
     fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.light.textTertiary,
+  },
+
+  aboutLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 10,
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  aboutLinkText: {
+    fontSize: 11,
     fontFamily: "Inter_400Regular",
     color: Colors.light.textTertiary,
   },

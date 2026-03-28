@@ -1,31 +1,26 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  FlatList,
-  Platform,
-  KeyboardAvoidingView,
+  View, Text, TextInput, TouchableOpacity,
+  StyleSheet, ActivityIndicator, FlatList,
+  Platform, KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { useOfflineCache, localDrugSearch, type CachedDrug } from "@/hooks/useOfflineCache";
 
-/* ─── API base — uses Replit dev domain for both native & web ── */
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : "/api";
 
-/* ─── highlight matching text ───────────────────────────────── */
-function Highlighted({
-  text, query, style, hl,
-}: { text: string; query: string; style?: any; hl?: any }) {
-  if (!query || !query.trim()) return <Text style={style}>{text}</Text>;
+const LIMIT = 20;
+
+/* ─── highlight ─────────────────────────────────────────────── */
+function Highlighted({ text, query, style, hl }: { text: string; query: string; style?: any; hl?: any }) {
+  if (!query?.trim()) return <Text style={style}>{text}</Text>;
   const esc = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const parts = text.split(new RegExp(`(${esc})`, "gi"));
   return (
@@ -39,54 +34,36 @@ function Highlighted({
   );
 }
 
-/* ─── types ─────────────────────────────────────────────────── */
-type Drug = {
-  id: string;
-  name: string;
-  nameAr: string | null;
-  price: number;
-  unit: string | null;
-  category: string | null;
-  notes: string | null;
-};
-
-const LIMIT = 20;
-
 /* ─── main ───────────────────────────────────────────────────── */
 export default function DrugPriceScreen() {
   const insets = useSafeAreaInsets();
   const { language } = useApp();
   const isRTL = language === "ar";
+  const { isOnline } = useNetworkStatus();
+  const { drugs, drugStatus, syncDrugs } = useOfflineCache();
 
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Drug[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [query, setQuery]         = useState("");
+  const [results, setResults]     = useState<CachedDrug[]>([]);
+  const [loading, setLoading]     = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore]     = useState(false);
+  const [offset, setOffset]       = useState(0);
   const [searchError, setSearchError] = useState(false);
-  const [dbEmpty, setDbEmpty] = useState(false);
-  const [searched, setSearched] = useState(false);
+  const [searched, setSearched]   = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<TextInput>(null);
 
+  /* on mount: focus + trigger background sync */
   useEffect(() => {
-    fetch(`${API_BASE}/drug-prices/stats`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d && d.total === 0) setDbEmpty(true); })
-      .catch(() => {});
     setTimeout(() => inputRef.current?.focus(), 350);
+    if (isOnline) syncDrugs();
   }, []);
 
-  /* core search */
-  const search = useCallback(async (q: string, off = 0, append = false) => {
+  /* ── online search via API ── */
+  const searchOnline = useCallback(async (q: string, off = 0, append = false) => {
     const trimmed = q.trim();
-    if (trimmed.length < 2) {
-      setResults([]); setSearched(false); setLoading(false);
-      setHasMore(false); setOffset(0); setSearchError(false);
-      return;
-    }
+    if (trimmed.length < 2) { reset(); return; }
     if (append) setLoadingMore(true);
     else { setLoading(true); setSearchError(false); }
 
@@ -94,7 +71,7 @@ export default function DrugPriceScreen() {
       const url = `${API_BASE}/drug-prices/search?q=${encodeURIComponent(trimmed)}&limit=${LIMIT}&offset=${off}`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data: Drug[] = await resp.json();
+      const data: CachedDrug[] = await resp.json();
       if (append) setResults(prev => [...prev, ...data]);
       else setResults(data);
       setHasMore(data.length === LIMIT);
@@ -103,33 +80,66 @@ export default function DrugPriceScreen() {
       setSearchError(false);
     } catch (err) {
       console.error("[drug search error]", String(err));
-      if (!append) { setResults([]); setSearched(true); setSearchError(true); }
+      if (!append) {
+        /* fall back to offline cache if available */
+        if (drugs.length > 0) {
+          const local = localDrugSearch(drugs, trimmed, LIMIT, 0);
+          setResults(local);
+          setHasMore(false);
+          setOffset(local.length);
+          setSearched(true);
+          setSearchError(false);
+        } else {
+          setResults([]);
+          setSearched(true);
+          setSearchError(true);
+        }
+      }
     } finally {
       if (append) setLoadingMore(false);
       else setLoading(false);
     }
-  }, []);
+  }, [drugs]);
 
-  /* debounce — 2 chars minimum */
+  /* ── offline search (local) ── */
+  const searchOffline = useCallback((q: string, off = 0, append = false) => {
+    const trimmed = q.trim();
+    if (trimmed.length < 2) { reset(); return; }
+    const local = localDrugSearch(drugs, trimmed, LIMIT, off);
+    if (append) setResults(prev => [...prev, ...local]);
+    else setResults(local);
+    setHasMore(local.length === LIMIT);
+    setOffset(off + local.length);
+    setSearched(true);
+  }, [drugs]);
+
+  const reset = () => {
+    setResults([]); setSearched(false); setLoading(false);
+    setHasMore(false); setOffset(0); setSearchError(false);
+  };
+
+  /* debounce */
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (query.trim().length < 2) {
-      setResults([]); setSearched(false); setLoading(false);
-      setHasMore(false); setOffset(0); setSearchError(false);
-      return;
-    }
+    if (query.trim().length < 2) { reset(); return; }
     setLoading(true);
-    debounceRef.current = setTimeout(() => search(query, 0, false), 240);
+    debounceRef.current = setTimeout(() => {
+      if (isOnline) searchOnline(query, 0, false);
+      else searchOffline(query, 0, false);
+      setLoading(false);
+    }, 240);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query, search]);
+  }, [query, isOnline]);
 
   const loadMore = () => {
-    if (!loadingMore && hasMore && query.trim().length >= 2) search(query, offset, true);
+    if (!loadingMore && hasMore && query.trim().length >= 2) {
+      if (isOnline) searchOnline(query, offset, true);
+      else searchOffline(query, offset, true);
+    }
   };
 
   const clearQuery = () => {
-    setQuery(""); setResults([]); setSearched(false);
-    setHasMore(false); setOffset(0); setSearchError(false);
+    setQuery(""); reset();
   };
 
   const whole = (p: number) => Math.floor(p);
@@ -141,15 +151,15 @@ export default function DrugPriceScreen() {
   const showError     = isTyping && searchError;
   const showNotFound  = isTyping && searched && !loading && results.length === 0 && !searchError;
   const showIdle      = !isTyping;
+  const hasCacheData  = drugs.length > 0;
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  /* ─── suggestion row ─────────────────────────────────────── */
-  const renderRow = ({ item, index }: { item: Drug; index: number }) => {
+  /* ─── row ────────────────────────────────────────────────── */
+  const renderRow = ({ item, index }: { item: CachedDrug; index: number }) => {
     const mainName = isRTL && item.nameAr ? item.nameAr : item.name;
     const altName  = isRTL ? item.name : (item.nameAr ?? null);
     const isLast   = index === results.length - 1;
-
     return (
       <View style={[styles.row, !isLast && styles.rowBorder, isRTL && styles.rtlRow]}>
         <View style={styles.rowPill}>
@@ -177,9 +187,7 @@ export default function DrugPriceScreen() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={[styles.root, { paddingTop: topPad }]}>
 
-        {/* ════════════════════════════════════════════
-            HEADER
-           ════════════════════════════════════════════ */}
+        {/* Header */}
         <View style={[styles.header, isRTL && styles.rtlRow]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
             <Ionicons name={isRTL ? "chevron-forward" : "chevron-back"} size={24} color={Colors.primary} />
@@ -197,12 +205,30 @@ export default function DrugPriceScreen() {
           </View>
         </View>
 
-        {/* ════════════════════════════════════════════
-            تنبيهات ثابتة — فوق البحث
-            Bandeaux fixes — AU-DESSUS de la recherche
-           ════════════════════════════════════════════ */}
+        {/* ── offline banner ─────────────────────────────────── */}
+        {!isOnline && hasCacheData && (
+          <View style={[styles.offlineBanner, isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#7C3AED", flexDirection: "row-reverse" }]}>
+            <MaterialCommunityIcons name="cloud-off-outline" size={13} color="#7C3AED" />
+            <Text style={[styles.offlineText, isRTL && styles.rtl]}>
+              {isRTL
+                ? "أنت تصفح قاعدة البيانات المخزنة • بيانات رسمية من وزارة الصحة"
+                : "Vous consultez la base locale • Données officielles du Ministère de la Santé"}
+            </Text>
+          </View>
+        )}
 
-        {/* تنبيه رسمي — أصفر */}
+        {!isOnline && !hasCacheData && (
+          <View style={[styles.offlineBannerWarn, isRTL && { flexDirection: "row-reverse" }]}>
+            <MaterialCommunityIcons name="wifi-off" size={13} color="#DC2626" />
+            <Text style={[styles.offlineWarnText, isRTL && styles.rtl]}>
+              {isRTL
+                ? "لا يوجد اتصال ولا توجد بيانات مخزنة. يُرجى الاتصال بالإنترنت مرة واحدة للتحميل."
+                : "Pas de connexion et aucune donnée locale. Connectez-vous une fois pour télécharger."}
+            </Text>
+          </View>
+        )}
+
+        {/* ── تنبيهات فوق البحث ─────────────────────────────── */}
         <View style={[styles.bannerAmber, isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#B45309", flexDirection: "row-reverse" }]}>
           <MaterialCommunityIcons name="shield-check" size={13} color="#92400E" />
           <Text style={[styles.bannerAmberText, isRTL && styles.rtl]} numberOfLines={2}>
@@ -212,7 +238,6 @@ export default function DrugPriceScreen() {
           </Text>
         </View>
 
-        {/* توجيه DCI — أزرق */}
         <View style={[styles.bannerBlue, isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#2563EB", flexDirection: "row-reverse" }]}>
           <MaterialCommunityIcons name="flask-outline" size={13} color="#2563EB" />
           <Text style={[styles.bannerBlueText, isRTL && styles.rtl]} numberOfLines={2}>
@@ -222,10 +247,7 @@ export default function DrugPriceScreen() {
           </Text>
         </View>
 
-        {/* ════════════════════════════════════════════
-            حقل البحث
-            Champ de recherche
-           ════════════════════════════════════════════ */}
+        {/* ── حقل البحث ─────────────────────────────────────── */}
         <View style={[styles.searchBar, isRTL && styles.rtlRow]}>
           <Ionicons name="search-outline" size={20} color={Colors.primary} />
           <TextInput
@@ -239,7 +261,12 @@ export default function DrugPriceScreen() {
             autoCorrect={false}
             returnKeyType="search"
             textAlign={isRTL ? "right" : "left"}
-            onSubmitEditing={() => { if (query.trim().length >= 2) search(query, 0, false); }}
+            onSubmitEditing={() => {
+              if (query.trim().length >= 2) {
+                if (isOnline) searchOnline(query, 0, false);
+                else searchOffline(query, 0, false);
+              }
+            }}
           />
           {loading
             ? <ActivityIndicator size="small" color={Colors.primary} />
@@ -250,12 +277,7 @@ export default function DrugPriceScreen() {
               : null}
         </View>
 
-        {/* ════════════════════════════════════════════
-            قائمة الأدوية — ملتصقة بحقل البحث من الأسفل
-            Liste des médicaments — collée sous le champ
-           ════════════════════════════════════════════ */}
-
-        {/* 1. نتائج البحث */}
+        {/* ── قائمة الأدوية ────────────────────────────────── */}
         {showResults && (
           <View style={styles.resultsCard}>
             <View style={[styles.resultsHeader, isRTL && styles.rtlRow]}>
@@ -264,6 +286,12 @@ export default function DrugPriceScreen() {
                   ? `${results.length} نتيجة${hasMore ? "+" : ""} لـ «${query}»`
                   : `${results.length} résultat${results.length > 1 ? "s" : ""}${hasMore ? "+" : ""} pour «${query}»`}
               </Text>
+              {!isOnline && (
+                <View style={styles.offlinePill}>
+                  <MaterialCommunityIcons name="cloud-off-outline" size={11} color="#7C3AED" />
+                  <Text style={styles.offlinePillText}>{isRTL ? "محلي" : "local"}</Text>
+                </View>
+              )}
             </View>
             <FlatList
               data={results}
@@ -287,7 +315,6 @@ export default function DrugPriceScreen() {
           </View>
         )}
 
-        {/* 2. Loading */}
         {showLoading && (
           <View style={[styles.inlineBox, isRTL && styles.rtlRow]}>
             <ActivityIndicator size="small" color={Colors.primary} />
@@ -297,20 +324,18 @@ export default function DrugPriceScreen() {
           </View>
         )}
 
-        {/* 3. خطأ اتصال */}
         {showError && (
           <View style={[styles.errorBox, isRTL && styles.rtlRow]}>
             <MaterialCommunityIcons name="wifi-off" size={18} color="#DC2626" />
             <Text style={[styles.errorText, isRTL && styles.rtl]}>
               {isRTL ? "تعذّر الاتصال بالخادم" : "Erreur de connexion au serveur"}
             </Text>
-            <TouchableOpacity onPress={() => search(query, 0, false)} activeOpacity={0.8} style={styles.retryBtn}>
+            <TouchableOpacity onPress={() => searchOnline(query, 0, false)} activeOpacity={0.8} style={styles.retryBtn}>
               <Text style={styles.retryText}>{isRTL ? "إعادة" : "Réessayer"}</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* 4. لم يُعثر */}
         {showNotFound && (
           <View style={[styles.notFoundBox, isRTL && styles.rtlRow]}>
             <MaterialCommunityIcons name="pill-off" size={22} color={Colors.warning} />
@@ -327,22 +352,28 @@ export default function DrugPriceScreen() {
           </View>
         )}
 
-        {/* 5. Placeholder — حالة الخمول */}
         {showIdle && (
           <View style={styles.placeholder}>
             <View style={styles.placeholderIcon}>
               <MaterialCommunityIcons name="magnify" size={44} color={Colors.primary} />
             </View>
             <Text style={[styles.placeholderTitle, isRTL && styles.rtl]}>
-              {dbEmpty
-                ? (isRTL ? "قاعدة البيانات فارغة" : "Base de données vide")
-                : (isRTL ? "ابدأ الكتابة للبحث" : "Commencez à taper")}
+              {isRTL ? "ابدأ الكتابة للبحث" : "Commencez à taper"}
             </Text>
             <Text style={[styles.placeholderSub, isRTL && styles.rtl]}>
-              {dbEmpty
-                ? (isRTL ? "يُرجى مراجعة الإدارة" : "Contactez l'administrateur")
-                : (isRTL ? "ستظهر الاقتراحات فور كتابة حرفين" : "Les suggestions s'affichent dès 2 caractères")}
+              {isRTL
+                ? `${hasCacheData ? `${drugs.length.toLocaleString()} دواء مخزّن محلياً • ` : ""}ستظهر الاقتراحات فور كتابة حرفين`
+                : `${hasCacheData ? `${drugs.length.toLocaleString()} médicaments en cache • ` : ""}Suggestions dès 2 caractères`}
             </Text>
+            {/* background sync indicator */}
+            {drugStatus === "downloading" && (
+              <View style={[styles.syncRow, isRTL && styles.rtlRow]}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+                <Text style={[styles.syncText, isRTL && styles.rtl]}>
+                  {isRTL ? "تحميل قاعدة البيانات للاستخدام بدون إنترنت..." : "Téléchargement pour mode hors connexion..."}
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -358,7 +389,6 @@ const styles = StyleSheet.create({
   rtl: { textAlign: "right", writingDirection: "rtl" },
   hl: { backgroundColor: Colors.warning + "40", color: "#92400E", borderRadius: 3 },
 
-  /* header */
   header: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingHorizontal: 16, paddingVertical: 10,
@@ -377,14 +407,39 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF9EE", alignItems: "center", justifyContent: "center",
   },
 
-  /* ── التنبيهات فوق البحث ── */
+  /* offline banners */
+  offlineBanner: {
+    flexDirection: "row", alignItems: "center", gap: 7,
+    backgroundColor: "#F5F3FF",
+    borderLeftWidth: 3, borderLeftColor: "#7C3AED",
+    marginHorizontal: 14, marginTop: 8, marginBottom: 0,
+    paddingHorizontal: 11, paddingVertical: 7,
+    borderRadius: 10,
+  },
+  offlineText: {
+    flex: 1, fontFamily: "Inter_400Regular",
+    fontSize: 11, color: "#4C1D95", lineHeight: 16,
+  },
+  offlineBannerWarn: {
+    flexDirection: "row", alignItems: "center", gap: 7,
+    backgroundColor: "#FEE2E2",
+    borderLeftWidth: 3, borderLeftColor: "#DC2626",
+    marginHorizontal: 14, marginTop: 8, marginBottom: 0,
+    paddingHorizontal: 11, paddingVertical: 7,
+    borderRadius: 10,
+  },
+  offlineWarnText: {
+    flex: 1, fontFamily: "Inter_400Regular",
+    fontSize: 11, color: "#7F1D1D", lineHeight: 16,
+  },
+
+  /* banners above search */
   bannerAmber: {
     flexDirection: "row", alignItems: "center", gap: 7,
     backgroundColor: "#FFFBEB",
     borderLeftWidth: 3, borderLeftColor: "#B45309",
     marginHorizontal: 14, marginTop: 10, marginBottom: 3,
-    paddingHorizontal: 11, paddingVertical: 8,
-    borderRadius: 10,
+    paddingHorizontal: 11, paddingVertical: 8, borderRadius: 10,
   },
   bannerAmberText: {
     flex: 1, fontFamily: "Inter_400Regular",
@@ -395,50 +450,39 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFF6FF",
     borderLeftWidth: 3, borderLeftColor: "#2563EB",
     marginHorizontal: 14, marginTop: 0, marginBottom: 8,
-    paddingHorizontal: 11, paddingVertical: 8,
-    borderRadius: 10,
+    paddingHorizontal: 11, paddingVertical: 8, borderRadius: 10,
   },
   bannerBlueText: {
     flex: 1, fontFamily: "Inter_400Regular",
     fontSize: 11.5, color: "#1E40AF", lineHeight: 17,
   },
 
-  /* ── حقل البحث ── */
+  /* search bar */
   searchBar: {
     flexDirection: "row", alignItems: "center", gap: 10,
     backgroundColor: "#FFFFFF",
     borderWidth: 2, borderColor: Colors.primary + "60",
-    borderRadius: 14,
-    marginHorizontal: 14,
+    borderRadius: 14, marginHorizontal: 14,
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === "web" ? 12 : 0,
     minHeight: 52,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.1, shadowRadius: 8, elevation: 3,
   },
   searchInput: {
     flex: 1, fontFamily: "Inter_400Regular",
     fontSize: 15, color: Colors.light.text, paddingVertical: 13,
   },
 
-  /* ── قائمة النتائج — ملتصقة بحقل البحث ── */
+  /* results */
   resultsCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    marginHorizontal: 14,
-    marginTop: 4,                  /* ← ملتصقة بحقل البحث */
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 5,
-    overflow: "hidden",
-    maxHeight: 360,
+    backgroundColor: "#FFFFFF", borderRadius: 14,
+    marginHorizontal: 14, marginTop: 4,
+    borderWidth: 1, borderColor: Colors.light.border,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08, shadowRadius: 10, elevation: 5,
+    overflow: "hidden", maxHeight: 360,
   },
   resultsHeader: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
@@ -450,9 +494,16 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular", fontSize: 11.5,
     color: Colors.light.textTertiary,
   },
+  offlinePill: {
+    flexDirection: "row", alignItems: "center", gap: 3,
+    backgroundColor: "#EDE9FE", borderRadius: 10,
+    paddingHorizontal: 7, paddingVertical: 3,
+  },
+  offlinePillText: {
+    fontFamily: "Inter_600SemiBold", fontSize: 10, color: "#7C3AED",
+  },
   resultsList: { maxHeight: 312 },
 
-  /* صف نتيجة واحدة */
   row: {
     flexDirection: "row", alignItems: "center",
     paddingHorizontal: 14, paddingVertical: 11, gap: 10,
@@ -465,18 +516,16 @@ const styles = StyleSheet.create({
   },
   rowNames: { flex: 1, alignItems: "flex-start", gap: 2 },
   rowMain: { fontFamily: "Inter_600SemiBold", fontSize: 13.5, color: Colors.light.text },
-  rowAlt: { fontFamily: "Inter_400Regular", fontSize: 11.5, color: Colors.light.textSecondary },
+  rowAlt:  { fontFamily: "Inter_400Regular", fontSize: 11.5, color: Colors.light.textSecondary },
   rowUnit: { fontFamily: "Inter_400Regular", fontSize: 10.5, color: Colors.light.textTertiary },
   rowPriceBadge: {
-    alignItems: "center",
-    backgroundColor: Colors.warning + "12",
+    alignItems: "center", backgroundColor: Colors.warning + "12",
     borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5,
     minWidth: 56, flexShrink: 0,
   },
   rowPrice: { fontFamily: "Inter_700Bold", fontSize: 16, color: Colors.warning },
-  rowCur: { fontFamily: "Inter_400Regular", fontSize: 9.5, color: Colors.warning + "AA" },
+  rowCur:  { fontFamily: "Inter_400Regular", fontSize: 9.5, color: Colors.warning + "AA" },
 
-  /* تحميل المزيد */
   moreBtn: {
     alignSelf: "center", marginVertical: 10,
     paddingHorizontal: 22, paddingVertical: 8,
@@ -484,7 +533,6 @@ const styles = StyleSheet.create({
   },
   moreText: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: Colors.primary },
 
-  /* loading / error / not-found inline */
   inlineBox: {
     flexDirection: "row", alignItems: "center", gap: 10,
     marginHorizontal: 14, marginTop: 4,
@@ -510,14 +558,13 @@ const styles = StyleSheet.create({
   notFoundBox: {
     flexDirection: "row", alignItems: "center", gap: 12,
     marginHorizontal: 14, marginTop: 4,
-    backgroundColor: "#FEF9EE",
-    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+    backgroundColor: "#FEF9EE", borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
     borderWidth: 1, borderColor: Colors.warning + "30",
   },
   notFoundTitle: { fontFamily: "Inter_600SemiBold", fontSize: 13.5, color: Colors.light.text, marginBottom: 2 },
-  notFoundSub: { fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.light.textSecondary, lineHeight: 17 },
+  notFoundSub:   { fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.light.textSecondary, lineHeight: 17 },
 
-  /* placeholder حالة الخمول */
   placeholder: {
     flex: 1, alignItems: "center", justifyContent: "center",
     paddingHorizontal: 32, gap: 10,
@@ -534,5 +581,13 @@ const styles = StyleSheet.create({
   placeholderSub: {
     fontFamily: "Inter_400Regular", fontSize: 13,
     color: Colors.light.textSecondary, textAlign: "center", lineHeight: 19,
+  },
+  syncRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    marginTop: 14, opacity: 0.7,
+  },
+  syncText: {
+    fontFamily: "Inter_400Regular", fontSize: 11.5,
+    color: Colors.light.textSecondary,
   },
 });

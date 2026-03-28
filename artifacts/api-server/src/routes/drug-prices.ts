@@ -56,6 +56,35 @@ router.get("/search", async (req, res) => {
   }
 });
 
+/* ─── PUBLIC: export all drugs for offline caching ──────────── */
+router.get("/export", async (req, res) => {
+  const limitParam  = Math.min(Number(req.query.limit  ?? 500), 1000);
+  const offsetParam = Math.max(Number(req.query.offset ?? 0), 0);
+  try {
+    const results = await db
+      .select({
+        id:       drugPricesTable.id,
+        name:     drugPricesTable.name,
+        nameAr:   drugPricesTable.nameAr,
+        price:    drugPricesTable.price,
+        unit:     drugPricesTable.unit,
+        category: drugPricesTable.category,
+        notes:    drugPricesTable.notes,
+      })
+      .from(drugPricesTable)
+      .where(eq(drugPricesTable.isActive, true))
+      .orderBy(asc(drugPricesTable.nameLower))
+      .limit(limitParam)
+      .offset(offsetParam);
+
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    return res.json(results);
+  } catch (e) {
+    console.error("[export error]", e);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
 /* ─── PUBLIC: stats (total count + categories) ───────────────── */
 router.get("/stats", async (req, res) => {
   try {

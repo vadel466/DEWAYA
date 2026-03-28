@@ -35,7 +35,7 @@ artifacts-monorepo/
 
 ### أدواي | DEWAYA — Pharmacy Finder (Expo Mobile App)
 
-A bilingual **Arabic/French** (RTL-aware) mobile app for finding pharmacies in Mauritania.
+A bilingual **Arabic/French** (RTL-aware) mobile app for finding pharmacies in Mauritania. **Offline-capable** — drugs and pharmacies cached locally via AsyncStorage.
 
 **App Name**: "أدْواَيَ" (Arabic) / "DEWAYA" (French)
 

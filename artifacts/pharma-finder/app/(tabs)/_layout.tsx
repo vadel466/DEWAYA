@@ -1,6 +1,5 @@
 import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
-import { SymbolView } from "expo-symbols";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
@@ -65,12 +64,9 @@ function ClassicTabLayout() {
         name="index"
         options={{
           title: t("home"),
-          tabBarIcon: ({ color, size }) =>
-            isIOS ? (
-              <SymbolView name="magnifyingglass" tintColor={color} size={size} />
-            ) : (
-              <Ionicons name="search" size={size} color={color} />
-            ),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="search" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -81,12 +77,9 @@ function ClassicTabLayout() {
         name="admin"
         options={{
           title: t("admin"),
-          tabBarIcon: ({ color, size }) =>
-            isIOS ? (
-              <SymbolView name="shield.fill" tintColor={color} size={size} />
-            ) : (
-              <Ionicons name="shield" size={size} color={color} />
-            ),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="shield" size={size} color={color} />
+          ),
         }}
       />
     </Tabs>

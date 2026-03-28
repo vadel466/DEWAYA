@@ -48,6 +48,12 @@ Thumbs.db
 .cache/
 .local/
 
+# Chat attachments — not part of the codebase
+attached_assets/
+
+# Canvas assets
+.canvas/
+
 # Expo / EAS
 .expo/
 .expo-shared/

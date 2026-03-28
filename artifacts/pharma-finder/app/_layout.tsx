@@ -25,12 +25,6 @@ if (Platform.OS !== "web") {
   SplashScreen.preventAutoHideAsync().catch(() => {});
 }
 
-/*
- * fontfaceobserver (used internally by expo-font on web) fires unhandled
- * promise rejections when a font times out — those escape our .catch() because
- * they originate inside a separate Promise.race() inside the library.
- * We suppress them globally on web so they never surface as error overlays.
- */
 if (Platform.OS === "web" && typeof window !== "undefined") {
   window.addEventListener("unhandledrejection", (e) => {
     const msg: string =
@@ -65,31 +59,26 @@ function RootLayoutNav() {
       <Stack.Screen name="other-services"   options={{ headerShown: false, animation: "slide_from_bottom", presentation: "card" }} />
       <Stack.Screen name="find-doctor"      options={{ headerShown: false, animation: "slide_from_bottom", presentation: "card" }} />
       <Stack.Screen name="duty-and-price"   options={{ headerShown: false, animation: "slide_from_bottom", presentation: "card" }} />
+      <Stack.Screen name="company-portal"   options={{ headerShown: false, animation: "slide_from_bottom", presentation: "card" }} />
+      <Stack.Screen name="about"            options={{ headerShown: false, animation: "slide_from_bottom", presentation: "card" }} />
     </Stack>
   );
 }
 
 export default function RootLayout() {
-  const [ready, setReady] = useState(false);
-  /* null = checking, true = show, false = skip */
+  const [fontsReady, setFontsReady] = useState(false);
+  /* null = checking AsyncStorage, true/false = result */
   const [showIntro, setShowIntro] = useState<boolean | null>(null);
 
+  /* ── Font loading ── */
   useEffect(() => {
-    let cancelled = false;
-
-    /* Check if intro was already shown (skip on repeat launches) */
-    AsyncStorage.getItem(INTRO_KEY)
-      .then(val => { if (!cancelled) setShowIntro(val !== "1"); })
-      .catch(() => { if (!cancelled) setShowIntro(true); });
-
     if (Platform.OS === "web") {
-      setReady(true);
+      /* On web fonts load via CSS — mark ready immediately */
+      setFontsReady(true);
       return;
     }
 
-    const fallback = setTimeout(() => {
-      if (!cancelled) setReady(true);
-    }, 3000);
+    const fallback = setTimeout(() => setFontsReady(true), 2500);
 
     Font.loadAsync({
       Inter_400Regular,
@@ -100,25 +89,43 @@ export default function RootLayout() {
       .catch(() => {})
       .finally(() => {
         clearTimeout(fallback);
-        if (!cancelled) setReady(true);
+        setFontsReady(true);
       });
 
-    return () => {
-      cancelled = true;
-      clearTimeout(fallback);
-    };
+    return () => clearTimeout(fallback);
   }, []);
 
+  /* ── Intro check — fast, with 1s safety timeout ── */
   useEffect(() => {
-    if (ready && Platform.OS !== "web") {
+    const safetyTimeout = setTimeout(() => setShowIntro(false), 1000);
+
+    AsyncStorage.getItem(INTRO_KEY)
+      .then((val) => {
+        clearTimeout(safetyTimeout);
+        setShowIntro(val !== "1");
+      })
+      .catch(() => {
+        clearTimeout(safetyTimeout);
+        setShowIntro(true);
+      });
+
+    return () => clearTimeout(safetyTimeout);
+  }, []);
+
+  /* ── Hide native splash once both are ready ── */
+  useEffect(() => {
+    if (fontsReady && showIntro !== null && Platform.OS !== "web") {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [ready]);
+  }, [fontsReady, showIntro]);
 
   const handleIntroFinish = useCallback(() => {
     AsyncStorage.setItem(INTRO_KEY, "1").catch(() => {});
     setShowIntro(false);
   }, []);
+
+  /* Show splash overlay while fonts or intro state are loading */
+  const showingSplash = !fontsReady || showIntro === null;
 
   return (
     <SafeAreaProvider>
@@ -127,14 +134,18 @@ export default function RootLayout() {
           <GestureHandlerRootView style={styles.root}>
             <KeyboardProvider>
               <AppProvider>
-                <RootLayoutNav />
-                {showIntro === true && <IntroScreen onFinish={handleIntroFinish} />}
+                {fontsReady && <RootLayoutNav />}
+                {fontsReady && showIntro === true && (
+                  <IntroScreen onFinish={handleIntroFinish} />
+                )}
               </AppProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>
       </ErrorBoundary>
-      {!ready && (
+
+      {/* Splash overlay — hides once fonts + intro state are both known */}
+      {showingSplash && (
         <View style={styles.splash} pointerEvents="none">
           <Image
             source={require("../assets/images/splash-icon.png")}
@@ -156,5 +167,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     zIndex: 9999,
   },
-  splashIcon: { width: 140, height: 140 },
+  splashIcon: { width: 150, height: 150 },
 });

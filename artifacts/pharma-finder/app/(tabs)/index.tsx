@@ -13,7 +13,6 @@ import {
   FlatList,
   Animated,
   Linking,
-  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -47,7 +46,6 @@ export default function HomeScreen() {
 
   const [showRegionPicker, setShowRegionPicker] = useState(false);
   const [regionQuery, setRegionQuery] = useState("");
-  const [detectingLocation, setDetectingLocation] = useState(false);
   const [showImgMenu, setShowImgMenu] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
 
@@ -107,7 +105,6 @@ export default function HomeScreen() {
   const openCamera = async () => {
     setShowImgMenu(false);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
     if (Platform.OS === "web") {
       const input = document.createElement("input");
       input.type = "file";
@@ -123,24 +120,15 @@ export default function HomeScreen() {
       input.click();
       return;
     }
-
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
         isRTL ? "إذن الكاميرا مرفوض" : "Permission caméra refusée",
-        isRTL
-          ? "يُرجى الذهاب إلى الإعدادات والسماح للتطبيق باستخدام الكاميرا"
-          : "Veuillez aller dans les paramètres et autoriser la caméra"
+        isRTL ? "يُرجى الذهاب إلى الإعدادات والسماح باستخدام الكاميرا" : "Veuillez autoriser la caméra dans les paramètres"
       );
       return;
     }
-    const r = await ImagePicker.launchCameraAsync({
-      mediaTypes: ["images"],
-      quality: 0.85,
-      allowsEditing: true,
-      aspect: [4, 3],
-      exif: false,
-    });
+    const r = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.85, allowsEditing: true, aspect: [4, 3], exif: false });
     if (!r.canceled && r.assets[0]) {
       setCapturedImage(r.assets[0].uri);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -150,7 +138,6 @@ export default function HomeScreen() {
   const openGallery = async () => {
     setShowImgMenu(false);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
     if (Platform.OS === "web") {
       const input = document.createElement("input");
       input.type = "file";
@@ -165,23 +152,15 @@ export default function HomeScreen() {
       input.click();
       return;
     }
-
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
         isRTL ? "إذن المعرض مرفوض" : "Permission galerie refusée",
-        isRTL
-          ? "يُرجى الذهاب إلى الإعدادات والسماح بالوصول إلى معرض الصور"
-          : "Veuillez aller dans les paramètres et autoriser la galerie"
+        isRTL ? "يُرجى الذهاب إلى الإعدادات والسماح بالوصول للمعرض" : "Veuillez autoriser la galerie dans les paramètres"
       );
       return;
     }
-    const r = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.85,
-      allowsEditing: true,
-      exif: false,
-    });
+    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.85, allowsEditing: true, exif: false });
     if (!r.canceled && r.assets[0]) {
       setCapturedImage(r.assets[0].uri);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -196,10 +175,7 @@ export default function HomeScreen() {
       const resp = await fetch(`${API_BASE}/requests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId,
-          drugName: drugName.trim() || t("imageDrug"),
-        }),
+        body: JSON.stringify({ userId, drugName: drugName.trim() || t("imageDrug") }),
       });
       if (!resp.ok) throw new Error("Failed");
       await resp.json();
@@ -222,41 +198,6 @@ export default function HomeScreen() {
     setError(null);
   };
 
-  const detectLocation = async () => {
-    if (Platform.OS === "web") {
-      Alert.alert(
-        isRTL ? "غير مدعوم" : "Non supporté",
-        isRTL ? "تحديد الموقع غير مدعوم في المتصفح" : "Géolocalisation non supportée sur web"
-      );
-      return;
-    }
-    setDetectingLocation(true);
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert(
-          isRTL ? "إذن الموقع مرفوض" : "Permission refusée",
-          isRTL ? "يُرجى السماح بالوصول إلى الموقع" : "Veuillez autoriser la localisation"
-        );
-        return;
-      }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const nearest = getNearestRegion(loc.coords.latitude, loc.coords.longitude);
-      setRegion(nearest);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
-      Alert.alert(t("locationError"));
-    } finally {
-      setDetectingLocation(false);
-    }
-  };
-
-  const showComingSoon = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert(t("comingSoon"), t("comingSoonMsg"));
-  };
-
   const goToNearest = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (Platform.OS === "web") {
@@ -271,9 +212,7 @@ export default function HomeScreen() {
         Linking.openURL(`https://www.google.com/maps/search/pharmacy/@${latitude},${longitude},15z`);
         return;
       }
-    } catch {
-      /* fallback */
-    }
+    } catch { /* fallback */ }
     Linking.openURL("https://www.google.com/maps/search/pharmacy+Nouakchott/@18.0857,-15.9785,13z");
   };
 
@@ -297,38 +236,71 @@ export default function HomeScreen() {
     : REGIONS;
 
   const canSubmit = drugName.trim().length > 0 || capturedImage !== null;
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPad = Platform.OS === "web" ? 90 : insets.bottom + 90;
+  const topPad   = Platform.OS === "web" ? 67 : insets.top;
+  const bottomPad = Platform.OS === "web" ? 80 : insets.bottom + 80;
 
-  /* chevron direction */
-  const chevron = isRTL ? ("chevron-back-outline" as const) : ("chevron-forward-outline" as const);
+  const ch = isRTL ? ("chevron-back-outline" as const) : ("chevron-forward-outline" as const);
+
+  /* ── CARD DATA ── */
+  const cards = [
+    {
+      id: "nursing",
+      label: isRTL ? "التمريض المنزلي\nوالرعاية الصحية" : "Soins infirmiers\nà domicile",
+      strip: "#00796B", iconBg: "#E0F2F1",
+      mainIcon: "medical-bag" as const, mainColor: "#00796B",
+      secondIcon: "doctor" as const, secondColor: "#00796B",
+      textColor: "#00695C", barBg: "#00796B12",
+      tail: <Text style={{ fontSize: 11 }}>🏠</Text>,
+      onPress: goToFindDoctor,
+    },
+    {
+      id: "drug",
+      label: isRTL ? "سعر الدواء" : "Prix médicament",
+      strip: "#E65100", iconBg: "#FFF3E0",
+      mainIcon: "tag" as const, mainColor: "#E65100",
+      secondIcon: "content-cut" as const, secondColor: "#00796B",
+      textColor: "#BF360C", barBg: "#E6510012",
+      tail: null,
+      onPress: goToDrugPrice,
+    },
+    {
+      id: "duty",
+      label: isRTL ? "صيدليات المداومة" : "Pharmacies de Garde",
+      strip: "#283593", iconBg: "#E8EAF6",
+      mainIcon: "weather-night" as const, mainColor: "#283593",
+      secondIcon: null, secondColor: "",
+      textColor: "#1A237E", barBg: "#28359312",
+      tail: <Text style={{ fontSize: 11 }}>🌙</Text>,
+      onPress: goToDutyDirect,
+    },
+    {
+      id: "nearest",
+      label: isRTL ? "أقرب صيدلية" : "Pharmacie la plus proche",
+      strip: "#1565C0", iconBg: "#E3F2FD",
+      mainIcon: "map-marker" as const, mainColor: "#1565C0",
+      secondIcon: "store-outline" as const, secondColor: "#78909C",
+      textColor: "#0D47A1", barBg: "#1565C012",
+      tail: null,
+      onPress: goToNearest,
+    },
+  ];
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F0F4F8" }}>
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingTop: topPad, paddingBottom: bottomPad, paddingHorizontal: 16 }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* ════════════════════════════════════════
-            HEADER
-        ════════════════════════════════════════ */}
+      {/* ── SAFE-AREA TOP PAD ── */}
+      <View style={{ height: topPad }} />
+
+      {/* ── MAIN CONTENT (no scroll, fixed flex) ── */}
+      <View style={[styles.screen, { paddingBottom: bottomPad }]}>
+
+        {/* ════ HEADER ════ */}
         <View style={styles.header}>
-          {/* Bell — always on visual left */}
           <TouchableOpacity
             style={styles.bellBtn}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push("/(tabs)/notifications");
-            }}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/(tabs)/notifications"); }}
             activeOpacity={0.75}
           >
-            <Ionicons
-              name={lockedCount > 0 ? "notifications" : "notifications-outline"}
-              size={22}
-              color="#1A237E"
-            />
+            <Ionicons name={lockedCount > 0 ? "notifications" : "notifications-outline"} size={21} color="#1A237E" />
             {lockedCount > 0 && (
               <View style={styles.bellBadge}>
                 <Text style={styles.bellBadgeText}>{lockedCount > 9 ? "9+" : String(lockedCount)}</Text>
@@ -338,7 +310,6 @@ export default function HomeScreen() {
 
           <View style={{ flex: 1 }} />
 
-          {/* App identity — always on visual right */}
           <TouchableOpacity
             style={styles.appIdentity}
             onPressIn={handleLogoPressIn}
@@ -347,30 +318,19 @@ export default function HomeScreen() {
             delayLongPress={5000}
             activeOpacity={0.9}
           >
-            {/* Text group */}
             <View style={styles.appNameGroup}>
               <Text style={styles.appNameAr}>أدوايـا</Text>
               <View style={styles.appSubIcons}>
-                <MaterialCommunityIcons name="pill" size={10} color="#78909C" />
-                <MaterialCommunityIcons name="hospital-box" size={10} color="#78909C" />
+                <MaterialCommunityIcons name="pill" size={9} color="#78909C" />
+                <MaterialCommunityIcons name="hospital-box" size={9} color="#78909C" />
               </View>
             </View>
-
-            {/* Logo circle */}
             <View style={styles.logoWrap}>
-              <Animated.View
-                style={[
-                  styles.logoRing,
-                  {
-                    borderColor: logoProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [Colors.primary + "00", Colors.primary],
-                    }),
-                  },
-                ]}
-              />
+              <Animated.View style={[styles.logoRing, {
+                borderColor: logoProgress.interpolate({ inputRange: [0, 1], outputRange: [Colors.primary + "00", Colors.primary] }),
+              }]} />
               <View style={styles.logoBubble}>
-                <MaterialCommunityIcons name="stethoscope" size={22} color="#fff" />
+                <MaterialCommunityIcons name="stethoscope" size={20} color="#fff" />
               </View>
               {isAdmin && <View style={styles.adminDot} />}
               <Text style={styles.logoSubText}>DEWAYA</Text>
@@ -378,45 +338,31 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ════════════════════════════════════════
-            LANGUAGE TOGGLE LINE
-        ════════════════════════════════════════ */}
+        {/* ════ LANGUAGE LINE ════ */}
         <TouchableOpacity
           style={styles.langLine}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setLanguage(language === "ar" ? "fr" : "ar");
-          }}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setLanguage(language === "ar" ? "fr" : "ar"); }}
           activeOpacity={0.7}
         >
-          <Ionicons name="globe-outline" size={15} color="#546E7A" />
+          <Ionicons name="globe-outline" size={14} color="#546E7A" />
           <Text style={styles.langLineText}>العربية / Français</Text>
         </TouchableOpacity>
 
-        {/* ════════════════════════════════════════
-            SEARCH CARD
-        ════════════════════════════════════════ */}
+        {/* ════ SEARCH CARD ════ */}
         <View style={styles.searchCard}>
-          {/* Row 1: Camera + Label */}
+          {/* Row 1 */}
           <View style={[styles.searchRow1, isRTL && styles.rowReverse]}>
-            <TouchableOpacity
-              onPress={() => setShowImgMenu(true)}
-              activeOpacity={0.8}
-            >
+            <TouchableOpacity onPress={() => setShowImgMenu(true)} activeOpacity={0.8}>
               {capturedImage ? (
                 <View style={styles.thumbWrap}>
                   <Image source={{ uri: capturedImage }} style={styles.thumb} />
-                  <TouchableOpacity
-                    style={styles.thumbRemove}
-                    onPress={() => setCapturedImage(null)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name="close-circle" size={17} color="#EF4444" />
+                  <TouchableOpacity style={styles.thumbRemove} onPress={() => setCapturedImage(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="close-circle" size={16} color="#EF4444" />
                   </TouchableOpacity>
                 </View>
               ) : (
                 <View style={styles.cameraBtn}>
-                  <Ionicons name="camera-outline" size={20} color="#607D8B" />
+                  <Ionicons name="camera-outline" size={19} color="#607D8B" />
                 </View>
               )}
             </TouchableOpacity>
@@ -425,30 +371,22 @@ export default function HomeScreen() {
             </Text>
           </View>
 
-          {/* Horizontal divider */}
           <View style={styles.searchHDivider} />
 
-          {/* Row 2: Region chip + input */}
+          {/* Row 2 */}
           <View style={[styles.searchRow2, isRTL && styles.rowReverse]}>
-            {/* Location chip */}
             <TouchableOpacity
               style={[styles.regionChip, isRTL && styles.rowReverse]}
               onPress={() => setShowRegionPicker(true)}
               activeOpacity={0.75}
             >
-              <Ionicons name="location" size={13} color={Colors.primary} />
+              <Ionicons name="location" size={12} color={Colors.primary} />
               <Text style={styles.regionChipText} numberOfLines={1}>
-                {region
-                  ? (language === "ar" ? region.ar : region.fr)
-                  : (isRTL ? "المنطقة" : "Région")}
+                {region ? (language === "ar" ? region.ar : region.fr) : (isRTL ? "المنطقة" : "Région")}
               </Text>
               <Ionicons name="chevron-down" size={11} color={Colors.primary + "99"} />
             </TouchableOpacity>
-
-            {/* Vertical divider */}
             <View style={styles.inputVDivider} />
-
-            {/* Drug name text input */}
             <TextInput
               ref={inputRef}
               style={[styles.drugInput, isRTL && styles.textRight]}
@@ -462,1117 +400,486 @@ export default function HomeScreen() {
               onFocus={() => setInputFocused(true)}
               onBlur={() => setInputFocused(false)}
             />
-
-            {/* Right-side icon: loading / clear / send */}
             {loading ? (
-              <ActivityIndicator size="small" color={Colors.primary} style={{ marginRight: 12 }} />
+              <ActivityIndicator size="small" color={Colors.primary} style={{ marginHorizontal: 10 }} />
             ) : drugName.length > 0 ? (
-              <TouchableOpacity
-                onPress={() => setDrugName("")}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={{ marginRight: 12 }}
-              >
-                <Ionicons name="close-circle" size={17} color="#B0BEC5" />
+              <TouchableOpacity onPress={() => setDrugName("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginHorizontal: 10 }}>
+                <Ionicons name="close-circle" size={16} color="#B0BEC5" />
               </TouchableOpacity>
             ) : canSubmit ? (
-              <TouchableOpacity
-                onPress={handleSearch}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={{ marginRight: 12 }}
-              >
-                <Ionicons name="paper-plane-outline" size={18} color={Colors.primary} />
+              <TouchableOpacity onPress={handleSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginHorizontal: 10 }}>
+                <Ionicons name="paper-plane-outline" size={17} color={Colors.primary} />
               </TouchableOpacity>
             ) : null}
           </View>
-
-          {error && (
-            <Text style={styles.errorText}>{error}</Text>
-          )}
+          {error && <Text style={styles.errorText}>{error}</Text>}
         </View>
 
-        {/* ════════════════════════════════════════
-            PORTAL BUTTONS
-        ════════════════════════════════════════ */}
+        {/* ════ PORTAL ROW ════ */}
         <View style={styles.portalRow}>
-          {/* بوابة الصيدليات — dark green filled */}
           <TouchableOpacity
             style={[styles.portalPharmacy, isRTL && styles.rowReverse]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push("/pharmacy-portal");
-            }}
-            activeOpacity={0.8}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/pharmacy-portal"); }}
+            activeOpacity={0.82}
           >
-            <Ionicons name={chevron} size={13} color="rgba(255,255,255,0.75)" />
+            <Ionicons name={ch} size={12} color="rgba(255,255,255,0.7)" />
             <Text style={styles.portalPharmacyText} numberOfLines={1}>
               {isRTL ? "بوابة الصيدليات" : "Portail Pharmacies"}
             </Text>
-            <MaterialCommunityIcons name="store-plus-outline" size={16} color="#fff" />
+            <MaterialCommunityIcons name="store-plus-outline" size={15} color="#fff" />
           </TouchableOpacity>
 
-          {/* بوابة الشركاء — purple outlined */}
           <TouchableOpacity
             style={[styles.portalPartner, isRTL && styles.rowReverse]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push("/company-portal");
-            }}
-            activeOpacity={0.8}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/company-portal"); }}
+            activeOpacity={0.82}
           >
-            <Ionicons name={chevron} size={13} color="#7C3AED99" />
+            <Ionicons name={ch} size={12} color="#7C3AED99" />
             <Text style={styles.portalPartnerText} numberOfLines={1}>
               {isRTL ? "بوابة الشركاء" : "Portail Partenaires"}
             </Text>
-            <MaterialCommunityIcons name="domain" size={16} color="#7C3AED" />
+            <MaterialCommunityIcons name="domain" size={15} color="#7C3AED" />
           </TouchableOpacity>
         </View>
 
-        {/* ════════════════════════════════════════
-            CARDS  2 × 2
-        ════════════════════════════════════════ */}
+        {/* ════ CARDS GRID — flex:1 fills remaining space ════ */}
         <View style={styles.cardsGrid}>
-          {/* ── Row 1 ── */}
+          {/* Row 1 */}
           <View style={styles.cardsRow}>
-
-            {/* التمريض المنزلي والرعاية الصحية */}
-            <TouchableOpacity style={styles.card} onPress={goToFindDoctor} activeOpacity={0.82}>
-              <View style={[styles.cardTopStrip, { backgroundColor: "#00796B" }]} />
-              <View style={styles.cardIconsArea}>
-                <View style={[styles.cardMainIconBox, { backgroundColor: "#E0F2F1" }]}>
-                  <MaterialCommunityIcons name="medical-bag" size={28} color="#00796B" />
+            {cards.slice(0, 2).map((c) => (
+              <TouchableOpacity key={c.id} style={styles.card} onPress={c.onPress} activeOpacity={0.82}>
+                <View style={[styles.cardTopStrip, { backgroundColor: c.strip }]} />
+                <View style={styles.cardIconsArea}>
+                  <View style={[styles.cardMainIconBox, { backgroundColor: c.iconBg }]}>
+                    <MaterialCommunityIcons name={c.mainIcon} size={26} color={c.mainColor} />
+                  </View>
+                  {c.secondIcon && (
+                    <MaterialCommunityIcons name={c.secondIcon} size={c.id === "nursing" ? 36 : 22} color={c.secondColor} style={c.id === "nursing" ? styles.cardSecondaryIcon : styles.cardSecondaryIconSm} />
+                  )}
                 </View>
-                <MaterialCommunityIcons
-                  name="doctor"
-                  size={42}
-                  color="#00796B"
-                  style={styles.cardSecondaryIcon}
-                />
-              </View>
-              <View style={[styles.cardBottomBar, { backgroundColor: "#00796B12" }]}>
-                <Text
-                  style={[styles.cardBottomText, { color: "#00695C" }, isRTL && styles.textRight]}
-                  numberOfLines={2}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.75}
-                >
-                  {isRTL ? "التمريض المنزلي\nوالرعاية الصحية" : "Soins infirmiers\nà domicile"}
-                </Text>
-                <View style={styles.cardBottomTrail}>
-                  <Text style={{ fontSize: 12 }}>🏠</Text>
-                  <Ionicons name={chevron} size={13} color="#00796B" />
+                <View style={[styles.cardBottomBar, { backgroundColor: c.barBg }]}>
+                  <Text style={[styles.cardBottomText, { color: c.textColor }, isRTL && styles.textRight]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.72}>
+                    {c.label}
+                  </Text>
+                  <View style={styles.cardBottomTrail}>
+                    {c.tail}
+                    <Ionicons name={ch} size={12} color={c.strip} />
+                  </View>
                 </View>
-              </View>
-            </TouchableOpacity>
-
-            {/* سعر الدواء */}
-            <TouchableOpacity style={styles.card} onPress={goToDrugPrice} activeOpacity={0.82}>
-              <View style={[styles.cardTopStrip, { backgroundColor: "#E65100" }]} />
-              <View style={styles.cardIconsArea}>
-                <View style={[styles.cardMainIconBox, { backgroundColor: "#FFF3E0" }]}>
-                  <MaterialCommunityIcons name="tag" size={28} color="#E65100" />
-                </View>
-                <MaterialCommunityIcons
-                  name="content-cut"
-                  size={24}
-                  color="#00796B"
-                  style={styles.cardSecondaryIconSmall}
-                />
-              </View>
-              <View style={[styles.cardBottomBar, { backgroundColor: "#E6510012" }]}>
-                <Text
-                  style={[styles.cardBottomText, { color: "#BF360C" }, isRTL && styles.textRight]}
-                  numberOfLines={2}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.75}
-                >
-                  {isRTL ? "سعر الدواء" : "Prix médicament"}
-                </Text>
-                <View style={styles.cardBottomTrail}>
-                  <Ionicons name={chevron} size={13} color="#E65100" />
-                </View>
-              </View>
-            </TouchableOpacity>
-
+              </TouchableOpacity>
+            ))}
           </View>
 
-          {/* ── Row 2 ── */}
+          {/* Row 2 */}
           <View style={styles.cardsRow}>
-
-            {/* صيدليات المداومة */}
-            <TouchableOpacity style={styles.card} onPress={goToDutyDirect} activeOpacity={0.82}>
-              <View style={[styles.cardTopStrip, { backgroundColor: "#283593" }]} />
-              <View style={styles.cardIconsArea}>
-                <View style={[styles.cardMainIconBox, { backgroundColor: "#E8EAF6" }]}>
-                  <MaterialCommunityIcons name="weather-night" size={28} color="#283593" />
+            {cards.slice(2, 4).map((c) => (
+              <TouchableOpacity key={c.id} style={styles.card} onPress={c.onPress} activeOpacity={0.82}>
+                <View style={[styles.cardTopStrip, { backgroundColor: c.strip }]} />
+                <View style={styles.cardIconsArea}>
+                  <View style={[styles.cardMainIconBox, { backgroundColor: c.iconBg }]}>
+                    <MaterialCommunityIcons name={c.mainIcon} size={26} color={c.mainColor} />
+                  </View>
+                  {c.secondIcon && (
+                    <MaterialCommunityIcons name={c.secondIcon} size={24} color={c.secondColor} style={styles.cardSecondaryIcon} />
+                  )}
                 </View>
-              </View>
-              <View style={[styles.cardBottomBar, { backgroundColor: "#28359312" }]}>
-                <Text
-                  style={[styles.cardBottomText, { color: "#1A237E" }, isRTL && styles.textRight]}
-                  numberOfLines={2}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.75}
-                >
-                  {isRTL ? "صيدليات المداومة" : "Pharmacies de Garde"}
-                </Text>
-                <View style={styles.cardBottomTrail}>
-                  <Text style={{ fontSize: 12 }}>🌙</Text>
-                  <Ionicons name={chevron} size={13} color="#283593" />
+                <View style={[styles.cardBottomBar, { backgroundColor: c.barBg }]}>
+                  <Text style={[styles.cardBottomText, { color: c.textColor }, isRTL && styles.textRight]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.72}>
+                    {c.label}
+                  </Text>
+                  <View style={styles.cardBottomTrail}>
+                    {c.tail}
+                    <Ionicons name={ch} size={12} color={c.strip} />
+                  </View>
                 </View>
-              </View>
-            </TouchableOpacity>
-
-            {/* أقرب صيدلية */}
-            <TouchableOpacity style={styles.card} onPress={goToNearest} activeOpacity={0.82}>
-              <View style={[styles.cardTopStrip, { backgroundColor: "#1565C0" }]} />
-              <View style={styles.cardIconsArea}>
-                <View style={[styles.cardMainIconBox, { backgroundColor: "#E3F2FD" }]}>
-                  <MaterialCommunityIcons name="map-marker" size={28} color="#1565C0" />
-                </View>
-                <MaterialCommunityIcons
-                  name="store-outline"
-                  size={28}
-                  color="#78909C"
-                  style={styles.cardSecondaryIcon}
-                />
-              </View>
-              <View style={[styles.cardBottomBar, { backgroundColor: "#1565C012" }]}>
-                <Text
-                  style={[styles.cardBottomText, { color: "#0D47A1" }, isRTL && styles.textRight]}
-                  numberOfLines={2}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.75}
-                >
-                  {isRTL ? "أقرب صيدلية" : "Pharmacie la plus proche"}
-                </Text>
-                <View style={styles.cardBottomTrail}>
-                  <Ionicons name={chevron} size={13} color="#1565C0" />
-                </View>
-              </View>
-            </TouchableOpacity>
-
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
-        {/* ════════════════════════════════════════
-            ABOUT LINK
-        ════════════════════════════════════════ */}
+        {/* ════ FOOTER ════ */}
         <TouchableOpacity
           style={styles.aboutLink}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push("/about");
-          }}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/about"); }}
           activeOpacity={0.7}
         >
-          <MaterialCommunityIcons name="information-outline" size={13} color="#90A4AE" />
+          <MaterialCommunityIcons name="information-outline" size={12} color="#90A4AE" />
           <Text style={styles.aboutLinkText}>
             {isRTL ? "عن دواية • سياسة الخصوصية" : "À propos de Dewaya • Confidentialité"}
           </Text>
         </TouchableOpacity>
-
-        {/* ════════════════════════════════════════
-            SOURCE
-        ════════════════════════════════════════ */}
         <Text style={styles.sourceText}>
-          {"🇲🇷 "}
-          {isRTL ? "المصدر: وزارة الصحة الموريتانية" : "Source: Ministère de la Santé Mauritanien"}
+          {"🇲🇷 "}{isRTL ? "المصدر: وزارة الصحة الموريتانية" : "Source: Ministère de la Santé Mauritanien"}
         </Text>
 
-        {/* ════════════════════════════════════════
-            REGION PICKER MODAL
-        ════════════════════════════════════════ */}
-        <Modal
-          visible={showRegionPicker}
-          animationType="slide"
-          presentationStyle="pageSheet"
-          onRequestClose={() => setShowRegionPicker(false)}
-        >
-          <View style={styles.pickerContainer}>
-            <View style={[styles.pickerHeader, isRTL && styles.rowReverse]}>
-              <Text style={styles.pickerTitle}>{t("selectRegion")}</Text>
-              <TouchableOpacity
-                onPress={() => { setShowRegionPicker(false); setRegionQuery(""); }}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <Ionicons name="close" size={24} color={Colors.light.text} />
-              </TouchableOpacity>
-            </View>
-            <View style={[styles.pickerSearch, isRTL && styles.rowReverse]}>
-              <Ionicons name="search-outline" size={18} color={Colors.light.textTertiary} />
-              <TextInput
-                style={[styles.pickerSearchInput, isRTL && styles.textRight]}
-                placeholder={isRTL ? "ابحث عن منطقة..." : "Rechercher une région..."}
-                placeholderTextColor={Colors.light.textTertiary}
-                value={regionQuery}
-                onChangeText={setRegionQuery}
-                textAlign={isRTL ? "right" : "left"}
-              />
-            </View>
-            <FlatList
-              data={filteredRegions}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[styles.regionItem, isRTL && styles.rowReverse]}
-                  onPress={() => {
-                    setRegion(item);
-                    setRegionQuery("");
-                    setShowRegionPicker(false);
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  }}
-                  activeOpacity={0.75}
-                >
-                  <View style={[styles.regionItemIcon, region?.id === item.id && { backgroundColor: Colors.primary }]}>
-                    <Ionicons name="location" size={14} color={region?.id === item.id ? "#fff" : Colors.primary} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.regionItemAr, isRTL && styles.textRight]}>{item.ar}</Text>
-                    <Text style={[styles.regionItemFr, isRTL && styles.textRight]}>{item.fr}</Text>
-                  </View>
-                  {region?.id === item.id && <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />}
-                </TouchableOpacity>
-              )}
-              ItemSeparatorComponent={() => <View style={styles.regionSep} />}
+      </View>
+
+      {/* ════ MODALS ════ */}
+
+      {/* Region picker */}
+      <Modal visible={showRegionPicker} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowRegionPicker(false)}>
+        <View style={styles.pickerContainer}>
+          <View style={[styles.pickerHeader, isRTL && styles.rowReverse]}>
+            <Text style={styles.pickerTitle}>{t("selectRegion")}</Text>
+            <TouchableOpacity onPress={() => { setShowRegionPicker(false); setRegionQuery(""); }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Ionicons name="close" size={24} color={Colors.light.text} />
+            </TouchableOpacity>
+          </View>
+          <View style={[styles.pickerSearch, isRTL && styles.rowReverse]}>
+            <Ionicons name="search-outline" size={18} color={Colors.light.textTertiary} />
+            <TextInput
+              style={[styles.pickerSearchInput, isRTL && styles.textRight]}
+              placeholder={isRTL ? "ابحث عن منطقة..." : "Rechercher une région..."}
+              placeholderTextColor={Colors.light.textTertiary}
+              value={regionQuery}
+              onChangeText={setRegionQuery}
+              textAlign={isRTL ? "right" : "left"}
             />
           </View>
-        </Modal>
-
-        {/* ════════════════════════════════════════
-            IMAGE SOURCE MENU
-        ════════════════════════════════════════ */}
-        <Modal
-          visible={showImgMenu}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowImgMenu(false)}
-        >
-          <TouchableOpacity
-            style={styles.menuBackdrop}
-            onPress={() => setShowImgMenu(false)}
-            activeOpacity={1}
-          >
-            <View style={styles.menuSheet}>
-              <View style={styles.menuHandle} />
-              <Text style={[styles.menuTitle, isRTL && styles.textRight]}>
-                {isRTL ? "اختر مصدر الصورة" : "Choisir la source"}
-              </Text>
+          <FlatList
+            data={filteredRegions}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+            renderItem={({ item }) => (
               <TouchableOpacity
-                style={[styles.menuItem, isRTL && styles.rowReverse]}
-                onPress={openCamera}
-                activeOpacity={0.8}
+                style={[styles.regionItem, isRTL && styles.rowReverse]}
+                onPress={() => { setRegion(item); setRegionQuery(""); setShowRegionPicker(false); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                activeOpacity={0.75}
               >
-                <View style={[styles.menuItemIcon, { backgroundColor: Colors.primary + "14" }]}>
-                  <Ionicons name="camera" size={22} color={Colors.primary} />
+                <View style={[styles.regionItemIcon, region?.id === item.id && { backgroundColor: Colors.primary }]}>
+                  <Ionicons name="location" size={14} color={region?.id === item.id ? "#fff" : Colors.primary} />
                 </View>
-                <Text style={styles.menuItemText}>
-                  {isRTL ? "تصوير الآن" : "Prendre une photo"}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.menuItem, isRTL && styles.rowReverse]}
-                onPress={openGallery}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.menuItemIcon, { backgroundColor: Colors.accent + "14" }]}>
-                  <Ionicons name="images" size={22} color={Colors.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.regionItemAr, isRTL && styles.textRight]}>{item.ar}</Text>
+                  <Text style={[styles.regionItemFr, isRTL && styles.textRight]}>{item.fr}</Text>
                 </View>
-                <Text style={styles.menuItemText}>
-                  {isRTL ? "من معرض الصور" : "Depuis la galerie"}
-                </Text>
+                {region?.id === item.id && <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />}
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.menuCancel}
-                onPress={() => setShowImgMenu(false)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.menuCancelText}>{t("cancel")}</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
+            )}
+            ItemSeparatorComponent={() => <View style={styles.regionSep} />}
+          />
+        </View>
+      </Modal>
 
-        {/* ════════════════════════════════════════
-            ADMIN PIN MODAL
-        ════════════════════════════════════════ */}
-        <Modal
-          visible={showAdminPinModal}
-          transparent
-          animationType="fade"
-          onRequestClose={() => { setShowAdminPinModal(false); setAdminPinInput(""); }}
-        >
-          <View style={styles.adminPinOverlay}>
-            <View style={styles.adminPinSheet}>
-              {adminPinSuccess ? (
-                <>
-                  <View style={[styles.adminPinIconWrap, { backgroundColor: Colors.accent + "18" }]}>
-                    <Ionicons name="shield-checkmark" size={40} color={Colors.accent} />
-                  </View>
-                  <Text style={[styles.adminPinTitle, isRTL && styles.textRight]}>
-                    {isRTL ? "تم التحقق بنجاح" : "Accès accordé"}
-                  </Text>
-                  <Text style={[styles.adminPinSub, isRTL && styles.textRight]}>
-                    {isRTL ? "جارٍ الفتح..." : "Ouverture en cours..."}
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <View style={styles.adminPinIconWrap}>
-                    <Ionicons name="shield" size={40} color={Colors.primary} />
-                  </View>
-                  <Text style={[styles.adminPinTitle, isRTL && styles.textRight]}>
-                    {isRTL ? "رمز الدخول" : "Code d'accès"}
-                  </Text>
-                  <Text style={[styles.adminPinSub, isRTL && styles.textRight]}>
-                    {isRTL ? "أدخل رمز الإدارة للمتابعة" : "Entrez le code administrateur"}
-                  </Text>
-                  <View style={[styles.adminPinRow, adminPinError && styles.adminPinRowError, isRTL && styles.rowReverse]}>
-                    <Ionicons name="key-outline" size={20} color={adminPinError ? Colors.danger : Colors.light.textSecondary} />
-                    <TextInput
-                      ref={adminPinRef}
-                      style={[styles.adminPinField, isRTL && styles.textRight]}
-                      placeholder="••••"
-                      placeholderTextColor={Colors.light.textTertiary}
-                      value={adminPinInput}
-                      onChangeText={setAdminPinInput}
-                      secureTextEntry
-                      keyboardType="number-pad"
-                      textAlign="center"
-                      returnKeyType="go"
-                      onSubmitEditing={handleAdminPinSubmit}
-                      maxLength={10}
-                    />
-                  </View>
-                  {adminPinError && (
-                    <Text style={styles.adminPinErrorText}>
-                      {isRTL ? "رمز غير صحيح" : "Code incorrect"}
-                    </Text>
-                  )}
-                  <TouchableOpacity
-                    style={[styles.adminPinBtn, !adminPinInput.trim() && styles.adminPinBtnDisabled]}
-                    onPress={handleAdminPinSubmit}
-                    disabled={!adminPinInput.trim()}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name="enter" size={18} color="#fff" />
-                    <Text style={styles.adminPinBtnText}>
-                      {isRTL ? "دخول" : "Connexion"}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.adminPinCancel}
-                    onPress={() => { setShowAdminPinModal(false); setAdminPinInput(""); }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.adminPinCancelText}>{t("cancel")}</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          </View>
-        </Modal>
-
-        {/* ════════════════════════════════════════
-            SUCCESS MODAL
-        ════════════════════════════════════════ */}
-        <Modal
-          visible={showSuccessModal}
-          transparent
-          animationType="fade"
-          onRequestClose={handleNewSearch}
-          statusBarTranslucent
-        >
-          <View style={styles.successOverlay}>
-            <View style={styles.successModal}>
-              <View style={styles.successIconWrap}>
-                <Image
-                  source={require("@/assets/images/icon.png")}
-                  style={styles.successAppIcon}
-                  resizeMode="cover"
-                />
-                <View style={styles.successCheckBadge}>
-                  <Text style={styles.successCheckText}>✓</Text>
-                </View>
+      {/* Image source menu */}
+      <Modal visible={showImgMenu} transparent animationType="fade" onRequestClose={() => setShowImgMenu(false)}>
+        <TouchableOpacity style={styles.menuBackdrop} onPress={() => setShowImgMenu(false)} activeOpacity={1}>
+          <View style={styles.menuSheet}>
+            <View style={styles.menuHandle} />
+            <Text style={[styles.menuTitle, isRTL && styles.textRight]}>
+              {isRTL ? "اختر مصدر الصورة" : "Choisir la source"}
+            </Text>
+            <TouchableOpacity style={[styles.menuItem, isRTL && styles.rowReverse]} onPress={openCamera} activeOpacity={0.8}>
+              <View style={[styles.menuItemIcon, { backgroundColor: Colors.primary + "14" }]}>
+                <Ionicons name="camera" size={22} color={Colors.primary} />
               </View>
-              <Text style={[styles.successModalTitle, isRTL && styles.textRight]}>
-                {t("requestSent")}
-              </Text>
-              <Text style={[styles.successModalSub, isRTL && styles.textRight]}>
-                {t("requestSentSubtitle")}
-              </Text>
-              <TouchableOpacity
-                style={styles.successConfirmBtn}
-                onPress={handleNewSearch}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.successConfirmText}>
-                  {isRTL ? "تأكيد" : "Confirmer"}
-                </Text>
-              </TouchableOpacity>
-            </View>
+              <Text style={styles.menuItemText}>{isRTL ? "تصوير الآن" : "Prendre une photo"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.menuItem, isRTL && styles.rowReverse]} onPress={openGallery} activeOpacity={0.8}>
+              <View style={[styles.menuItemIcon, { backgroundColor: Colors.accent + "14" }]}>
+                <Ionicons name="images" size={22} color={Colors.accent} />
+              </View>
+              <Text style={styles.menuItemText}>{isRTL ? "من معرض الصور" : "Depuis la galerie"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuCancel} onPress={() => setShowImgMenu(false)} activeOpacity={0.8}>
+              <Text style={styles.menuCancelText}>{t("cancel")}</Text>
+            </TouchableOpacity>
           </View>
-        </Modal>
+        </TouchableOpacity>
+      </Modal>
 
-      </ScrollView>
+      {/* Admin PIN */}
+      <Modal visible={showAdminPinModal} transparent animationType="fade" onRequestClose={() => { setShowAdminPinModal(false); setAdminPinInput(""); }}>
+        <View style={styles.adminPinOverlay}>
+          <View style={styles.adminPinSheet}>
+            {adminPinSuccess ? (
+              <>
+                <View style={[styles.adminPinIconWrap, { backgroundColor: Colors.accent + "18" }]}>
+                  <Ionicons name="shield-checkmark" size={40} color={Colors.accent} />
+                </View>
+                <Text style={[styles.adminPinTitle, isRTL && styles.textRight]}>{isRTL ? "تم التحقق بنجاح" : "Accès accordé"}</Text>
+                <Text style={[styles.adminPinSub, isRTL && styles.textRight]}>{isRTL ? "جارٍ الفتح..." : "Ouverture en cours..."}</Text>
+              </>
+            ) : (
+              <>
+                <View style={styles.adminPinIconWrap}>
+                  <Ionicons name="shield" size={40} color={Colors.primary} />
+                </View>
+                <Text style={[styles.adminPinTitle, isRTL && styles.textRight]}>{isRTL ? "رمز الدخول" : "Code d'accès"}</Text>
+                <Text style={[styles.adminPinSub, isRTL && styles.textRight]}>{isRTL ? "أدخل رمز الإدارة للمتابعة" : "Entrez le code administrateur"}</Text>
+                <View style={[styles.adminPinRow, adminPinError && styles.adminPinRowError, isRTL && styles.rowReverse]}>
+                  <Ionicons name="key-outline" size={20} color={adminPinError ? Colors.danger : Colors.light.textSecondary} />
+                  <TextInput
+                    ref={adminPinRef}
+                    style={[styles.adminPinField, isRTL && styles.textRight]}
+                    placeholder="••••"
+                    placeholderTextColor={Colors.light.textTertiary}
+                    value={adminPinInput}
+                    onChangeText={setAdminPinInput}
+                    secureTextEntry
+                    keyboardType="number-pad"
+                    textAlign="center"
+                    returnKeyType="go"
+                    onSubmitEditing={handleAdminPinSubmit}
+                    maxLength={10}
+                  />
+                </View>
+                {adminPinError && <Text style={styles.adminPinErrorText}>{isRTL ? "رمز غير صحيح" : "Code incorrect"}</Text>}
+                <TouchableOpacity style={[styles.adminPinBtn, !adminPinInput.trim() && styles.adminPinBtnDisabled]} onPress={handleAdminPinSubmit} disabled={!adminPinInput.trim()} activeOpacity={0.85}>
+                  <Ionicons name="enter" size={18} color="#fff" />
+                  <Text style={styles.adminPinBtnText}>{isRTL ? "دخول" : "Connexion"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.adminPinCancel} onPress={() => { setShowAdminPinModal(false); setAdminPinInput(""); }} activeOpacity={0.7}>
+                  <Text style={styles.adminPinCancelText}>{t("cancel")}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Success modal */}
+      <Modal visible={showSuccessModal} transparent animationType="fade" onRequestClose={handleNewSearch} statusBarTranslucent>
+        <View style={styles.successOverlay}>
+          <View style={styles.successModal}>
+            <View style={styles.successIconWrap}>
+              <Image source={require("@/assets/images/icon.png")} style={styles.successAppIcon} resizeMode="cover" />
+              <View style={styles.successCheckBadge}>
+                <Text style={styles.successCheckText}>✓</Text>
+              </View>
+            </View>
+            <Text style={[styles.successModalTitle, isRTL && styles.textRight]}>{t("requestSent")}</Text>
+            <Text style={[styles.successModalSub, isRTL && styles.textRight]}>{t("requestSentSubtitle")}</Text>
+            <TouchableOpacity style={styles.successConfirmBtn} onPress={handleNewSearch} activeOpacity={0.85}>
+              <Text style={styles.successConfirmText}>{isRTL ? "تأكيد" : "Confirmer"}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
 
-/* ══════════════════════════════════════════════════════
-   STYLES
-══════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════ */
 const styles = StyleSheet.create({
   rowReverse: { flexDirection: "row-reverse" },
   textRight: { textAlign: "right", writingDirection: "rtl" },
 
-  /* ── HEADER ── */
+  screen: {
+    flex: 1,
+    paddingHorizontal: 14,
+  },
+
+  /* HEADER */
   header: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 6,
-    paddingVertical: 6,
+    paddingVertical: 4,
+    marginBottom: 4,
   },
   bellBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38, height: 38, borderRadius: 19,
     backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E8EDF3",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07,
-    shadowRadius: 4,
-    elevation: 2,
-    position: "relative",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "#E8EDF3",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3,
+    elevation: 2, position: "relative",
   },
   bellBadge: {
-    position: "absolute",
-    top: -2,
-    right: -2,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
+    position: "absolute", top: -2, right: -2,
+    minWidth: 15, height: 15, borderRadius: 8,
     backgroundColor: "#EF4444",
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: "center", justifyContent: "center",
     paddingHorizontal: 2,
-    borderWidth: 1.5,
-    borderColor: "#F0F4F8",
+    borderWidth: 1.5, borderColor: "#F0F4F8",
   },
-  bellBadgeText: {
-    color: "#fff",
-    fontSize: 9,
-    fontFamily: "Inter_700Bold",
-    lineHeight: 11,
-  },
-  appIdentity: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  appNameGroup: {
-    alignItems: "flex-end",
-  },
-  appNameAr: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 22,
-    color: "#1A237E",
-    letterSpacing: 0.5,
-  },
-  appSubIcons: {
-    flexDirection: "row",
-    gap: 4,
-    marginTop: 2,
-  },
-  logoWrap: {
-    alignItems: "center",
-    position: "relative",
-  },
+  bellBadgeText: { color: "#fff", fontSize: 8, fontFamily: "Inter_700Bold", lineHeight: 10 },
+  appIdentity: { flexDirection: "row", alignItems: "center", gap: 8 },
+  appNameGroup: { alignItems: "flex-end" },
+  appNameAr: { fontFamily: "Inter_700Bold", fontSize: 20, color: "#1A237E", letterSpacing: 0.3 },
+  appSubIcons: { flexDirection: "row", gap: 3, marginTop: 1 },
+  logoWrap: { alignItems: "center", position: "relative" },
   logoRing: {
-    position: "absolute",
-    top: -3,
-    left: -3,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 2,
-    borderColor: "transparent",
+    position: "absolute", top: -3, left: -3,
+    width: 48, height: 48, borderRadius: 24,
+    borderWidth: 2, borderColor: "transparent",
   },
   logoBubble: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 42, height: 42, borderRadius: 21,
     backgroundColor: Colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.32,
-    shadowRadius: 7,
-    elevation: 5,
+    alignItems: "center", justifyContent: "center",
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6,
+    elevation: 4,
   },
   adminDot: {
-    position: "absolute",
-    bottom: 12,
-    right: -2,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: Colors.accent,
-    borderWidth: 1.5,
-    borderColor: "#F0F4F8",
+    position: "absolute", bottom: 12, right: -2,
+    width: 9, height: 9, borderRadius: 5,
+    backgroundColor: Colors.accent, borderWidth: 1.5, borderColor: "#F0F4F8",
   },
-  logoSubText: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 9,
-    color: "#78909C",
-    letterSpacing: 2.5,
-    marginTop: 3,
-  },
+  logoSubText: { fontFamily: "Inter_700Bold", fontSize: 8, color: "#78909C", letterSpacing: 2.5, marginTop: 2 },
 
-  /* ── LANGUAGE LINE ── */
+  /* LANGUAGE LINE */
   langLine: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    marginBottom: 14,
-    paddingVertical: 2,
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 5, marginBottom: 8, paddingVertical: 1,
   },
-  langLineText: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 13,
-    color: "#546E7A",
-  },
+  langLineText: { fontFamily: "Inter_500Medium", fontSize: 12.5, color: "#546E7A" },
 
-  /* ── SEARCH CARD ── */
+  /* SEARCH CARD */
   searchCard: {
     backgroundColor: "#fff",
-    borderRadius: 16,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 4,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#ECEFF1",
+    borderRadius: 14, marginBottom: 8,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8,
+    elevation: 3, overflow: "hidden",
+    borderWidth: 1, borderColor: "#ECEFF1",
   },
   searchRow1: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 12, paddingVertical: 9,
   },
   cameraBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 33, height: 33, borderRadius: 9,
     backgroundColor: "#F0F4F8",
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: "center", justifyContent: "center",
   },
   searchRow1Label: {
-    flex: 1,
-    fontFamily: "Inter_500Medium",
-    fontSize: 14,
-    color: "#B0BEC5",
-    textAlign: "left",
+    flex: 1, fontFamily: "Inter_500Medium", fontSize: 13.5, color: "#B0BEC5", textAlign: "left",
   },
-  searchHDivider: {
-    height: 1,
-    backgroundColor: "#ECEFF1",
-  },
-  searchRow2: {
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 50,
-  },
+  searchHDivider: { height: 1, backgroundColor: "#ECEFF1" },
+  searchRow2: { flexDirection: "row", alignItems: "center", minHeight: 46 },
   regionChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    minWidth: 105,
+    flexDirection: "row", alignItems: "center", gap: 3,
+    paddingHorizontal: 10, paddingVertical: 12, minWidth: 95,
   },
-  regionChipText: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 12,
-    color: Colors.primary,
-    flexShrink: 1,
-  },
-  inputVDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: "#ECEFF1",
-  },
+  regionChipText: { fontFamily: "Inter_600SemiBold", fontSize: 11.5, color: Colors.primary, flexShrink: 1 },
+  inputVDivider: { width: 1, height: 26, backgroundColor: "#ECEFF1" },
   drugInput: {
-    flex: 1,
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    color: "#37474F",
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    textAlign: "left",
+    flex: 1, fontFamily: "Inter_400Regular", fontSize: 13.5, color: "#37474F",
+    paddingHorizontal: 10, paddingVertical: 12, textAlign: "left",
   },
   errorText: {
-    color: Colors.danger,
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    paddingHorizontal: 14,
-    paddingBottom: 10,
-    textAlign: "center",
+    color: Colors.danger, fontFamily: "Inter_400Regular", fontSize: 11.5,
+    paddingHorizontal: 12, paddingBottom: 8, textAlign: "center",
   },
-  thumbWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    position: "relative",
-    overflow: "visible",
-  },
-  thumb: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-  },
-  thumbRemove: {
-    position: "absolute",
-    top: -6,
-    right: -6,
-    backgroundColor: "#fff",
-    borderRadius: 9,
-  },
+  thumbWrap: { width: 33, height: 33, borderRadius: 7, position: "relative", overflow: "visible" },
+  thumb: { width: 33, height: 33, borderRadius: 7 },
+  thumbRemove: { position: "absolute", top: -5, right: -5, backgroundColor: "#fff", borderRadius: 8 },
 
-  /* ── PORTAL ROW ── */
-  portalRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 12,
-  },
+  /* PORTAL ROW */
+  portalRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
   portalPharmacy: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: "#1B5E20",
-    borderRadius: 14,
-    paddingVertical: 11,
-    paddingHorizontal: 10,
-    shadowColor: "#1B5E20",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 3,
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 5, backgroundColor: "#1B5E20", borderRadius: 12,
+    paddingVertical: 9, paddingHorizontal: 8,
+    shadowColor: "#1B5E20", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 4, elevation: 2,
   },
-  portalPharmacyText: {
-    flex: 1,
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 12.5,
-    color: "#fff",
-    textAlign: "center",
-  },
+  portalPharmacyText: { flex: 1, fontFamily: "Inter_600SemiBold", fontSize: 12, color: "#fff", textAlign: "center" },
   portalPartner: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: "#F5F3FF",
-    borderRadius: 14,
-    paddingVertical: 11,
-    paddingHorizontal: 10,
-    borderWidth: 1.5,
-    borderColor: "#7C3AED30",
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 5, backgroundColor: "#F5F3FF", borderRadius: 12,
+    paddingVertical: 9, paddingHorizontal: 8,
+    borderWidth: 1.5, borderColor: "#7C3AED30",
   },
-  portalPartnerText: {
-    flex: 1,
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 12.5,
-    color: "#7C3AED",
-    textAlign: "center",
-  },
+  portalPartnerText: { flex: 1, fontFamily: "Inter_600SemiBold", fontSize: 12, color: "#7C3AED", textAlign: "center" },
 
-  /* ── CARDS GRID ── */
+  /* CARDS GRID — flex layout fills remaining space */
   cardsGrid: {
-    gap: 10,
-    marginBottom: 10,
+    flex: 1,
+    gap: 8,
+    marginBottom: 6,
   },
   cardsRow: {
+    flex: 1,
     flexDirection: "row",
-    gap: 10,
+    gap: 8,
   },
   card: {
     flex: 1,
     backgroundColor: "#fff",
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 7,
     elevation: 3,
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.05)",
+    borderWidth: 1, borderColor: "rgba(0,0,0,0.05)",
   },
-  cardTopStrip: {
-    height: 5,
-    width: "100%",
-  },
+  cardTopStrip: { height: 4, width: "100%" },
   cardIconsArea: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 10,
-    minHeight: 90,
+    paddingHorizontal: 8,
   },
   cardMainIconBox: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 48, height: 48, borderRadius: 13,
+    alignItems: "center", justifyContent: "center",
   },
-  cardSecondaryIcon: {
-    marginLeft: 6,
-    opacity: 0.85,
-  },
-  cardSecondaryIconSmall: {
-    marginLeft: 4,
-    marginTop: 10,
-    opacity: 0.8,
-  },
+  cardSecondaryIcon: { marginLeft: 5, opacity: 0.85 },
+  cardSecondaryIconSm: { marginLeft: 4, marginTop: 8, opacity: 0.8 },
   cardBottomBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    gap: 4,
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 9, paddingVertical: 8, gap: 3,
   },
-  cardBottomText: {
-    flex: 1,
-    fontFamily: "Inter_700Bold",
-    fontSize: 12.5,
-    lineHeight: 17,
-  },
-  cardBottomTrail: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-    flexShrink: 0,
-  },
+  cardBottomText: { flex: 1, fontFamily: "Inter_700Bold", fontSize: 12, lineHeight: 16 },
+  cardBottomTrail: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
 
-  /* ── ABOUT / FOOTER ── */
+  /* FOOTER */
   aboutLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    paddingVertical: 10,
-    marginTop: 4,
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 4, paddingVertical: 5,
   },
-  aboutLinkText: {
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    color: "#90A4AE",
-  },
-  sourceText: {
-    textAlign: "center",
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    color: "#78909C",
-    marginBottom: 8,
-  },
+  aboutLinkText: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#90A4AE" },
+  sourceText: { textAlign: "center", fontFamily: "Inter_400Regular", fontSize: 11, color: "#78909C", marginBottom: 2 },
 
-  /* ── REGION PICKER MODAL ── */
+  /* REGION PICKER */
   pickerContainer: { flex: 1, backgroundColor: Colors.light.background },
-  pickerHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
-  },
+  pickerHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: Colors.light.border },
   pickerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.light.text },
-  pickerSearch: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: Colors.light.inputBackground,
-    borderRadius: 12,
-    marginHorizontal: 20,
-    marginVertical: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  pickerSearchInput: {
-    flex: 1,
-    fontFamily: "Inter_400Regular",
-    fontSize: 15,
-    color: Colors.light.text,
-  },
-  regionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 13,
-  },
-  regionItemIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: Colors.primary + "12",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
+  pickerSearch: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: Colors.light.inputBackground, borderRadius: 12, marginHorizontal: 20, marginVertical: 12, paddingHorizontal: 14, paddingVertical: 10 },
+  pickerSearchInput: { flex: 1, fontFamily: "Inter_400Regular", fontSize: 15, color: Colors.light.text },
+  regionItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 13 },
+  regionItemIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.primary + "12", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   regionItemAr: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: Colors.light.text },
   regionItemFr: { fontFamily: "Inter_400Regular", fontSize: 11, color: Colors.light.textSecondary },
   regionSep: { height: 1, backgroundColor: Colors.light.border },
 
-  /* ── IMAGE MENU ── */
-  menuBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "flex-end",
-  },
-  menuSheet: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    paddingHorizontal: 20,
-    paddingBottom: 34,
-    paddingTop: 12,
-  },
-  menuHandle: {
-    width: 38,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.light.border,
-    alignSelf: "center",
-    marginBottom: 14,
-  },
-  menuTitle: {
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-    color: Colors.light.text,
-    marginBottom: 14,
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    paddingHorizontal: 14,
-    marginBottom: 10,
-    backgroundColor: Colors.light.card,
-  },
-  menuItemIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  /* IMAGE MENU */
+  menuBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  menuSheet: { backgroundColor: "#fff", borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 20, paddingBottom: 34, paddingTop: 12 },
+  menuHandle: { width: 38, height: 4, borderRadius: 2, backgroundColor: Colors.light.border, alignSelf: "center", marginBottom: 14 },
+  menuTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: Colors.light.text, marginBottom: 14 },
+  menuItem: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: Colors.light.border, paddingHorizontal: 14, marginBottom: 10, backgroundColor: Colors.light.card },
+  menuItemIcon: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   menuItemText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.light.text },
-  menuCancel: {
-    paddingVertical: 14,
-    alignItems: "center",
-    borderRadius: 14,
-    backgroundColor: Colors.light.inputBackground,
-    marginTop: 4,
-  },
+  menuCancel: { paddingVertical: 14, alignItems: "center", borderRadius: 14, backgroundColor: Colors.light.inputBackground, marginTop: 4 },
   menuCancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary },
 
-  /* ── ADMIN PIN MODAL ── */
-  adminPinOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-  adminPinSheet: {
-    backgroundColor: Colors.light.background,
-    borderRadius: 20,
-    padding: 28,
-    width: "100%",
-    maxWidth: 340,
-    alignItems: "center",
-    gap: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    elevation: 20,
-  },
-  adminPinIconWrap: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: Colors.primary + "14",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-  },
-  adminPinTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 20,
-    color: Colors.light.text,
-    textAlign: "center",
-  },
-  adminPinSub: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  adminPinRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.light.card,
-    borderWidth: 1.5,
-    borderColor: Colors.light.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 10,
-    width: "100%",
-  },
-  adminPinRowError: {
-    borderColor: Colors.danger,
-    backgroundColor: Colors.danger + "08",
-  },
-  adminPinField: {
-    flex: 1,
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 20,
-    color: Colors.light.text,
-    letterSpacing: 8,
-    textAlign: "center",
-  },
-  adminPinErrorText: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 13,
-    color: Colors.danger,
-    textAlign: "center",
-  },
-  adminPinBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    paddingVertical: 14,
-    width: "100%",
-    marginTop: 4,
-  },
+  /* ADMIN PIN */
+  adminPinOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
+  adminPinSheet: { backgroundColor: Colors.light.background, borderRadius: 20, padding: 28, width: "100%", maxWidth: 340, alignItems: "center", gap: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 20 },
+  adminPinIconWrap: { width: 76, height: 76, borderRadius: 38, backgroundColor: Colors.primary + "14", alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  adminPinTitle: { fontFamily: "Inter_700Bold", fontSize: 20, color: Colors.light.text, textAlign: "center" },
+  adminPinSub: { fontFamily: "Inter_400Regular", fontSize: 14, color: Colors.light.textSecondary, textAlign: "center", lineHeight: 20 },
+  adminPinRow: { flexDirection: "row", alignItems: "center", backgroundColor: Colors.light.card, borderWidth: 1.5, borderColor: Colors.light.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 10, width: "100%" },
+  adminPinRowError: { borderColor: Colors.danger, backgroundColor: Colors.danger + "08" },
+  adminPinField: { flex: 1, fontFamily: "Inter_600SemiBold", fontSize: 20, color: Colors.light.text, letterSpacing: 8, textAlign: "center" },
+  adminPinErrorText: { fontFamily: "Inter_500Medium", fontSize: 13, color: Colors.danger, textAlign: "center" },
+  adminPinBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: Colors.primary, borderRadius: 12, paddingVertical: 14, width: "100%", marginTop: 4 },
   adminPinBtnDisabled: { backgroundColor: Colors.light.textTertiary },
-  adminPinBtnText: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 15,
-    color: "#fff",
-  },
+  adminPinBtnText: { fontFamily: "Inter_700Bold", fontSize: 15, color: "#fff" },
   adminPinCancel: { paddingVertical: 10 },
-  adminPinCancelText: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-  },
+  adminPinCancelText: { fontFamily: "Inter_500Medium", fontSize: 14, color: Colors.light.textSecondary },
 
-  /* ── SUCCESS MODAL ── */
-  successOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-  },
-  successModal: {
-    backgroundColor: "#fff",
-    borderRadius: 24,
-    paddingVertical: 36,
-    paddingHorizontal: 28,
-    alignItems: "center",
-    width: "100%",
-    maxWidth: 340,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    elevation: 16,
-  },
-  successIconWrap: {
-    width: 88,
-    height: 88,
-    marginBottom: 20,
-    position: "relative",
-  },
-  successAppIcon: {
-    width: 88,
-    height: 88,
-    borderRadius: 20,
-  },
-  successCheckBadge: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.30)",
-    borderRadius: 20,
-  },
-  successCheckText: {
-    fontSize: 38,
-    color: "#fff",
-    fontFamily: "Inter_700Bold",
-    lineHeight: 44,
-  },
-  successModalTitle: {
-    fontSize: 20,
-    fontFamily: "Inter_700Bold",
-    color: Colors.light.text,
-    textAlign: "center",
-    marginBottom: 10,
-  },
-  successModalSub: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    color: Colors.light.textSecondary,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 28,
-  },
-  successConfirmBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    width: "100%",
-  },
-  successConfirmText: {
-    color: "#fff",
-    fontFamily: "Inter_700Bold",
-    fontSize: 16,
-  },
+  /* SUCCESS MODAL */
+  successOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
+  successModal: { backgroundColor: "#fff", borderRadius: 24, paddingVertical: 36, paddingHorizontal: 28, alignItems: "center", width: "100%", maxWidth: 340, shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 16 },
+  successIconWrap: { width: 88, height: 88, marginBottom: 20, position: "relative" },
+  successAppIcon: { width: 88, height: 88, borderRadius: 20 },
+  successCheckBadge: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.30)", borderRadius: 20 },
+  successCheckText: { fontSize: 38, color: "#fff", fontFamily: "Inter_700Bold", lineHeight: 44 },
+  successModalTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: Colors.light.text, textAlign: "center", marginBottom: 10 },
+  successModalSub: { fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, textAlign: "center", lineHeight: 22, marginBottom: 28 },
+  successConfirmBtn: { backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 48, alignItems: "center", justifyContent: "center", width: "100%" },
+  successConfirmText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16 },
 });

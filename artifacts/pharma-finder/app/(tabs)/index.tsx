@@ -170,7 +170,7 @@ export default function HomeScreen() {
     if (!drugName.trim() && !capturedImage) return;
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (drugName.trim()) {
-      router.push({ pathname: "/nearest-pharmacy", params: { drug: drugName.trim() } });
+      router.push({ pathname: "/pharmacy-results", params: { drug: drugName.trim() } });
       return;
     }
     /* Image-only: submit a request as before */

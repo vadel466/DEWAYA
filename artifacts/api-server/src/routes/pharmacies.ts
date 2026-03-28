@@ -36,7 +36,11 @@ router.get("/", async (_req, res) => {
       .orderBy(pharmaciesTable.createdAt)
       .limit(1000);
     res.json(
-      pharmacies.map((p) => ({ ...p, createdAt: p.createdAt.toISOString() }))
+      pharmacies.map(({ portalPin, ...p }) => ({
+        ...p,
+        createdAt: p.createdAt.toISOString(),
+        hasPortal: !!portalPin,
+      }))
     );
   } catch (err) {
     console.error(err);

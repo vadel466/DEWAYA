@@ -18,7 +18,9 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import IntroScreen from "@/components/IntroScreen";
 import { AppProvider } from "@/context/AppContext";
 
-SplashScreen.preventAutoHideAsync();
+if (Platform.OS !== "web") {
+  SplashScreen.preventAutoHideAsync().catch(() => {});
+}
 
 /*
  * fontfaceobserver (used internally by expo-font on web) fires unhandled
@@ -71,12 +73,6 @@ export default function RootLayout() {
   useEffect(() => {
     let cancelled = false;
 
-    /*
-     * On web, fontfaceobserver cannot reliably load custom fonts from
-     * npm packages — it always races to a 6-second timeout and fires an
-     * unhandled rejection. We skip font-loading on web entirely; the
-     * browser will fall back to system fonts which render fine.
-     */
     if (Platform.OS === "web") {
       setReady(true);
       return;
@@ -84,7 +80,7 @@ export default function RootLayout() {
 
     const fallback = setTimeout(() => {
       if (!cancelled) setReady(true);
-    }, 4000);
+    }, 3000);
 
     Font.loadAsync({
       Inter_400Regular,
@@ -105,24 +101,12 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (ready) {
+    if (ready && Platform.OS !== "web") {
       SplashScreen.hideAsync().catch(() => {});
     }
   }, [ready]);
 
   const handleIntroFinish = useCallback(() => setShowIntro(false), []);
-
-  if (!ready) {
-    return (
-      <View style={styles.splash}>
-        <Image
-          source={require("../assets/images/splash-icon.png")}
-          style={styles.splashIcon}
-          resizeMode="contain"
-        />
-      </View>
-    );
-  }
 
   return (
     <SafeAreaProvider>
@@ -138,12 +122,27 @@ export default function RootLayout() {
           </GestureHandlerRootView>
         </QueryClientProvider>
       </ErrorBoundary>
+      {!ready && (
+        <View style={styles.splash} pointerEvents="none">
+          <Image
+            source={require("../assets/images/splash-icon.png")}
+            style={styles.splashIcon}
+            resizeMode="contain"
+          />
+        </View>
+      )}
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  splash: { flex: 1, backgroundColor: "#0D9488", justifyContent: "center", alignItems: "center" },
+  splash: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#0D9488",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9999,
+  },
   splashIcon: { width: 140, height: 140 },
 });

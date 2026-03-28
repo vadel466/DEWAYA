@@ -48,12 +48,13 @@ if (Platform.OS === "web" && typeof window !== "undefined") {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime:            60_000,
-      gcTime:           10 * 60_000,
-      retry:                1,
-      retryDelay:           2_000,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect:   false,
+      staleTime:            5 * 60_000,   // 5 min — data stays fresh; avoids UI flicker on re-focus
+      gcTime:              15 * 60_000,   // 15 min — keep in memory even when screen is unmounted
+      retry:                2,
+      retryDelay:          (attempt) => Math.min(1_000 * 2 ** attempt, 10_000),
+      refetchOnWindowFocus: false,        // never re-fetch just because user switches apps
+      refetchOnReconnect:   false,        // manual refresh preferred over automatic on reconnect
+      networkMode:          "offlineFirst", // show cached data instantly; fetch in background
     },
   },
 });
@@ -90,35 +91,41 @@ export default function RootLayout() {
     let cancelled = false;
 
     /*
-     * Hard ceiling: 1.5 s.
-     * Fonts from @expo/vector-icons are bundled — they load in < 300 ms
-     * on any device. This ceiling is just a safety net.
+     * Hard ceiling: 5 s — covers slow devices / first-install font loads.
+     * Fonts are bundled locally (no CDN), but decompression + mmap can
+     * take 2-4 s on low-end hardware.  We wait for real completion so
+     * icons are never rendered as squares.
      */
     const ceiling = setTimeout(() => {
       if (!cancelled) setReady(true);
-    }, 1_500);
+    }, 5_000);
 
-    Promise.all([
-      Font.loadAsync({
-        Inter_400Regular,
-        Inter_500Medium,
-        Inter_600SemiBold,
-        Inter_700Bold,
-        ...Ionicons.font,
-        ...MaterialCommunityIcons.font,
-      }).catch(() => { /* silently continue on error */ }),
-
-      AsyncStorage.getItem(INTRO_KEY).then((val) => {
-        if (!cancelled) setShowIntro(val !== "1");
-      }).catch(() => {
-        if (!cancelled) setShowIntro(true);
-      }),
-    ]).finally(() => {
-      if (!cancelled) {
-        clearTimeout(ceiling);
-        setReady(true);
-      }
-    });
+    /* Load ALL icon fonts explicitly so squares never appear */
+    Font.loadAsync({
+      Inter_400Regular,
+      Inter_500Medium,
+      Inter_600SemiBold,
+      Inter_700Bold,
+      ...Ionicons.font,
+      ...MaterialCommunityIcons.font,
+    })
+      .catch(() => { /* Font already loaded or device error — proceed */ })
+      .finally(() => {
+        /* Fonts done (or gave up) — now read the intro flag */
+        AsyncStorage.getItem(INTRO_KEY)
+          .then((val) => {
+            if (!cancelled) setShowIntro(val !== "1");
+          })
+          .catch(() => {
+            if (!cancelled) setShowIntro(true);
+          })
+          .finally(() => {
+            if (!cancelled) {
+              clearTimeout(ceiling);
+              setReady(true);
+            }
+          });
+      });
 
     return () => { cancelled = true; clearTimeout(ceiling); };
   }, []);

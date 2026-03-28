@@ -119,13 +119,21 @@ async function downloadAllPharmacies(signal?: AbortSignal): Promise<CachedPharma
 }
 
 /* ─── hook ───────────────────────────────────────────────────────── */
-type Status = "idle" | "downloading" | "ready" | "error";
+/*
+ * Status flow:
+ *  "loading"     — reading from AsyncStorage (initial mount, lasts ~50-200 ms)
+ *  "idle"        — storage read done; no cache found and no download running
+ *  "downloading" — actively fetching from API
+ *  "ready"       — cache populated and available
+ *  "error"       — download failed AND no cache available
+ */
+type Status = "loading" | "idle" | "downloading" | "ready" | "error";
 
 export function useOfflineCache() {
   const [drugs,      setDrugs]      = useState<CachedDrug[]>([]);
   const [pharmacies, setPharmacies] = useState<CachedPharmacy[]>([]);
-  const [drugStatus, setDrugStatus] = useState<Status>("idle");
-  const [pharmStatus,setPharmStatus]= useState<Status>("idle");
+  const [drugStatus, setDrugStatus] = useState<Status>("loading");
+  const [pharmStatus,setPharmStatus]= useState<Status>("loading");
   const [drugsCachedAt,  setDrugsCachedAt]  = useState<number | null>(null);
   const [pharmCachedAt,  setPharmCachedAt]  = useState<number | null>(null);
 
@@ -152,6 +160,8 @@ export function useOfflineCache() {
             setDrugStatus("ready");
             if (drugsTsRaw) setDrugsCachedAt(Number(drugsTsRaw));
           } catch { setDrugStatus("error"); }
+        } else {
+          setDrugStatus("idle");
         }
 
         if (pharmRaw) {
@@ -160,10 +170,15 @@ export function useOfflineCache() {
             setPharmStatus("ready");
             if (pharmTsRaw) setPharmCachedAt(Number(pharmTsRaw));
           } catch { setPharmStatus("error"); }
+        } else {
+          setPharmStatus("idle");
         }
       })
       .catch(() => {
-        /* Silent — keep idle status */
+        if (mountedRef.current) {
+          setDrugStatus("idle");
+          setPharmStatus("idle");
+        }
       });
 
     return () => {
@@ -177,7 +192,7 @@ export function useOfflineCache() {
   /* ── sync drugs from server ── */
   const syncDrugs = useCallback(async (force = false) => {
     if (!mountedRef.current) return;
-    if (drugStatus === "downloading") return;
+    if (drugStatus === "downloading" || drugStatus === "loading") return;
     const now = Date.now();
     if (!force && drugsCachedAt && now - drugsCachedAt < DRUGS_TTL && drugs.length > 0) return;
 
@@ -214,7 +229,7 @@ export function useOfflineCache() {
   /* ── sync pharmacies from server ── */
   const syncPharmacies = useCallback(async (force = false) => {
     if (!mountedRef.current) return;
-    if (pharmStatus === "downloading") return;
+    if (pharmStatus === "downloading" || pharmStatus === "loading") return;
     const now = Date.now();
     if (!force && pharmCachedAt && now - pharmCachedAt < PHARM_TTL && pharmacies.length > 0) return;
 

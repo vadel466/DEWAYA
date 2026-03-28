@@ -66,13 +66,22 @@ export default function DrugPriceScreen() {
   const drugsRef     = useRef<CachedDrug[]>(drugs);
   useEffect(() => { drugsRef.current = drugs; }, [drugs]);
 
-  /* on mount: focus; defer cache sync so UI appears instantly */
+  /* on mount: focus + kick off cache sync once storage read is done */
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 200);
-    /* sync cache after short delay so it doesn't block first paint */
-    const s = setTimeout(() => { if (isOnline) syncDrugs(); }, 800);
+    /* Wait 1 s for AsyncStorage to finish reading, then sync if needed */
+    const s = setTimeout(() => { if (isOnline) syncDrugs(); }, 1_000);
     return () => { clearTimeout(t); clearTimeout(s); };
   }, []);
+
+  /* re-sync when user comes back online and cache was missing */
+  useEffect(() => {
+    if (isOnline && drugStatus === "idle") {
+      const s = setTimeout(() => syncDrugs(), 500);
+      return () => clearTimeout(s);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline, drugStatus]);
 
   /* ── core search: always hit API, fall back to local cache ── */
   const doSearch = useCallback(async (q: string, off: number, append: boolean) => {

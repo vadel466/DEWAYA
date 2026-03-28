@@ -55,6 +55,7 @@ export default function DrugPriceScreen() {
   const [offset, setOffset]           = useState(0);
   const [searchError, setSearchError] = useState(false);
   const [searched, setSearched]       = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   const debounceRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef     = useRef<TextInput>(null);
@@ -190,12 +191,64 @@ export default function DrugPriceScreen() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={[styles.root, { paddingTop: topPad }]}>
 
-        {/* ── Compact top bar (back button only) ─────────────── */}
+        {/* ── زر الرجوع ───────────────────────────────────────── */}
         <View style={[styles.topBar, isRTL && styles.rtlRow]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
             <Ionicons name={isRTL ? "chevron-forward" : "chevron-back"} size={24} color={Colors.primary} />
           </TouchableOpacity>
         </View>
+
+        {/* ── حقل البحث في أعلى الشاشة مباشرة ───────────────── */}
+        <View style={[styles.searchBar, isRTL && styles.rtlRow, searchFocused && styles.searchBarFocused]}>
+          <Ionicons name="search-outline" size={20} color={Colors.primary} />
+          <TextInput
+            ref={inputRef}
+            style={[styles.searchInput, isRTL && styles.rtl]}
+            placeholder={isRTL ? "ابحث عن سعر الدواء..." : "Rechercher le prix du médicament..."}
+            placeholderTextColor={Colors.light.textTertiary}
+            value={query}
+            onChangeText={setQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            textAlign={isRTL ? "right" : "left"}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            onSubmitEditing={() => {
+              if (query.trim().length >= 2) doSearch(query.trim(), 0, false);
+            }}
+          />
+          {loading
+            ? <ActivityIndicator size="small" color={Colors.primary} />
+            : query.length > 0
+              ? <TouchableOpacity onPress={clearQuery} activeOpacity={0.7}>
+                  <Ionicons name="close-circle" size={19} color={Colors.light.textTertiary} />
+                </TouchableOpacity>
+              : null}
+        </View>
+
+        {/* ── التنبيهات — تظهر فقط عند التركيز على البحث ─────── */}
+        {searchFocused && (
+          <View style={styles.alertsBox}>
+            <View style={[styles.alertRow, styles.alertAmber, isRTL && styles.rtlRow]}>
+              <MaterialCommunityIcons name="shield-check" size={13} color="#92400E" />
+              <Text style={[styles.alertText, { color: "#78350F" }, isRTL && styles.rtl]} numberOfLines={2}>
+                {isRTL
+                  ? "أسعار موحَّدة ومعتمَدة من وزارة الصحة — أي زيادة قد تُعدّ غشّاً"
+                  : "Prix homologués par le Ministère de la Santé — toute hausse peut constituer une fraude"}
+              </Text>
+            </View>
+            <View style={styles.alertSep} />
+            <View style={[styles.alertRow, styles.alertBlue, isRTL && styles.rtlRow]}>
+              <MaterialCommunityIcons name="flask-outline" size={13} color="#2563EB" />
+              <Text style={[styles.alertText, { color: "#1E40AF" }, isRTL && styles.rtl]} numberOfLines={2}>
+                {isRTL
+                  ? "لم تجده؟ ابحث بالاسم العلمي (DCI) على العلبة — مثال: Paracétamol"
+                  : "Introuvable ? Cherchez le DCI sur la boîte — Ex. : Paracétamol"}
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* ── offline banners ─────────────────────────────────── */}
         {!isOnline && hasCacheData && (
@@ -218,54 +271,6 @@ export default function DrugPriceScreen() {
             </Text>
           </View>
         )}
-
-        {/* ── مستطيل التنبيهات (مباشرة فوق البحث) ───────────── */}
-        <View style={styles.alertsBox}>
-          <View style={[styles.alertRow, styles.alertAmber, isRTL && styles.rtlRow]}>
-            <MaterialCommunityIcons name="shield-check" size={13} color="#92400E" />
-            <Text style={[styles.alertText, { color: "#78350F" }, isRTL && styles.rtl]} numberOfLines={2}>
-              {isRTL
-                ? "أسعار موحَّدة ومعتمَدة من وزارة الصحة — أي زيادة قد تُعدّ غشّاً"
-                : "Prix homologués par le Ministère de la Santé — toute hausse peut constituer une fraude"}
-            </Text>
-          </View>
-          <View style={styles.alertSep} />
-          <View style={[styles.alertRow, styles.alertBlue, isRTL && styles.rtlRow]}>
-            <MaterialCommunityIcons name="flask-outline" size={13} color="#2563EB" />
-            <Text style={[styles.alertText, { color: "#1E40AF" }, isRTL && styles.rtl]} numberOfLines={2}>
-              {isRTL
-                ? "لم تجده؟ ابحث بالاسم العلمي (DCI) على العلبة — مثال: Paracétamol"
-                : "Introuvable ? Cherchez le DCI sur la boîte — Ex. : Paracétamol"}
-            </Text>
-          </View>
-        </View>
-
-        {/* ── حقل البحث (مباشرة تحت التنبيهات) ──────────────── */}
-        <View style={[styles.searchBar, isRTL && styles.rtlRow]}>
-          <Ionicons name="search-outline" size={20} color={Colors.primary} />
-          <TextInput
-            ref={inputRef}
-            style={[styles.searchInput, isRTL && styles.rtl]}
-            placeholder={isRTL ? "ابحث عن سعر الدواء..." : "Rechercher le prix du médicament..."}
-            placeholderTextColor={Colors.light.textTertiary}
-            value={query}
-            onChangeText={setQuery}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-            textAlign={isRTL ? "right" : "left"}
-            onSubmitEditing={() => {
-              if (query.trim().length >= 2) doSearch(query.trim(), 0, false);
-            }}
-          />
-          {loading
-            ? <ActivityIndicator size="small" color={Colors.primary} />
-            : query.length > 0
-              ? <TouchableOpacity onPress={clearQuery} activeOpacity={0.7}>
-                  <Ionicons name="close-circle" size={19} color={Colors.light.textTertiary} />
-                </TouchableOpacity>
-              : null}
-        </View>
 
         {/* ── قائمة الأدوية ────────────────────────────────── */}
         {showResults && (
@@ -438,14 +443,20 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: "row", alignItems: "center", gap: 10,
     backgroundColor: "#FFFFFF",
-    borderWidth: 2, borderColor: Colors.primary + "60",
+    borderWidth: 2, borderColor: Colors.primary + "40",
     borderRadius: 14, marginHorizontal: 14,
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === "web" ? 12 : 0,
     minHeight: 52,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1, shadowRadius: 8, elevation: 3,
+    shadowOpacity: 0.08, shadowRadius: 6, elevation: 3,
+  },
+  searchBarFocused: {
+    borderColor: Colors.primary,
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 6,
   },
   searchInput: {
     flex: 1, fontFamily: "Inter_400Regular",

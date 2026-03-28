@@ -12,6 +12,7 @@ import {
   Modal,
   FlatList,
   Animated,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -270,7 +271,16 @@ export default function HomeScreen() {
 
   const goToNearest = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push("/nearest-pharmacy");
+    const mapsUrl = Platform.OS === "ios"
+      ? "maps://?q=pharmacy&ll=18.0857,-15.9785&z=13"
+      : "geo:18.0857,-15.9785?q=pharmacy+Nouakchott&z=13";
+    Linking.canOpenURL(mapsUrl).then((ok) => {
+      if (ok) {
+        Linking.openURL(mapsUrl);
+      } else {
+        Linking.openURL("https://www.google.com/maps/search/pharmacy/@18.0857,-15.9785,13z");
+      }
+    });
   };
 
   const goToDutyDirect = () => {
@@ -481,82 +491,85 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {/* ─── ACTION GRID ─── */}
+      {/* ─── البطاقات الأربع ─── */}
       <View style={styles.grid}>
-        {/* Row 1: أقرب صيدلية | التمريض المنزلي */}
+
+        {/* صف 1 */}
         <View style={styles.gridRow}>
 
-          {/* ── أقرب صيدلية ── */}
-          <TouchableOpacity style={[styles.card, { backgroundColor: "#E8F2FF" }]} onPress={goToNearest} activeOpacity={0.82}>
-            <View style={[styles.cardBand, { backgroundColor: "#1565C0" }]} />
-            <View style={[styles.cardIconCircle, { backgroundColor: "#1565C022" }]}>
-              <MaterialCommunityIcons name="map-marker-radius" size={26} color="#1565C0" />
-            </View>
-            <Text style={[styles.cardTitle, { color: "#1565C0" }, isRTL && styles.textRight]} numberOfLines={2}>
-              {t("nearestPharmacy")}
-            </Text>
-            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
-              {t("nearestPharmacyDesc")}
-            </Text>
-            <View style={[styles.cardChevron, { backgroundColor: "#1565C018" }]}>
-              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#1565C0" />
+          {/* أقرب صيدلية */}
+          <TouchableOpacity style={styles.card} onPress={goToNearest} activeOpacity={0.80}>
+            <View style={[styles.cardBar, { backgroundColor: "#1565C0" }]} />
+            <View style={styles.cardBody}>
+              <View style={[styles.cardIcon, { backgroundColor: "#E3F0FF" }]}>
+                <MaterialCommunityIcons name="map-marker-radius" size={28} color="#1565C0" />
+              </View>
+              <Text style={[styles.cardLabel, { color: "#1565C0" }]} numberOfLines={2}>
+                {isRTL ? "أقرب صيدلية" : "Pharmacie proche"}
+              </Text>
+              <Ionicons
+                name={isRTL ? "chevron-back-outline" : "chevron-forward-outline"}
+                size={16} color="#1565C060"
+                style={styles.cardArrow}
+              />
             </View>
           </TouchableOpacity>
 
-          {/* ── التمريض المنزلي ── */}
-          <TouchableOpacity style={[styles.card, styles.nurseCard]} onPress={goToFindDoctor} activeOpacity={0.82}>
-            <View style={[styles.cardBand, { backgroundColor: "#00796B" }]} />
-            <Image source={require("@/assets/images/nurse-female.png")} style={styles.nurseImgFemale} resizeMode="contain" />
-            <Image source={require("@/assets/images/nurse-male.png")} style={styles.nurseImgMale} resizeMode="contain" />
-            <View style={[styles.cardIconCircle, { backgroundColor: "#00796B22" }]}>
-              <MaterialCommunityIcons name="medical-bag" size={26} color="#00796B" />
-            </View>
-            <Text style={[styles.cardTitle, { color: "#00796B" }, isRTL && styles.textRight]} numberOfLines={2}>
-              {isRTL ? "التمريض المنزلي\nوالرعاية الصحية" : "Soins à domicile\net infirmiers"}
-            </Text>
-            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={1}>
-              {isRTL ? "رعاية طبية في منزلك" : "Soins médicaux à domicile"}
-            </Text>
-            <View style={[styles.cardChevron, { backgroundColor: "#00796B18" }]}>
-              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#00796B" />
+          {/* التمريض المنزلي */}
+          <TouchableOpacity style={styles.card} onPress={goToFindDoctor} activeOpacity={0.80}>
+            <View style={[styles.cardBar, { backgroundColor: "#00796B" }]} />
+            <View style={styles.cardBody}>
+              <View style={[styles.cardIcon, { backgroundColor: "#E0F2F0" }]}>
+                <MaterialCommunityIcons name="medical-bag" size={28} color="#00796B" />
+              </View>
+              <Text style={[styles.cardLabel, { color: "#00796B" }]} numberOfLines={2}>
+                {isRTL ? "التمريض المنزلي\nوالرعاية الصحية" : "Soins infirmiers\nà domicile"}
+              </Text>
+              <Ionicons
+                name={isRTL ? "chevron-back-outline" : "chevron-forward-outline"}
+                size={16} color="#00796B60"
+                style={styles.cardArrow}
+              />
             </View>
           </TouchableOpacity>
         </View>
 
-        {/* Row 2: صيدليات المداومة | سعر الدواء */}
-        <View style={[styles.gridRow, { marginTop: 12 }]}>
+        {/* صف 2 */}
+        <View style={[styles.gridRow, { marginTop: 10 }]}>
 
-          {/* ── صيدليات المداومة ── */}
-          <TouchableOpacity style={[styles.card, { backgroundColor: "#ECEFFE" }]} onPress={goToDutyDirect} activeOpacity={0.82}>
-            <View style={[styles.cardBand, { backgroundColor: "#283593" }]} />
-            <View style={[styles.cardIconCircle, { backgroundColor: "#28359322" }]}>
-              <MaterialCommunityIcons name="moon-waning-crescent" size={26} color="#283593" />
-            </View>
-            <Text style={[styles.cardTitle, { color: "#283593" }, isRTL && styles.textRight]} numberOfLines={2}>
-              {isRTL ? "صيدليات المداومة" : "Pharmacies de Garde"}
-            </Text>
-            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
-              {isRTL ? "مفتوحة الليل وأيام العطل" : "Ouvertes la nuit et les jours fériés"}
-            </Text>
-            <View style={[styles.cardChevron, { backgroundColor: "#28359318" }]}>
-              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#283593" />
+          {/* صيدليات المداومة */}
+          <TouchableOpacity style={styles.card} onPress={goToDutyDirect} activeOpacity={0.80}>
+            <View style={[styles.cardBar, { backgroundColor: "#283593" }]} />
+            <View style={styles.cardBody}>
+              <View style={[styles.cardIcon, { backgroundColor: "#E8EBF8" }]}>
+                <MaterialCommunityIcons name="moon-waning-crescent" size={28} color="#283593" />
+              </View>
+              <Text style={[styles.cardLabel, { color: "#283593" }]} numberOfLines={2}>
+                {isRTL ? "صيدليات\nالمداومة" : "Pharmacies\nde Garde"}
+              </Text>
+              <Ionicons
+                name={isRTL ? "chevron-back-outline" : "chevron-forward-outline"}
+                size={16} color="#28359360"
+                style={styles.cardArrow}
+              />
             </View>
           </TouchableOpacity>
 
-          {/* ── سعر الدواء ── */}
-          <TouchableOpacity style={[styles.card, { backgroundColor: "#FFF4EC" }]} onPress={goToDrugPrice} activeOpacity={0.82}>
-            <View style={[styles.cardBand, { backgroundColor: "#BF360C" }]} />
-            <View style={[styles.cardIconCircle, { backgroundColor: "#BF360C22" }]}>
-              <MaterialCommunityIcons name="tag-outline" size={26} color="#BF360C" />
-            </View>
-            <Text style={[styles.cardTitle, { color: "#BF360C" }, isRTL && styles.textRight]} numberOfLines={2}>
-              {isRTL ? "سعر الدواء" : "Prix du médicament"}
-            </Text>
-            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={2}>
-              {isRTL ? "ابحث في قاعدة بيانات الأسعار" : "Recherchez dans la base de prix"}
-            </Text>
-            <View style={[styles.cardChevron, { backgroundColor: "#BF360C18" }]}>
-              <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#BF360C" />
+          {/* سعر الدواء */}
+          <TouchableOpacity style={styles.card} onPress={goToDrugPrice} activeOpacity={0.80}>
+            <View style={[styles.cardBar, { backgroundColor: "#E65100" }]} />
+            <View style={styles.cardBody}>
+              <View style={[styles.cardIcon, { backgroundColor: "#FFF3E0" }]}>
+                <MaterialCommunityIcons name="tag-outline" size={28} color="#E65100" />
+              </View>
+              <Text style={[styles.cardLabel, { color: "#E65100" }]} numberOfLines={2}>
+                {isRTL ? "سعر الدواء" : "Prix du\nmédicament"}
+              </Text>
+              <Ionicons
+                name={isRTL ? "chevron-back-outline" : "chevron-forward-outline"}
+                size={16} color="#E6510060"
+                style={styles.cardArrow}
+              />
             </View>
           </TouchableOpacity>
         </View>
@@ -1239,84 +1252,50 @@ const styles = StyleSheet.create({
   },
   successBtnFillText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 },
 
-  /* GRID */
-  grid: { flex: 1, gap: 10 },
+  /* GRID — البطاقات الأربع */
+  grid: { flex: 1 },
   gridRow: { flex: 1, flexDirection: "row", gap: 10 },
   card: {
     flex: 1,
-    borderRadius: 18,
-    paddingHorizontal: 10,
-    paddingBottom: 28,
+    backgroundColor: "#fff",
+    borderRadius: 16,
     overflow: "hidden",
-    justifyContent: "flex-start",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12, shadowRadius: 10, elevation: 6,
-    borderWidth: 1, borderColor: "rgba(0,0,0,0.07)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
   },
-  cardBand: {
-    position: "absolute", top: 0, left: 0, right: 0,
-    height: 7, borderTopLeftRadius: 18, borderTopRightRadius: 18,
+  cardBar: {
+    height: 5,
+    width: "100%",
   },
-  cardIconCircle: {
-    width: 48, height: 48, borderRadius: 14,
-    alignItems: "center", justifyContent: "center",
-    marginTop: 18, marginBottom: 10, marginLeft: 2,
+  cardBody: {
+    flex: 1,
+    padding: 10,
+    alignItems: "flex-start",
+    justifyContent: "center",
   },
-  cardTitle: { fontSize: 13.5, fontFamily: "Inter_700Bold", marginBottom: 4, paddingLeft: 2, lineHeight: 18 },
-  cardDesc: { fontSize: 10.5, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, lineHeight: 15, paddingLeft: 2 },
-  nurseCard: {
-    backgroundColor: "#E5F4F0",
-    overflow: "hidden",
+  cardIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
   },
-  nurseImgFemale: {
-    position: "absolute",
-    right: 8,
-    top: 8,
-    width: 58,
-    height: 72,
-    opacity: 0.80,
+  cardLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    lineHeight: 18,
+    flexShrink: 1,
   },
-  nurseImgMale: {
-    position: "absolute",
-    right: -6,
-    top: 14,
-    width: 48,
-    height: 60,
-    opacity: 0.68,
-  },
-  nurseCardImg: {
-    position: "absolute",
-    right: -6,
-    bottom: -4,
-    width: 80,
-    height: 80,
-    opacity: 0.88,
-  },
-  doctorFemaleImg: {
-    position: "absolute",
-    right: 38,
-    top: -4,
-    width: 68,
-    height: 68,
-    opacity: 0.82,
-  },
-  doctorMaleImg: {
-    position: "absolute",
-    right: -4,
-    top: -6,
-    width: 78,
-    height: 78,
-    opacity: 0.95,
-  },
-  cardChevron: {
+  cardArrow: {
     position: "absolute",
     bottom: 8,
     right: 8,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
   },
 
   /* SEARCH HINT */

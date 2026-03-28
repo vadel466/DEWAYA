@@ -287,7 +287,35 @@ export default function HomeScreen() {
 
         {/* ════ HEADER ════ */}
         <View style={styles.header}>
-          {/* Bell — left corner */}
+
+          {/* Logo — centered absolutely in parent */}
+          <TouchableOpacity
+            style={styles.appIdentity}
+            onPressIn={handleLogoPressIn}
+            onPressOut={handleLogoPressOut}
+            onLongPress={handleLogoLongPress}
+            delayLongPress={5000}
+            activeOpacity={0.9}
+          >
+            {/* Bubble + animated ring */}
+            <View style={styles.logoGroup}>
+              <Animated.View style={[styles.logoRing, {
+                borderColor: logoProgress.interpolate({ inputRange: [0, 1], outputRange: [Colors.primary + "00", Colors.primary] }),
+              }]} />
+              <View style={styles.logoBubble}>
+                <MaterialCommunityIcons name="stethoscope" size={26} color="#fff" />
+              </View>
+              {isAdmin && <View style={styles.adminDot} />}
+            </View>
+
+            {/* App name + tagline */}
+            <View style={styles.appNameGroup}>
+              <Text style={styles.appNameAr}>أدوايـا</Text>
+              <Text style={styles.logoSubText}>D E W A Y A</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Bell — absolute, top-right corner, independent of logo */}
           <TouchableOpacity
             style={styles.bellBtn}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/(tabs)/notifications"); }}
@@ -301,34 +329,6 @@ export default function HomeScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Logo — centered */}
-          <TouchableOpacity
-            style={styles.appIdentity}
-            onPressIn={handleLogoPressIn}
-            onPressOut={handleLogoPressOut}
-            onLongPress={handleLogoLongPress}
-            delayLongPress={5000}
-            activeOpacity={0.9}
-          >
-            {/* Bubble + animated ring as one group */}
-            <View style={styles.logoGroup}>
-              <Animated.View style={[styles.logoRing, {
-                borderColor: logoProgress.interpolate({ inputRange: [0, 1], outputRange: [Colors.primary + "00", Colors.primary] }),
-              }]} />
-              <View style={styles.logoBubble}>
-                <MaterialCommunityIcons name="stethoscope" size={22} color="#fff" />
-              </View>
-              {isAdmin && <View style={styles.adminDot} />}
-            </View>
-            {/* App name + tagline */}
-            <View style={styles.appNameGroup}>
-              <Text style={styles.appNameAr}>أدوايـا</Text>
-              <Text style={styles.logoSubText}>D E W A Y A</Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* Invisible spacer — same width as bell to keep logo truly centered */}
-          <View style={styles.bellPlaceholder} />
         </View>
 
         {/* ════ LANGUAGE LINE ════ */}
@@ -640,20 +640,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
 
-  /* HEADER */
+  /* HEADER — logo centered, bell absolute top-right */
   header: {
-    flexDirection: "row",
+    position: "relative",
     alignItems: "center",
-    paddingVertical: 4,
-    marginBottom: 4,
+    justifyContent: "center",
+    paddingVertical: 10,
+    marginBottom: 2,
+    minHeight: 68,
   },
   bellBtn: {
-    width: 48, height: 48, borderRadius: 24,
+    position: "absolute",
+    right: 0,
+    top: 10,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: "#fff",
     alignItems: "center", justifyContent: "center",
     borderWidth: 1, borderColor: "#E8EDF3",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3,
-    elevation: 2, position: "relative",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 3,
+    elevation: 2,
   },
   bellBadge: {
     position: "absolute", top: -2, right: -2,
@@ -664,42 +669,38 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: "#F0F4F8",
   },
   bellBadgeText: { color: "#fff", fontSize: 8, fontFamily: "Inter_700Bold", lineHeight: 10 },
-  bellPlaceholder: { width: 48, height: 48 },
 
-  /* Logo centered in header */
+  /* Logo identity row — icon + text, centered */
   appIdentity: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
+    gap: 12,
   },
   logoGroup: {
-    width: 46, height: 46,
-    position: "relative",
+    width: 54, height: 54,
     alignItems: "center",
     justifyContent: "center",
   },
   logoRing: {
-    position: "absolute", top: -3, left: -3,
-    width: 52, height: 52, borderRadius: 26,
-    borderWidth: 2, borderColor: "transparent",
+    position: "absolute", top: -4, left: -4,
+    width: 62, height: 62, borderRadius: 31,
+    borderWidth: 2.5, borderColor: "transparent",
   },
   logoBubble: {
-    width: 46, height: 46, borderRadius: 23,
+    width: 54, height: 54, borderRadius: 27,
     backgroundColor: Colors.primary,
     alignItems: "center", justifyContent: "center",
-    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6,
-    elevation: 4,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8,
+    elevation: 5,
   },
   adminDot: {
-    position: "absolute", bottom: 0, right: -1,
-    width: 10, height: 10, borderRadius: 5,
-    backgroundColor: Colors.accent, borderWidth: 1.5, borderColor: "#F0F4F8",
+    position: "absolute", bottom: 1, right: 0,
+    width: 11, height: 11, borderRadius: 6,
+    backgroundColor: Colors.accent, borderWidth: 2, borderColor: "#F0F4F8",
   },
-  appNameGroup: { alignItems: "flex-start" },
-  appNameAr: { fontFamily: "Inter_700Bold", fontSize: 22, color: "#1A237E", letterSpacing: 0.3 },
-  logoSubText: { fontFamily: "Inter_600SemiBold", fontSize: 9, color: "#90A4AE", letterSpacing: 3, marginTop: 1 },
+  appNameGroup: { alignItems: "flex-start", gap: 1 },
+  appNameAr: { fontFamily: "Inter_700Bold", fontSize: 24, color: "#1A237E", letterSpacing: 0.2 },
+  logoSubText: { fontFamily: "Inter_600SemiBold", fontSize: 9, color: "#78909C", letterSpacing: 3.5, marginTop: 0 },
 
   /* LANGUAGE LINE */
   langLine: {

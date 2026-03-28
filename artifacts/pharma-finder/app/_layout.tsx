@@ -10,7 +10,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useState } from "react";
-import { Image, Platform, StyleSheet, View } from "react-native";
+import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -147,11 +147,20 @@ export default function RootLayout() {
       {/* Splash overlay — hides once fonts + intro state are both known */}
       {showingSplash && (
         <View style={styles.splash} pointerEvents="none">
-          <Image
-            source={require("../assets/images/splash-icon.png")}
-            style={styles.splashIcon}
-            resizeMode="contain"
-          />
+          {/* App icon — same icon used on Play Store / App Store */}
+          <View style={styles.splashIconWrap}>
+            <Image
+              source={require("../assets/images/icon.png")}
+              style={styles.splashIcon}
+              resizeMode="contain"
+            />
+          </View>
+          {/* App name in Arabic */}
+          <Text style={styles.splashNameAr}>أدوايـا</Text>
+          {/* Tagline in Latin */}
+          <Text style={styles.splashNameLat}>D E W A Y A</Text>
+          {/* Subtle tagline */}
+          <Text style={styles.splashSub}>خدمة صحية متكاملة · موريتانيا</Text>
         </View>
       )}
     </SafeAreaProvider>
@@ -167,5 +176,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     zIndex: 9999,
   },
-  splashIcon: { width: 150, height: 150 },
+  splashIconWrap: {
+    width: 130, height: 130, borderRadius: 32,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 24,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 12,
+    elevation: 8,
+  },
+  splashIcon: { width: 100, height: 100 },
+  splashNameAr: {
+    color: "#fff", fontSize: 36, fontWeight: "800",
+    letterSpacing: 0.5, marginBottom: 4,
+    textShadowColor: "rgba(0,0,0,0.15)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
+  },
+  splashNameLat: {
+    color: "rgba(255,255,255,0.75)", fontSize: 12,
+    fontWeight: "700", letterSpacing: 6, marginBottom: 20,
+  },
+  splashSub: {
+    color: "rgba(255,255,255,0.5)", fontSize: 12,
+    fontWeight: "400", letterSpacing: 0.3,
+  },
 });

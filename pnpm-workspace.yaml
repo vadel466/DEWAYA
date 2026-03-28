@@ -26,6 +26,57 @@
 #
 # ============================================================================
 minimumReleaseAge: 1440
+minimumReleaseAgeExclude:
+  - expo
+  - expo-router
+  - expo-blur
+  - expo-constants
+  - expo-font
+  - expo-glass-effect
+  - expo-haptics
+  - expo-image
+  - expo-image-picker
+  - expo-linear-gradient
+  - expo-linking
+  - expo-location
+  - expo-splash-screen
+  - expo-status-bar
+  - expo-symbols
+  - expo-system-ui
+  - expo-web-browser
+  - expo-camera
+  - expo-clipboard
+  - expo-document-picker
+  - expo-file-system
+  - expo-notifications
+  - expo-av
+  - '@expo/cli'
+  - '@expo/log-box'
+  - '@expo/metro'
+  - '@expo/metro-config'
+  - '@expo/metro-runtime'
+  - '@expo/config'
+  - '@expo/config-plugins'
+  - '@expo/config-types'
+  - '@expo/env'
+  - '@expo/fingerprint'
+  - '@expo/image-utils'
+  - '@expo/json-file'
+  - '@expo/package-manager'
+  - '@expo/plist'
+  - '@expo/multipart-body-parser'
+  - '@expo/osascript'
+  - '@expo/devtools'
+  - '@expo/dom-webview'
+  - react-native
+  - react-native-gesture-handler
+  - react-native-reanimated
+  - react-native-screens
+  - react-native-svg
+  - react-native-worklets
+  - react-native-safe-area-context
+  - react-native-maps
+  - react-native-keyboard-controller
 
 packages:
   - artifacts/*

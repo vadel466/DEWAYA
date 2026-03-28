@@ -172,10 +172,29 @@ Express 5 API server. All admin routes protected by `x-admin-secret: DEWAYA_ADMI
 
 ## EAS Build Configuration (Critical)
 
-- **React Compiler**: DISABLED permanently (`experiments.reactCompiler` removed from `app.json`). Root cause: `babel-plugin-react-compiler@1.0.0` (embedded in `babel-preset-expo`) conflicted with the `^19.0.0-beta-*` version in devDependencies — EAS cloud freshly installs packages and detected the version conflict, causing Metro to fail with `SyntaxError: Unexpected token '{'` at `import { router }`. Local builds succeeded because pnpm had already resolved to a single working version. NEVER re-add `reactCompiler: true` to app.json or `babel-plugin-react-compiler`/`react-compiler-runtime` to package.json.
-- **babel.config.js**: `plugins: ["react-native-worklets/plugin"]` — Required for Reanimated v4 in production builds. Keep this.
-- **New Architecture**: `newArchEnabled: true` in app.json — Required for Reanimated v4 and expo-av.
-- **Local pre-EAS test**: `cd artifacts/pharma-finder && npx expo export:embed --eager --platform android --dev false` — Must succeed (≥1800 modules, no errors) before submitting EAS build.
+**Three root causes were fixed to make EAS builds work:**
+
+### Fix 1: Root package.json confused EAS
+- Root `package.json` had `"main": "node_modules/expo/AppEntry.js"` and expo deps → EAS treated the MONOREPO ROOT as the Expo app and failed because `expo-router` wasn't there
+- **Fix**: Removed expo `main` + expo deps from root `package.json`. Added `"packageManager": "pnpm@10.26.1"` to root. Root is now a clean workspace manifest.
+
+### Fix 2: workspace: and catalog: syntax fail on EAS
+- `artifacts/pharma-finder/package.json` had `"workspace:*"` and `"catalog:"` — pnpm-specific syntax that fails when EAS installs packages without full monorepo context
+- Removed: `@workspace/api-client-react` (workspace:* — never used in source), replaced `"@tanstack/react-query": "catalog:"` → `"^5.90.21"`, replaced `"zod": "catalog:"` → `"^3.25.76"`
+- **Fix**: All deps in pharma-finder/package.json are now explicit npm-compatible versions
+
+### Fix 3: React Compiler version conflict
+- `babel-plugin-react-compiler@1.0.0` (embedded in `babel-preset-expo`) + `^19.0.0-beta-*` in devDependencies → EAS ran the compiler twice with conflicting versions
+- **Fix**: Removed `reactCompiler: true` from `app.json` experiments, removed both beta packages from devDependencies
+
+**Invariants (NEVER change):**
+- `artifacts/pharma-finder/package.json`: NO `workspace:*`, NO `catalog:`, NO `babel-plugin-react-compiler`, NO `react-compiler-runtime`
+- `app.json` experiments: only `typedRoutes: true` (NO `reactCompiler`)
+- Root `package.json`: NO `"main"` field, NO expo deps, YES `"packageManager": "pnpm@10.26.1"`
+- `babel.config.js`: `plugins: ["react-native-worklets/plugin"]` — Required for Reanimated v4. Keep.
+- `newArchEnabled: true` in app.json — Required for Reanimated v4 and expo-av.
+
+**Pre-EAS test**: `cd artifacts/pharma-finder && npx expo export:embed --eager --platform android --dev false` — Must succeed (≥1800 modules) before submitting EAS build.
 
 ## IntroScreen (Splash Screen)
 

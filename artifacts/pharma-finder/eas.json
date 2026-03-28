@@ -13,9 +13,6 @@
       },
       "ios": {
         "simulator": true
-      },
-      "env": {
-        "EXPO_PUBLIC_DOMAIN": ""
       }
     },
     "preview": {
@@ -26,9 +23,6 @@
       },
       "ios": {
         "simulator": false
-      },
-      "env": {
-        "EXPO_PUBLIC_DOMAIN": ""
       }
     },
     "production": {
@@ -39,9 +33,6 @@
       },
       "ios": {
         "simulator": false
-      },
-      "env": {
-        "EXPO_PUBLIC_DOMAIN": ""
       }
     }
   },

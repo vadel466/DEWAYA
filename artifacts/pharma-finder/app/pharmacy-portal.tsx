@@ -165,7 +165,9 @@ export default function PharmacyPortalScreen() {
         } else {
           Alert.alert(
             isRTL ? "رمز غير صحيح" : "Code incorrect",
-            isRTL ? "تأكد من الرمز الخاص بصيدليتكم وأعد المحاولة" : "Vérifiez le code propre à votre pharmacie et réessayez"
+            isRTL
+              ? "الرمز المُدخَل غير مُعرَّف في النظام.\n\nإذا لم يُحدَّد لكم رمز بعد، تواصلوا مع الإدارة لتفعيل حساب صيدليتكم."
+              : "Ce code n'est pas reconnu dans le système.\n\nSi vous n'avez pas encore reçu votre code d'accès, veuillez contacter l'administration pour activer le compte de votre pharmacie."
           );
         }
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

@@ -255,7 +255,7 @@ export default function AdminScreen() {
     : companies;
 
   /* ── Drug prices: load first 500 only (perf) + full count from stats ── */
-  const PRICE_DISPLAY_LIMIT = 500;
+  const PRICE_DISPLAY_LIMIT = 3000;
 
   const { data: drugTotalStats } = useQuery<{ total: number }>({
     queryKey: ["drug-prices-total"],

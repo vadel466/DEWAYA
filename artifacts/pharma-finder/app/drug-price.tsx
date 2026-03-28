@@ -85,7 +85,7 @@ export default function DrugPriceScreen() {
     try {
       const url = `${API_BASE}/drug-prices/search?q=${encodeURIComponent(trimmed)}&limit=${LIMIT}&offset=${off}`;
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000); // 8s timeout
+      const timer = setTimeout(() => controller.abort(), 15000); // 15s timeout
       const resp = await fetch(url, { signal: controller.signal });
       clearTimeout(timer);
 
@@ -302,13 +302,30 @@ export default function DrugPriceScreen() {
           )}
 
           {showError && (
-            <View style={[styles.errorBox, isRTL && styles.rtlRow]}>
-              <MaterialCommunityIcons name="wifi-off" size={18} color="#DC2626" />
-              <Text style={[styles.errorText, isRTL && styles.rtl]}>
-                {isRTL ? "تعذّر الاتصال بالخادم" : "Erreur de connexion au serveur"}
-              </Text>
-              <TouchableOpacity onPress={() => doSearch(query.trim(), 0, false)} activeOpacity={0.8} style={styles.retryBtn}>
-                <Text style={styles.retryText}>{isRTL ? "إعادة" : "Réessayer"}</Text>
+            <View style={styles.errorBoxWrap}>
+              <View style={[styles.errorBox, isRTL && styles.rtlRow]}>
+                <MaterialCommunityIcons name="wifi-off" size={18} color="#DC2626" />
+                <Text style={[styles.errorText, isRTL && styles.rtl]}>
+                  {isRTL ? "تعذّر الاتصال بالخادم" : "Erreur de connexion au serveur"}
+                </Text>
+                <TouchableOpacity onPress={() => doSearch(query.trim(), 0, false)} activeOpacity={0.8} style={styles.retryBtn}>
+                  <Text style={styles.retryText}>{isRTL ? "إعادة" : "Réessayer"}</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                onPress={handleRefresh}
+                disabled={syncing || drugStatus === "downloading"}
+                activeOpacity={0.8}
+                style={styles.syncCacheBtn}
+              >
+                {(syncing || drugStatus === "downloading")
+                  ? <ActivityIndicator size="small" color={Colors.primary} />
+                  : <MaterialCommunityIcons name="cloud-download-outline" size={16} color={Colors.primary} />}
+                <Text style={[styles.syncCacheText, isRTL && styles.rtl]}>
+                  {(syncing || drugStatus === "downloading")
+                    ? (isRTL ? "جارٍ تحميل قاعدة البيانات..." : "Téléchargement en cours...")
+                    : (isRTL ? "تحميل قاعدة البيانات للعمل بدون إنترنت" : "Télécharger la base pour mode hors ligne")}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -526,6 +543,7 @@ const styles = StyleSheet.create({
   },
   inlineText: { fontFamily: "Inter_400Regular", fontSize: 13, color: Colors.light.textSecondary },
 
+  errorBoxWrap: { gap: 6 },
   errorBox: {
     flexDirection: "row", alignItems: "center", gap: 8,
     marginHorizontal: 14, marginTop: 4,
@@ -538,6 +556,13 @@ const styles = StyleSheet.create({
     borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5,
   },
   retryText: { fontFamily: "Inter_600SemiBold", fontSize: 12, color: "#DC2626" },
+  syncCacheBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    marginHorizontal: 14,
+    backgroundColor: Colors.primary + "12",
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
+  },
+  syncCacheText: { flex: 1, fontFamily: "Inter_500Medium", fontSize: 13, color: Colors.primary },
 
   notFoundBox: {
     flexDirection: "row", alignItems: "center", gap: 12,

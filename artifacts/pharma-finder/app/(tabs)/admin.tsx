@@ -207,7 +207,7 @@ export default function AdminScreen() {
 
   const { data: pharmacies = [], isLoading: pharmaLoading, refetch: refetchPharma, isRefetching: pharmaRefetching } = useQuery<Pharmacy[]>({
     queryKey: ["admin-pharmacies"],
-    queryFn: async () => { const r = await fetch(`${API_BASE}/pharmacies`); if (!r.ok) throw new Error(); return r.json(); },
+    queryFn: async () => { const r = await fetch(`${API_BASE}/pharmacies`, { headers: { "x-admin-secret": ADMIN_SECRET } }); if (!r.ok) throw new Error(); return r.json(); },
     enabled: isAdmin && activeTab === "pharmacies",
   });
 
@@ -2235,7 +2235,17 @@ export default function AdminScreen() {
                     <Text style={[styles.label, isRTL && styles.rtlText]}>{field.label}</Text>
                     <View style={[styles.inputRow, isRTL && styles.rtlRow]}>
                       <Ionicons name={field.icon as any} size={16} color={Colors.light.textSecondary} style={styles.inputIcon} />
-                      <TextInput style={[styles.input, isRTL && styles.rtlInput]} placeholder={field.placeholder} placeholderTextColor={Colors.light.textTertiary} value={field.value} onChangeText={field.setter} textAlign={isRTL ? "right" : "left"} keyboardType={field.keyboardType} />
+                      <TextInput
+                        style={[styles.inputInner, isRTL && styles.rtlInput]}
+                        placeholder={field.placeholder}
+                        placeholderTextColor={Colors.light.textTertiary}
+                        value={field.value}
+                        onChangeText={field.setter}
+                        textAlign={isRTL ? "right" : "left"}
+                        keyboardType={field.keyboardType}
+                        autoCorrect={false}
+                        autoCapitalize="none"
+                      />
                     </View>
                   </View>
                 ))}
@@ -2244,11 +2254,11 @@ export default function AdminScreen() {
                   <View style={{ flexDirection: isRTL ? "row-reverse" : "row", gap: 8 }}>
                     <View style={[styles.inputRow, isRTL && styles.rtlRow, { flex: 1 }]}>
                       <Ionicons name="navigate-outline" size={16} color={Colors.light.textSecondary} style={styles.inputIcon} />
-                      <TextInput style={[styles.input, isRTL && styles.rtlInput]} placeholder={isRTL ? "خط العرض" : "Latitude"} placeholderTextColor={Colors.light.textTertiary} value={pLat} onChangeText={setPLat} keyboardType="decimal-pad" textAlign={isRTL ? "right" : "left"} />
+                      <TextInput style={[styles.inputInner, isRTL && styles.rtlInput]} placeholder={isRTL ? "خط العرض" : "Latitude"} placeholderTextColor={Colors.light.textTertiary} value={pLat} onChangeText={setPLat} keyboardType="decimal-pad" textAlign={isRTL ? "right" : "left"} />
                     </View>
                     <View style={[styles.inputRow, isRTL && styles.rtlRow, { flex: 1 }]}>
                       <Ionicons name="navigate-outline" size={16} color={Colors.light.textSecondary} style={styles.inputIcon} />
-                      <TextInput style={[styles.input, isRTL && styles.rtlInput]} placeholder={isRTL ? "خط الطول" : "Longitude"} placeholderTextColor={Colors.light.textTertiary} value={pLon} onChangeText={setPLon} keyboardType="decimal-pad" textAlign={isRTL ? "right" : "left"} />
+                      <TextInput style={[styles.inputInner, isRTL && styles.rtlInput]} placeholder={isRTL ? "خط الطول" : "Longitude"} placeholderTextColor={Colors.light.textTertiary} value={pLon} onChangeText={setPLon} keyboardType="decimal-pad" textAlign={isRTL ? "right" : "left"} />
                     </View>
                   </View>
                 </View>
@@ -2623,6 +2633,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary, marginBottom: 6 },
   inputRow: { flexDirection: "row", alignItems: "center", backgroundColor: Colors.light.inputBackground, borderRadius: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: Colors.light.border },
   inputIcon: { marginRight: 8 },
+  inputInner: { flex: 1, height: 48, fontSize: 15, fontFamily: "Inter_400Regular", color: Colors.light.text },
   input: { flex: 1, height: 48, fontSize: 15, fontFamily: "Inter_400Regular", color: Colors.light.text, backgroundColor: Colors.light.inputBackground, borderRadius: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: Colors.light.border },
 
   sendButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 15, marginHorizontal: 20, marginTop: 10, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },

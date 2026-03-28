@@ -1,8 +1,5 @@
 import { BlurView } from "expo-blur";
-import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
-// @ts-ignore — unstable API, types may not be fully exported
-import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
@@ -10,14 +7,31 @@ import { Platform, StyleSheet, View } from "react-native";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 
+/* Safe wrapper — expo-glass-effect native module may not be available in Expo Go */
+function checkLiquidGlass(): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { isLiquidGlassAvailable } = require("expo-glass-effect");
+    return typeof isLiquidGlassAvailable === "function" && isLiquidGlassAvailable();
+  } catch {
+    return false;
+  }
+}
+
+/* NativeTabLayout — only rendered on iOS 26+ with Liquid Glass */
 function NativeTabLayout() {
-  const { t } = useApp();
-  return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index" />
-      <NativeTabs.Trigger name="admin" />
-    </NativeTabs>
-  );
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { NativeTabs } = require("expo-router/unstable-native-tabs");
+    return (
+      <NativeTabs>
+        <NativeTabs.Trigger name="index" />
+        <NativeTabs.Trigger name="admin" />
+      </NativeTabs>
+    );
+  } catch {
+    return <ClassicTabLayout />;
+  }
 }
 
 function ClassicTabLayout() {
@@ -80,7 +94,7 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
+  if (checkLiquidGlass()) {
     return <NativeTabLayout />;
   }
   return <ClassicTabLayout />;

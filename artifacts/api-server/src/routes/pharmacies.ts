@@ -28,8 +28,9 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c;
 }
 
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
   try {
+    const admin = isAdmin(req);
     const pharmacies = await db
       .select()
       .from(pharmaciesTable)
@@ -40,6 +41,8 @@ router.get("/", async (_req, res) => {
         ...p,
         createdAt: p.createdAt.toISOString(),
         hasPortal: !!portalPin,
+        /* portalPin only visible to admin for editing */
+        ...(admin ? { portalPin } : {}),
       }))
     );
   } catch (err) {

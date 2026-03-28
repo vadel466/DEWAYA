@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, ActivityIndicator, Linking,
-  RefreshControl, Platform, Alert,
+  RefreshControl, Platform, Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -24,6 +24,7 @@ const API_BASE =
 const MAURITANIA_LAT_MIN = 14, MAURITANIA_LAT_MAX = 26;
 const MAURITANIA_LON_MIN = -21, MAURITANIA_LON_MAX = -4;
 
+type Phase = "locating" | "fetching" | "done" | "denied";
 type NearestPharmacy = CachedPharmacy & { distance: number | null };
 
 function formatDistance(km: number | null, lang: string): string {
@@ -42,9 +43,9 @@ function sortByDistance(
   list: CachedPharmacy[],
   userLat: number | null,
   userLon: number | null,
-  regionId: string | null
+  regionId: string | null,
 ): NearestPharmacy[] {
-  let filtered = regionId
+  const filtered = regionId
     ? list.filter(p => !p.region || p.region === regionId)
     : list;
 
@@ -69,21 +70,33 @@ export default function NearestPharmacyScreen() {
   const { t, language, region } = useApp();
   const isRTL = language === "ar";
   const { isOnline } = useNetworkStatus();
-  const { pharmacies: cachedPharmacies, pharmStatus, syncPharmacies } = useOfflineCache();
+  const { pharmacies: cachedPharmacies, syncPharmacies } = useOfflineCache();
 
-  const [pharmacies, setPharmacies]   = useState<NearestPharmacy[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [refreshing, setRefreshing]   = useState(false);
-  const [userLat, setUserLat]         = useState<number | null>(null);
-  const [userLon, setUserLon]         = useState<number | null>(null);
-  const [locating, setLocating]       = useState(false);
-  const [fromCache, setFromCache]     = useState(false);
+  const [pharmacies, setPharmacies] = useState<NearestPharmacy[]>([]);
+  const [phase, setPhase]           = useState<Phase>("locating");
+  const [refreshing, setRefreshing] = useState(false);
+  const [userLat, setUserLat]       = useState<number | null>(null);
+  const [userLon, setUserLon]       = useState<number | null>(null);
+  const [fromCache, setFromCache]   = useState(false);
 
-  /* Prevent setState after unmount */
-  const mountedRef   = useRef(true);
+  const mountedRef    = useRef(true);
   const fetchAbortRef = useRef<AbortController | null>(null);
+  const pulseAnim     = useRef(new Animated.Value(1)).current;
 
-  /* ── build list from online API ── */
+  /* ── Pulsing animation for loading icon ── */
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.18, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1,    duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    if (phase === "locating" || phase === "fetching") loop.start();
+    else loop.stop();
+    return () => loop.stop();
+  }, [phase]);
+
+  /* ── Fetch from API ── */
   const fetchOnline = useCallback(async (lat?: number, lon?: number, isRefresh = false) => {
     if (!mountedRef.current) return;
     fetchAbortRef.current?.abort();
@@ -91,7 +104,8 @@ export default function NearestPharmacyScreen() {
     fetchAbortRef.current = controller;
 
     if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+    else setPhase("fetching");
+
     try {
       const params = new URLSearchParams();
       if (lat !== undefined && lon !== undefined) {
@@ -99,10 +113,12 @@ export default function NearestPharmacyScreen() {
         params.set("lon", String(lon));
       }
       if (region?.id) params.set("region", region.id);
+
       const resp = await fetch(`${API_BASE}/pharmacies/nearest?${params}`, {
         signal: controller.signal,
       });
       if (controller.signal.aborted || !mountedRef.current) return;
+
       if (resp.ok) {
         const data: NearestPharmacy[] = await resp.json();
         if (!controller.signal.aborted && mountedRef.current) {
@@ -114,34 +130,28 @@ export default function NearestPharmacyScreen() {
       }
     } catch (err: any) {
       if (err?.name === "AbortError" || !mountedRef.current) return;
-      /* fallback to local cache */
       if (cachedPharmacies.length > 0) {
         setPharmacies(sortByDistance(cachedPharmacies, lat ?? null, lon ?? null, region?.id ?? null));
         setFromCache(true);
       }
     } finally {
       if (mountedRef.current && !controller.signal.aborted) {
-        setLoading(false);
+        setPhase("done");
         setRefreshing(false);
       }
     }
   }, [region, cachedPharmacies]);
 
-  /* ── build list from local cache ── */
+  /* ── Fetch from local cache ── */
   const fetchOffline = useCallback((lat?: number, lon?: number) => {
-    setLoading(true);
-    const sorted = sortByDistance(
-      cachedPharmacies,
-      lat ?? null,
-      lon ?? null,
-      region?.id ?? null
-    );
+    setPhase("fetching");
+    const sorted = sortByDistance(cachedPharmacies, lat ?? null, lon ?? null, region?.id ?? null);
     setPharmacies(sorted);
     setFromCache(true);
-    setLoading(false);
+    setPhase("done");
   }, [cachedPharmacies, region]);
 
-  /* ── re-sort in memory when user location changes ── */
+  /* ── Re-sort in memory when location changes ── */
   const applyLocalSort = useCallback((lat: number, lon: number) => {
     setPharmacies(prev =>
       prev
@@ -153,64 +163,69 @@ export default function NearestPharmacyScreen() {
           if (a.distance === null) return 1;
           if (b.distance === null) return -1;
           return a.distance - b.distance;
-        })
+        }),
     );
   }, []);
 
-  const detectLocation = async () => {
+  /* ── Detect location ── */
+  const detectLocation = useCallback(async () => {
+    if (!mountedRef.current) return;
+    setPhase("locating");
+
     if (Platform.OS === "web") {
       if (!("geolocation" in navigator)) {
         if (isOnline) fetchOnline(); else fetchOffline();
         return;
       }
-      setLocating(true);
       navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const lat = pos.coords.latitude;
-          const lon = pos.coords.longitude;
-          setUserLat(lat); setUserLon(lon);
+        async pos => {
+          const { latitude: lat, longitude: lon } = pos.coords;
+          if (mountedRef.current) { setUserLat(lat); setUserLon(lon); }
           if (isOnline) await fetchOnline(lat, lon);
           else fetchOffline(lat, lon);
-          setLocating(false);
         },
-        () => {
-          if (isOnline) fetchOnline(); else fetchOffline();
-          setLocating(false);
-        },
+        () => { if (isOnline) fetchOnline(); else fetchOffline(); },
         { timeout: 12000, maximumAge: 60000, enableHighAccuracy: false },
       );
       return;
     }
 
-    setLocating(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
+      if (!mountedRef.current) return;
+
       if (status !== "granted") {
-        Alert.alert(
-          isRTL ? "إذن الموقع مرفوض" : "Permission refusée",
-          isRTL ? "يُرجى السماح بالوصول إلى الموقع" : "Veuillez autoriser la localisation",
-        );
-        if (isOnline) fetchOnline(); else fetchOffline();
+        setPhase("denied");
+        /* Still show pharmacies (unsorted) */
+        if (isOnline) await fetchOnline();
+        else fetchOffline();
         return;
       }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const lat = loc.coords.latitude;
-      const lon = loc.coords.longitude;
-      setUserLat(lat); setUserLon(lon);
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      if (!mountedRef.current) return;
+
+      const { latitude: lat, longitude: lon } = loc.coords;
+      setUserLat(lat);
+      setUserLon(lon);
+
       if (isOnline) await fetchOnline(lat, lon);
       else fetchOffline(lat, lon);
+
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      if (isOnline) fetchOnline(); else fetchOffline();
-    } finally {
-      setLocating(false);
+      if (mountedRef.current) {
+        if (isOnline) fetchOnline(); else fetchOffline();
+      }
     }
-  };
+  }, [isOnline, fetchOnline, fetchOffline]);
 
+  /* ── Mount ── */
   useEffect(() => {
     mountedRef.current = true;
-    /* sync cache in background, then fetch */
     if (isOnline) syncPharmacies().catch(() => {});
     detectLocation();
     return () => {
@@ -219,14 +234,15 @@ export default function NearestPharmacyScreen() {
     };
   }, []);
 
-  /* when location becomes known but list is already loaded, re-sort in place */
+  /* ── Re-sort when location arrives ── */
   useEffect(() => {
     if (userLat && userLon && pharmacies.length > 0) {
       applyLocalSort(userLat, userLon);
     }
   }, [userLat, userLon]);
 
-  const openAllGoogleMaps = () => {
+  /* ── Open Google Maps for all pharmacies ── */
+  const openGoogleMaps = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const url = userLat && userLon
       ? `https://www.google.com/maps/search/pharmacies/@${userLat},${userLon},14z`
@@ -234,11 +250,13 @@ export default function NearestPharmacyScreen() {
     Linking.openURL(url);
   };
 
+  /* ── Call pharmacy ── */
   const callPharmacy = (phone: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Linking.openURL(`tel:${phone}`);
   };
 
+  /* ── Open navigation for a single pharmacy ── */
   const openMaps = (item: NearestPharmacy) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const nameEnc = encodeURIComponent(item.nameAr || item.name);
@@ -275,64 +293,82 @@ export default function NearestPharmacyScreen() {
       .catch(() => Linking.openURL(fallback));
   };
 
-  const renderItem = ({ item, index }: { item: NearestPharmacy; index: number }) => (
-    <View style={styles.card}>
-      <View style={[styles.cardHeader, isRTL && styles.rtlRow]}>
-        {/* rank */}
-        <View style={[styles.rankBadge, index === 0 && styles.rankBadgeFirst]}>
-          <Text style={[styles.rankText, index === 0 && styles.rankTextFirst]}>{index + 1}</Text>
-        </View>
-        {/* info */}
-        <View style={[styles.cardInfo, isRTL && { alignItems: "flex-end" }]}>
-          <Text style={[styles.pharmaName, isRTL && styles.rtlText]}>
-            {isRTL && item.nameAr ? item.nameAr : item.name}
-          </Text>
-          <View style={[styles.addressRow, isRTL && styles.rtlRow]}>
-            <Ionicons name="location-outline" size={13} color={Colors.light.textSecondary} />
-            <Text style={[styles.addressText, isRTL && styles.rtlText]} numberOfLines={2}>
-              {isRTL && item.addressAr ? item.addressAr : item.address}
-            </Text>
+  /* ── Pharmacy card ── */
+  const renderItem = ({ item, index }: { item: NearestPharmacy; index: number }) => {
+    const isFirst = index === 0;
+    const hasDistance = item.distance !== null && item.distance !== undefined && item.distance < 9999;
+    return (
+      <View style={[styles.card, isFirst && styles.cardFirst]}>
+        <View style={[styles.cardHeader, isRTL && styles.rtlRow]}>
+          <View style={[styles.rankBadge, isFirst && styles.rankBadgeFirst]}>
+            <Text style={[styles.rankText, isFirst && styles.rankTextFirst]}>{index + 1}</Text>
           </View>
-        </View>
-        {/* distance badge */}
-        {item.distance !== null && item.distance !== undefined && item.distance < 9999 && (
-          <View style={[styles.distanceBadge, index === 0 && styles.distanceBadgeFirst]}>
-            <Ionicons name="navigate" size={11} color={index === 0 ? "#fff" : Colors.primary} />
-            <Text style={[styles.distanceText, index === 0 && styles.distanceTextFirst]}>
-              {formatDistance(item.distance, language)}
-            </Text>
-          </View>
-        )}
-      </View>
 
-      <View style={[styles.cardActions, isRTL && styles.rtlRow]}>
-        <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: Colors.accent + "15", borderColor: Colors.accent + "35" }]}
-          onPress={() => callPharmacy(item.phone)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="call" size={16} color={Colors.accent} />
-          <Text style={[styles.actionBtnText, { color: Colors.accent }]}>{item.phone}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: Colors.primary + "10", borderColor: Colors.primary + "30" }]}
-          onPress={() => openMaps(item)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="navigate" size={16} color={Colors.primary} />
-          <Text style={[styles.actionBtnText, { color: Colors.primary }]}>{t("directionsLabel")}</Text>
-        </TouchableOpacity>
+          <View style={[styles.cardInfo, isRTL && { alignItems: "flex-end" }]}>
+            <Text style={[styles.pharmaName, isRTL && styles.rtlText]} numberOfLines={2}>
+              {isRTL && item.nameAr ? item.nameAr : item.name}
+            </Text>
+            <View style={[styles.addressRow, isRTL && styles.rtlRow]}>
+              <Ionicons name="location-outline" size={13} color={Colors.light.textSecondary} />
+              <Text style={[styles.addressText, isRTL && styles.rtlText]} numberOfLines={2}>
+                {isRTL && item.addressAr ? item.addressAr : item.address}
+              </Text>
+            </View>
+          </View>
+
+          {hasDistance && (
+            <View style={[styles.distanceBadge, isFirst && styles.distanceBadgeFirst]}>
+              <Ionicons name="navigate" size={11} color={isFirst ? "#fff" : Colors.primary} />
+              <Text style={[styles.distanceText, isFirst && styles.distanceTextFirst]}>
+                {formatDistance(item.distance, language)}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <View style={[styles.cardActions, isRTL && styles.rtlRow]}>
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: Colors.accent + "15", borderColor: Colors.accent + "35" }]}
+            onPress={() => callPharmacy(item.phone)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="call" size={16} color={Colors.accent} />
+            <Text style={[styles.actionBtnText, { color: Colors.accent }]}>{item.phone}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: Colors.primary + "10", borderColor: Colors.primary + "30" }]}
+            onPress={() => openMaps(item)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="navigate" size={16} color={Colors.primary} />
+            <Text style={[styles.actionBtnText, { color: Colors.primary }]}>{t("directionsLabel")}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
+
+  /* ── Loading screen (locating / fetching) ── */
+  const isLoading = phase === "locating" || phase === "fetching";
+  const loadingMsg = {
+    locating: isRTL ? "جارٍ تحديد موقعك..." : "Localisation en cours...",
+    fetching: isRTL ? "جارٍ البحث عن أقرب صيدلية..." : "Recherche des pharmacies...",
+    done: "",
+    denied: "",
+  }[phase];
 
   return (
     <View style={[styles.container, { paddingTop: Platform.OS === "web" ? 67 : insets.top }]}>
-      {/* Header */}
+
+      {/* ── Header ── */}
       <View style={[styles.header, isRTL && styles.rtlRow]}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
           <Ionicons name={isRTL ? "chevron-forward" : "chevron-back"} size={24} color={Colors.light.text} />
         </TouchableOpacity>
+
         <View style={[styles.headerTitleWrap, isRTL && { alignItems: "flex-end" }]}>
           <Text style={styles.headerTitle}>{t("nearestPharmacy")}</Text>
           {region && (
@@ -341,51 +377,86 @@ export default function NearestPharmacyScreen() {
             </Text>
           )}
         </View>
+
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.gpsBtn} onPress={openAllGoogleMaps} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.headerBtn} onPress={openGoogleMaps} activeOpacity={0.8}>
             <MaterialCommunityIcons name="google-maps" size={20} color="#34A853" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.gpsBtn, locating && { opacity: 0.7 }]}
+            style={[styles.headerBtn, isLoading && { opacity: 0.5 }]}
             onPress={detectLocation}
-            disabled={locating}
+            disabled={isLoading}
             activeOpacity={0.8}
           >
-            {locating
+            {isLoading
               ? <ActivityIndicator size="small" color={Colors.primary} />
               : <Ionicons name="locate" size={20} color={Colors.primary} />}
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* location detected banner */}
-      {(userLat || locating) && (
-        <View style={[styles.locationBanner, isRTL && styles.rtlRow]}>
-          <Ionicons name="location" size={14} color={Colors.primary} />
-          <Text style={styles.locationText}>
-            {locating ? t("locatingLabel") : t("locationDetectedLabel")}
+      {/* ── Location detected banner ── */}
+      {userLat && phase === "done" && (
+        <View style={[styles.detectedBanner, isRTL && styles.rtlRow]}>
+          <Ionicons name="checkmark-circle" size={15} color={Colors.primary} />
+          <Text style={styles.detectedText}>
+            {t("locationDetectedLabel")}
           </Text>
         </View>
       )}
 
-      {/* offline cache banner */}
+      {/* ── Permission denied banner ── */}
+      {phase === "denied" && (
+        <View style={[styles.deniedBanner, isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#DC2626", flexDirection: "row-reverse" }]}>
+          <Ionicons name="warning" size={15} color="#DC2626" />
+          <Text style={[styles.deniedText, isRTL && styles.rtlText]} numberOfLines={2}>
+            {isRTL
+              ? "لم يتم منح إذن الموقع — ستظهر الصيدليات بدون ترتيب بالقرب"
+              : "Localisation refusée — liste non triée par distance"}
+          </Text>
+          <TouchableOpacity onPress={() => Linking.openSettings()} activeOpacity={0.7}>
+            <Text style={styles.deniedBtn}>
+              {isRTL ? "الإعدادات" : "Paramètres"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* ── Offline cache banner ── */}
       {!isOnline && fromCache && cachedPharmacies.length > 0 && (
-        <View style={[styles.cacheBanner, isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#7C3AED", flexDirection: "row-reverse" }]}>
+        <View style={[
+          styles.cacheBanner,
+          isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#7C3AED", flexDirection: "row-reverse" },
+        ]}>
           <MaterialCommunityIcons name="cloud-off-outline" size={13} color="#7C3AED" />
           <Text style={[styles.cacheText, isRTL && styles.rtlText]}>
             {isRTL
-              ? "أنت تصفح قاعدة البيانات المخزنة • بيانات رسمية من وزارة الصحة"
-              : "Données locales — Ministère de la Santé mauritanien"}
+              ? "بيانات محلية • وزارة الصحة الموريتانية"
+              : "Données locales • Ministère de la Santé"}
           </Text>
         </View>
       )}
 
-      {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>{t("loading")}</Text>
+      {/* ── Loading screen ── */}
+      {isLoading ? (
+        <View style={styles.loadingScreen}>
+          <Animated.View style={[styles.loadingIconWrap, { transform: [{ scale: pulseAnim }] }]}>
+            <MaterialCommunityIcons
+              name={phase === "locating" ? "crosshairs-gps" : "map-marker-plus"}
+              size={52}
+              color={Colors.primary}
+            />
+          </Animated.View>
+          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 16 }} />
+          <Text style={styles.loadingTitle}>{loadingMsg}</Text>
+          <Text style={styles.loadingSub}>
+            {isRTL
+              ? "يرجى الانتظار لحظة..."
+              : "Veuillez patienter..."}
+          </Text>
         </View>
       ) : (
+        /* ── Pharmacy list ── */
         <FlatList
           data={pharmacies}
           keyExtractor={item => item.id}
@@ -403,11 +474,23 @@ export default function NearestPharmacyScreen() {
               tintColor={Colors.primary}
             />
           }
+          ListHeaderComponent={
+            pharmacies.length > 0 ? (
+              <View style={[styles.listHeader, isRTL && styles.rtlRow]}>
+                <MaterialCommunityIcons name="map-marker-multiple" size={16} color={Colors.primary} />
+                <Text style={[styles.listHeaderText, isRTL && styles.rtlText]}>
+                  {isRTL
+                    ? `${pharmacies.length} صيدلية مرتّبة من الأقرب`
+                    : `${pharmacies.length} pharmacies triées par distance`}
+                </Text>
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <MaterialCommunityIcons name="map-marker-off" size={64} color={Colors.light.textTertiary} />
+              <MaterialCommunityIcons name="map-marker-remove" size={64} color={Colors.light.textTertiary} />
               <Text style={[styles.emptyTitle, isRTL && styles.rtlText]}>{t("noPharmaciesRegion")}</Text>
-              <Text style={[styles.emptySub,  isRTL && styles.rtlText]}>{t("contactToAdd")}</Text>
+              <Text style={[styles.emptySub, isRTL && styles.rtlText]}>{t("contactToAdd")}</Text>
             </View>
           }
         />
@@ -421,41 +504,43 @@ const styles = StyleSheet.create({
   rtlRow: { flexDirection: "row-reverse" },
   rtlText: { textAlign: "right" },
 
+  /* ── Header ── */
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 16, paddingVertical: 12,
     borderBottomWidth: 1, borderBottomColor: Colors.light.border,
+    backgroundColor: Colors.light.background,
   },
   headerTitleWrap: { flex: 1, alignItems: "center" },
   headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.light.text },
   headerSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, marginTop: 2 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
-  gpsBtn: {
+  headerBtn: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: Colors.primary + "12",
     alignItems: "center", justifyContent: "center",
   },
 
-  mapContainer: {
-    flex: 1, margin: 16, borderRadius: 16, overflow: "hidden",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1, shadowRadius: 12, elevation: 5,
-  },
-  mapHint: {
-    paddingVertical: 10, paddingHorizontal: 16,
-    backgroundColor: Colors.light.card,
-    fontSize: 13, fontFamily: "Inter_500Medium",
-    color: Colors.light.textSecondary, textAlign: "center",
-    borderTopWidth: 1, borderTopColor: Colors.light.border,
-  },
-
-  locationBanner: {
+  /* ── Banners ── */
+  detectedBanner: {
     flexDirection: "row", alignItems: "center", gap: 6,
     backgroundColor: Colors.primary + "0D",
-    marginHorizontal: 16, marginTop: 10,
-    borderRadius: 10, padding: 10,
+    marginHorizontal: 16, marginTop: 10, borderRadius: 10, padding: 10,
   },
-  locationText: { fontSize: 12, fontFamily: "Inter_500Medium", color: Colors.primary },
+  detectedText: { fontSize: 12, fontFamily: "Inter_500Medium", color: Colors.primary, flex: 1 },
+
+  deniedBanner: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: "#FEF2F2",
+    borderLeftWidth: 3, borderLeftColor: "#DC2626",
+    marginHorizontal: 16, marginTop: 10,
+    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
+  },
+  deniedText: { flex: 1, fontFamily: "Inter_400Regular", fontSize: 12, color: "#991B1B" },
+  deniedBtn: {
+    fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#DC2626",
+    textDecorationLine: "underline",
+  },
 
   cacheBanner: {
     flexDirection: "row", alignItems: "center", gap: 7,
@@ -466,16 +551,53 @@ const styles = StyleSheet.create({
   },
   cacheText: { flex: 1, fontFamily: "Inter_400Regular", fontSize: 11, color: "#4C1D95" },
 
+  /* ── Loading screen ── */
+  loadingScreen: {
+    flex: 1, alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 32, gap: 4,
+  },
+  loadingIconWrap: {
+    width: 100, height: 100, borderRadius: 50,
+    backgroundColor: Colors.primary + "12",
+    alignItems: "center", justifyContent: "center",
+  },
+  loadingTitle: {
+    marginTop: 12, fontSize: 17, fontFamily: "Inter_600SemiBold",
+    color: Colors.light.text, textAlign: "center",
+  },
+  loadingSub: {
+    fontSize: 13, fontFamily: "Inter_400Regular",
+    color: Colors.light.textSecondary, textAlign: "center",
+  },
+
+  /* ── List ── */
   list: { padding: 16, gap: 12 },
   emptyList: { flex: 1 },
 
+  listHeader: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  listHeaderText: {
+    fontSize: 13, fontFamily: "Inter_500Medium",
+    color: Colors.primary,
+  },
+
+  /* ── Cards ── */
   card: {
     backgroundColor: Colors.light.card, borderRadius: 18, padding: 16,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
     borderWidth: 1, borderColor: Colors.light.border,
   },
+  cardFirst: {
+    borderColor: Colors.primary + "40",
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.12, elevation: 5,
+  },
   cardHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 14 },
+
   rankBadge: {
     width: 32, height: 32, borderRadius: 16,
     backgroundColor: Colors.primary + "18",
@@ -484,10 +606,14 @@ const styles = StyleSheet.create({
   rankBadgeFirst: { backgroundColor: Colors.primary },
   rankText: { fontSize: 14, fontFamily: "Inter_700Bold", color: Colors.primary },
   rankTextFirst: { color: "#fff" },
+
   cardInfo: { flex: 1 },
   pharmaName: { fontSize: 16, fontFamily: "Inter_700Bold", color: Colors.light.text },
   addressRow: { flexDirection: "row", alignItems: "flex-start", gap: 4, marginTop: 4 },
-  addressText: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, flex: 1 },
+  addressText: {
+    fontSize: 13, fontFamily: "Inter_400Regular",
+    color: Colors.light.textSecondary, flex: 1,
+  },
 
   distanceBadge: {
     flexDirection: "row", alignItems: "center", gap: 3,
@@ -505,12 +631,17 @@ const styles = StyleSheet.create({
   },
   actionBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
-  centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
-  loadingText: { fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary },
+  /* ── Empty state ── */
   emptyState: {
     flex: 1, alignItems: "center", justifyContent: "center",
     paddingVertical: 60, gap: 12, paddingHorizontal: 32,
   },
-  emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary, textAlign: "center" },
-  emptySub:  { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.light.textTertiary, textAlign: "center", lineHeight: 19 },
+  emptyTitle: {
+    fontSize: 16, fontFamily: "Inter_600SemiBold",
+    color: Colors.light.textSecondary, textAlign: "center",
+  },
+  emptySub: {
+    fontSize: 13, fontFamily: "Inter_400Regular",
+    color: Colors.light.textTertiary, textAlign: "center", lineHeight: 19,
+  },
 });

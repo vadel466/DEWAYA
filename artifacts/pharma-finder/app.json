@@ -2,6 +2,7 @@
   "expo": {
     "name": "DEWAYA | أدْواَيَ",
     "slug": "dewaya",
+    "owner": "vadel466",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -90,6 +91,11 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ca7511a2-ed3e-4258-beee-21a061208c8b"
+      }
     }
   }
 }

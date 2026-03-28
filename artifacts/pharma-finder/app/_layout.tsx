@@ -14,7 +14,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 const INTRO_KEY = "@dewaya_intro_shown";
@@ -24,15 +23,12 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import IntroScreen from "@/components/IntroScreen";
 import { AppProvider } from "@/context/AppContext";
 
-/* ── Keep native OS splash visible until React is fully ready ── */
 if (Platform.OS !== "web") {
   SplashScreen.preventAutoHideAsync().catch(() => {});
 }
 
-/* ── Preload the icon immediately (before first render) ── */
 Image.prefetch(ICON).catch(() => {});
 
-/* ── Suppress harmless web font-load rejections ── */
 if (Platform.OS === "web" && typeof window !== "undefined") {
   window.addEventListener("unhandledrejection", (e) => {
     const msg: string =
@@ -78,27 +74,27 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  const [appReady, setAppReady]       = useState(false);
-  const [showIntro, setShowIntro]     = useState<boolean | null>(null);
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [appReady, setAppReady]           = useState(false);
+  const [showIntro, setShowIntro]         = useState<boolean | null>(null);
+  const [imageLoaded, setImageLoaded]     = useState(false);
   const [splashVisible, setSplashVisible] = useState(true);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  /* ── Step 1: Load fonts + check intro in parallel ── */
+  /* ── Load fonts + check intro ── */
   useEffect(() => {
     let cancelled = false;
 
-    /* Safety fallback so we never hang forever */
+    /* Hard timeout: 1 second max — don't make user wait */
     const hardTimeout = setTimeout(() => {
       if (!cancelled) {
         setAppReady(true);
         setShowIntro((v) => (v === null ? false : v));
       }
-    }, 2500);
+    }, 1000);
 
     const introFallback = setTimeout(() => {
       if (!cancelled) setShowIntro((v) => (v === null ? false : v));
-    }, 600);
+    }, 400);
 
     Promise.all([
       Font.loadAsync({
@@ -137,28 +133,24 @@ export default function RootLayout() {
     };
   }, []);
 
-  /* ── Step 2: Once fonts + intro + image are ready → hide native splash then fade ── */
+  /* ── Hide splash when ready ── */
   useEffect(() => {
     if (!appReady || showIntro === null || !imageLoaded) return;
 
-    /* Hide native OS splash — React overlay is already showing the icon */
     if (Platform.OS !== "web") {
       SplashScreen.hideAsync().catch(() => {});
     }
 
-    /* Smooth 400ms fade-out */
     Animated.timing(fadeAnim, {
       toValue: 0,
-      duration: 400,
+      duration: 350,
       useNativeDriver: true,
-    }).start(() => {
-      setSplashVisible(false);
-    });
+    }).start(() => setSplashVisible(false));
   }, [appReady, showIntro, imageLoaded, fadeAnim]);
 
-  /* ── Safety: ensure imageLoaded becomes true within 500ms ── */
+  /* ── Safety: imageLoaded within 200ms ── */
   useEffect(() => {
-    const t = setTimeout(() => setImageLoaded(true), 500);
+    const t = setTimeout(() => setImageLoaded(true), 200);
     return () => clearTimeout(t);
   }, []);
 
@@ -172,22 +164,16 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={styles.root}>
-            <KeyboardProvider>
-              <AppProvider>
-                {appReady && <RootLayoutNav />}
-                {appReady && showIntro === true && (
-                  <IntroScreen onFinish={handleIntroFinish} />
-                )}
-              </AppProvider>
-            </KeyboardProvider>
+            <AppProvider>
+              {appReady && <RootLayoutNav />}
+              {appReady && showIntro === true && (
+                <IntroScreen onFinish={handleIntroFinish} />
+              )}
+            </AppProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>
       </ErrorBoundary>
 
-      {/* ── React splash overlay:
-            • Replaces native splash seamlessly (no white frame)
-            • Image fades in instantly via expo-image cache
-            • Whole overlay fades out gracefully when app is ready ── */}
       {splashVisible && (
         <Animated.View
           style={[styles.splash, { opacity: fadeAnim }]}
@@ -204,7 +190,6 @@ export default function RootLayout() {
               transition={0}
             />
           </View>
-
           <Text style={styles.nameAr}>أدوايـا</Text>
           <Text style={styles.nameLat}>D E W A Y A</Text>
           <Text style={styles.sub}>خدمة صحية متكاملة · موريتانيا</Text>

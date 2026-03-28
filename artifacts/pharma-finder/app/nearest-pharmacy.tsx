@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+/**
+ * NearestPharmacyScreen
+ * ──────────────────────
+ * Flow: mount → request location → fetch sorted pharmacies from API → show list
+ * Fallback: AsyncStorage cached list (sorted client-side with Haversine)
+ * No heavy hooks, no stale closures, no react-native-maps.
+ */
+import React, { useState, useEffect, useRef } from "react";
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, ActivityIndicator, Linking,
@@ -9,10 +16,9 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
-import { useNetworkStatus } from "@/hooks/useNetworkStatus";
-import { useOfflineCache, haversineKm, type CachedPharmacy } from "@/hooks/useOfflineCache";
 
 const API_BASE =
   Platform.OS === "web"
@@ -21,46 +27,51 @@ const API_BASE =
       ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
       : "/api";
 
-const MAURITANIA_LAT_MIN = 14, MAURITANIA_LAT_MAX = 26;
-const MAURITANIA_LON_MIN = -21, MAURITANIA_LON_MAX = -4;
+const PHARM_CACHE_KEY = "@dewaya_pharmacies_v2";
 
-type Phase = "locating" | "fetching" | "done" | "denied";
-type NearestPharmacy = CachedPharmacy & { distance: number | null };
+type Phase = "locating" | "fetching" | "done" | "denied" | "error";
 
-function formatDistance(km: number | null, lang: string): string {
-  if (km === null || km === undefined || km >= 9999) return "";
+type Pharmacy = {
+  id: string;
+  name: string;
+  nameAr: string | null;
+  address: string;
+  addressAr: string | null;
+  phone: string;
+  lat: number | null;
+  lon: number | null;
+  region: string | null;
+  distance?: number | null;
+};
+
+function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dL = ((lat2 - lat1) * Math.PI) / 180;
+  const dO = ((lon2 - lon1) * Math.PI) / 180;
+  const a = Math.sin(dL / 2) ** 2
+    + Math.cos((lat1 * Math.PI) / 180)
+    * Math.cos((lat2 * Math.PI) / 180)
+    * Math.sin(dO / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDist(km: number | null | undefined, lang: string): string {
+  if (km == null || km >= 9999) return "";
   if (km < 1) return `${Math.round(km * 1000)} ${lang === "ar" ? "م" : "m"}`;
   return `${km.toFixed(1)} ${lang === "ar" ? "كم" : "km"}`;
 }
 
-function isValidCoord(lat: number | null, lon: number | null) {
-  if (!lat || !lon) return false;
-  return lat >= MAURITANIA_LAT_MIN && lat <= MAURITANIA_LAT_MAX
-    && lon >= MAURITANIA_LON_MIN && lon <= MAURITANIA_LON_MAX;
-}
-
-function sortByDistance(
-  list: CachedPharmacy[],
-  userLat: number | null,
-  userLon: number | null,
-  regionId: string | null,
-): NearestPharmacy[] {
-  const filtered = regionId
-    ? list.filter(p => !p.region || p.region === regionId)
-    : list;
-
-  return filtered
+function sortByDist(list: Pharmacy[], lat: number | null, lon: number | null): Pharmacy[] {
+  return list
     .map(p => ({
       ...p,
-      distance:
-        userLat && userLon && p.lat && p.lon
-          ? haversineKm(userLat, userLon, p.lat, p.lon)
-          : null,
+      distance: (lat && lon && p.lat && p.lon)
+        ? haversine(lat, lon, p.lat, p.lon)
+        : null,
     }))
     .sort((a, b) => {
-      if (a.distance === null && b.distance === null) return 0;
-      if (a.distance === null) return 1;
-      if (b.distance === null) return -1;
+      if (a.distance == null) return 1;
+      if (b.distance == null) return -1;
       return a.distance - b.distance;
     });
 }
@@ -69,137 +80,137 @@ export default function NearestPharmacyScreen() {
   const insets = useSafeAreaInsets();
   const { t, language, region } = useApp();
   const isRTL = language === "ar";
-  const { isOnline } = useNetworkStatus();
-  const { pharmacies: cachedPharmacies, syncPharmacies } = useOfflineCache();
 
-  const [pharmacies, setPharmacies] = useState<NearestPharmacy[]>([]);
   const [phase, setPhase]           = useState<Phase>("locating");
+  const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [userLat, setUserLat]       = useState<number | null>(null);
   const [userLon, setUserLon]       = useState<number | null>(null);
   const [fromCache, setFromCache]   = useState(false);
 
-  const mountedRef    = useRef(true);
-  const fetchAbortRef = useRef<AbortController | null>(null);
-  const pulseAnim     = useRef(new Animated.Value(1)).current;
+  const mountedRef = useRef(true);
+  const abortRef   = useRef<AbortController | null>(null);
+  const pulseAnim  = useRef(new Animated.Value(1)).current;
+  const pulseRef   = useRef<Animated.CompositeAnimation | null>(null);
 
-  /* ── Pulsing animation for loading icon ── */
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.18, duration: 700, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1,    duration: 700, useNativeDriver: true }),
-      ]),
-    );
-    if (phase === "locating" || phase === "fetching") loop.start();
-    else loop.stop();
-    return () => loop.stop();
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      abortRef.current?.abort();
+      pulseRef.current?.stop();
+    };
+  }, []);
+
+  /* ── Pulse animation for loading ── */
+  useEffect(() => {
+    pulseRef.current?.stop();
+    if (phase === "locating" || phase === "fetching") {
+      pulseRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.15, duration: 700, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1,    duration: 700, useNativeDriver: true }),
+        ]),
+      );
+      pulseRef.current.start();
+    } else {
+      Animated.timing(pulseAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    }
   }, [phase]);
 
-  /* ── Fetch from API ── */
-  const fetchOnline = useCallback(async (lat?: number, lon?: number, isRefresh = false) => {
+  /* ── Core: fetch pharmacies ── */
+  const loadPharmacies = async (lat: number | null, lon: number | null, isRefresh = false) => {
     if (!mountedRef.current) return;
-    fetchAbortRef.current?.abort();
-    const controller = new AbortController();
-    fetchAbortRef.current = controller;
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
 
     if (isRefresh) setRefreshing(true);
     else setPhase("fetching");
 
     try {
       const params = new URLSearchParams();
-      if (lat !== undefined && lon !== undefined) {
-        params.set("lat", String(lat));
-        params.set("lon", String(lon));
-      }
+      if (lat != null) params.set("lat", String(lat));
+      if (lon != null) params.set("lon", String(lon));
       if (region?.id) params.set("region", region.id);
 
       const resp = await fetch(`${API_BASE}/pharmacies/nearest?${params}`, {
-        signal: controller.signal,
+        signal: ctrl.signal,
+        cache: "no-store",
       });
-      if (controller.signal.aborted || !mountedRef.current) return;
+
+      if (ctrl.signal.aborted || !mountedRef.current) return;
 
       if (resp.ok) {
-        const data: NearestPharmacy[] = await resp.json();
-        if (!controller.signal.aborted && mountedRef.current) {
+        const data: Pharmacy[] = await resp.json();
+        if (!ctrl.signal.aborted && mountedRef.current) {
           setPharmacies(data);
           setFromCache(false);
+          if (mountedRef.current) setPhase("done");
         }
-      } else {
-        throw new Error("API error");
+        return;
       }
     } catch (err: any) {
       if (err?.name === "AbortError" || !mountedRef.current) return;
-      if (cachedPharmacies.length > 0) {
-        setPharmacies(sortByDistance(cachedPharmacies, lat ?? null, lon ?? null, region?.id ?? null));
-        setFromCache(true);
-      }
-    } finally {
-      if (mountedRef.current && !controller.signal.aborted) {
-        setPhase("done");
-        setRefreshing(false);
-      }
     }
-  }, [region, cachedPharmacies]);
 
-  /* ── Fetch from local cache ── */
-  const fetchOffline = useCallback((lat?: number, lon?: number) => {
-    setPhase("fetching");
-    const sorted = sortByDistance(cachedPharmacies, lat ?? null, lon ?? null, region?.id ?? null);
-    setPharmacies(sorted);
-    setFromCache(true);
-    setPhase("done");
-  }, [cachedPharmacies, region]);
+    /* API failed — load from AsyncStorage cache */
+    try {
+      const raw = await AsyncStorage.getItem(PHARM_CACHE_KEY);
+      if (!mountedRef.current) return;
+      if (raw) {
+        const cached: Pharmacy[] = JSON.parse(raw);
+        const sorted = sortByDist(
+          region?.id ? cached.filter(p => !p.region || p.region === region.id) : cached,
+          lat, lon,
+        );
+        if (mountedRef.current) {
+          setPharmacies(sorted);
+          setFromCache(true);
+        }
+      }
+    } catch { /* silent */ }
 
-  /* ── Re-sort in memory when location changes ── */
-  const applyLocalSort = useCallback((lat: number, lon: number) => {
-    setPharmacies(prev =>
-      prev
-        .map(p => ({
-          ...p,
-          distance: p.lat && p.lon ? haversineKm(lat, lon, p.lat, p.lon) : null,
-        }))
-        .sort((a, b) => {
-          if (a.distance === null) return 1;
-          if (b.distance === null) return -1;
-          return a.distance - b.distance;
-        }),
-    );
-  }, []);
+    if (mountedRef.current) {
+      setPhase("done");
+      if (isRefresh) setRefreshing(false);
+    }
+  };
 
-  /* ── Detect location ── */
-  const detectLocation = useCallback(async () => {
+  /* ── Geolocation flow ── */
+  const detectAndLoad = async (isRefresh = false) => {
     if (!mountedRef.current) return;
-    setPhase("locating");
+    if (!isRefresh) setPhase("locating");
 
     if (Platform.OS === "web") {
       if (!("geolocation" in navigator)) {
-        if (isOnline) fetchOnline(); else fetchOffline();
+        await loadPharmacies(null, null, isRefresh);
         return;
       }
       navigator.geolocation.getCurrentPosition(
         async pos => {
-          const { latitude: lat, longitude: lon } = pos.coords;
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
           if (mountedRef.current) { setUserLat(lat); setUserLon(lon); }
-          if (isOnline) await fetchOnline(lat, lon);
-          else fetchOffline(lat, lon);
+          await loadPharmacies(lat, lon, isRefresh);
         },
-        () => { if (isOnline) fetchOnline(); else fetchOffline(); },
-        { timeout: 12000, maximumAge: 60000, enableHighAccuracy: false },
+        async () => { await loadPharmacies(null, null, isRefresh); },
+        { timeout: 10000, maximumAge: 60000, enableHighAccuracy: false },
       );
       return;
     }
 
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch { /* haptics optional */ }
+
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (!mountedRef.current) return;
 
       if (status !== "granted") {
-        setPhase("denied");
-        /* Still show pharmacies (unsorted) */
-        if (isOnline) await fetchOnline();
-        else fetchOffline();
+        if (mountedRef.current) setPhase("denied");
+        await loadPharmacies(null, null, isRefresh);
         return;
       }
 
@@ -208,99 +219,75 @@ export default function NearestPharmacyScreen() {
       });
       if (!mountedRef.current) return;
 
-      const { latitude: lat, longitude: lon } = loc.coords;
-      setUserLat(lat);
-      setUserLon(lon);
+      const { latitude, longitude } = loc.coords;
+      setUserLat(latitude);
+      setUserLon(longitude);
 
-      if (isOnline) await fetchOnline(lat, lon);
-      else fetchOffline(lat, lon);
+      try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      await loadPharmacies(latitude, longitude, isRefresh);
 
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      if (mountedRef.current) {
-        if (isOnline) fetchOnline(); else fetchOffline();
-      }
+      if (!mountedRef.current) return;
+      await loadPharmacies(null, null, isRefresh);
     }
-  }, [isOnline, fetchOnline, fetchOffline]);
+  };
 
-  /* ── Mount ── */
+  /* ── Mount: start the full flow ── */
   useEffect(() => {
-    mountedRef.current = true;
-    if (isOnline) syncPharmacies().catch(() => {});
-    detectLocation();
-    return () => {
-      mountedRef.current = false;
-      fetchAbortRef.current?.abort();
-    };
+    detectAndLoad();
   }, []);
 
-  /* ── Re-sort when location arrives ── */
-  useEffect(() => {
-    if (userLat && userLon && pharmacies.length > 0) {
-      applyLocalSort(userLat, userLon);
-    }
-  }, [userLat, userLon]);
+  /* ── Actions ── */
+  const handleRefresh = () => detectAndLoad(true);
 
-  /* ── Open Google Maps for all pharmacies ── */
   const openGoogleMaps = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     const url = userLat && userLon
       ? `https://www.google.com/maps/search/pharmacies/@${userLat},${userLon},14z`
-      : `https://www.google.com/maps/search/pharmacies+nouakchott/`;
-    Linking.openURL(url);
+      : "https://www.google.com/maps/search/pharmacies+nouakchott/";
+    Linking.openURL(url).catch(() => {});
   };
 
-  /* ── Call pharmacy ── */
   const callPharmacy = (phone: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Linking.openURL(`tel:${phone}`);
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    Linking.openURL(`tel:${phone}`).catch(() => {});
   };
 
-  /* ── Open navigation for a single pharmacy ── */
-  const openMaps = (item: NearestPharmacy) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const openMaps = (item: Pharmacy) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     const nameEnc = encodeURIComponent(item.nameAr || item.name);
-    const addrEnc = encodeURIComponent((item.addressAr || item.address) + ", Mauritanie");
-    let primary: string;
-    let fallback: string;
+    let url: string;
 
     if (item.lat && item.lon) {
-      if (Platform.OS === "ios") {
-        primary  = `maps:?ll=${item.lat},${item.lon}&q=${nameEnc}`;
-        fallback = `https://maps.apple.com/?ll=${item.lat},${item.lon}&q=${nameEnc}`;
-      } else if (Platform.OS === "android") {
-        primary  = `geo:${item.lat},${item.lon}?q=${item.lat},${item.lon}(${nameEnc})`;
-        fallback = `https://maps.google.com/maps?q=${item.lat},${item.lon}`;
-      } else {
-        primary  = `https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lon}`;
-        fallback = primary;
-      }
+      url = Platform.OS === "ios"
+        ? `maps:?ll=${item.lat},${item.lon}&q=${nameEnc}`
+        : `geo:${item.lat},${item.lon}?q=${item.lat},${item.lon}(${nameEnc})`;
     } else {
-      if (Platform.OS === "ios") {
-        primary  = `maps:?q=${addrEnc}`;
-        fallback = `https://maps.apple.com/?q=${addrEnc}`;
-      } else if (Platform.OS === "android") {
-        primary  = `geo:0,0?q=${addrEnc}`;
-        fallback = `https://maps.google.com/maps?q=${addrEnc}`;
-      } else {
-        primary  = `https://www.google.com/maps/search/?api=1&query=${addrEnc}`;
-        fallback = primary;
-      }
+      const addrEnc = encodeURIComponent((item.addressAr || item.address) + ", Mauritanie");
+      url = Platform.OS === "ios"
+        ? `maps:?q=${addrEnc}`
+        : `geo:0,0?q=${addrEnc}`;
     }
 
-    Linking.canOpenURL(primary)
-      .then(can => Linking.openURL(can ? primary : fallback))
-      .catch(() => Linking.openURL(fallback));
+    Linking.canOpenURL(url)
+      .then(can => {
+        if (can) return Linking.openURL(url);
+        const fallback = item.lat && item.lon
+          ? `https://www.google.com/maps?q=${item.lat},${item.lon}`
+          : `https://www.google.com/maps/search/${encodeURIComponent(item.address)}`;
+        return Linking.openURL(fallback);
+      })
+      .catch(() => {});
   };
 
-  /* ── Pharmacy card ── */
-  const renderItem = ({ item, index }: { item: NearestPharmacy; index: number }) => {
+  /* ── Card ── */
+  const renderCard = ({ item, index }: { item: Pharmacy; index: number }) => {
     const isFirst = index === 0;
-    const hasDistance = item.distance !== null && item.distance !== undefined && item.distance < 9999;
+    const hasDist = item.distance != null && item.distance < 9999;
     return (
       <View style={[styles.card, isFirst && styles.cardFirst]}>
-        <View style={[styles.cardHeader, isRTL && styles.rtlRow]}>
-          <View style={[styles.rankBadge, isFirst && styles.rankBadgeFirst]}>
+        <View style={[styles.cardTop, isRTL && styles.rtlRow]}>
+          <View style={[styles.rankBadge, isFirst && styles.rankFirst]}>
             <Text style={[styles.rankText, isFirst && styles.rankTextFirst]}>{index + 1}</Text>
           </View>
 
@@ -308,68 +295,65 @@ export default function NearestPharmacyScreen() {
             <Text style={[styles.pharmaName, isRTL && styles.rtlText]} numberOfLines={2}>
               {isRTL && item.nameAr ? item.nameAr : item.name}
             </Text>
-            <View style={[styles.addressRow, isRTL && styles.rtlRow]}>
+            <View style={[styles.addrRow, isRTL && styles.rtlRow]}>
               <Ionicons name="location-outline" size={13} color={Colors.light.textSecondary} />
-              <Text style={[styles.addressText, isRTL && styles.rtlText]} numberOfLines={2}>
+              <Text style={[styles.addrText, isRTL && styles.rtlText]} numberOfLines={2}>
                 {isRTL && item.addressAr ? item.addressAr : item.address}
               </Text>
             </View>
           </View>
 
-          {hasDistance && (
-            <View style={[styles.distanceBadge, isFirst && styles.distanceBadgeFirst]}>
+          {hasDist && (
+            <View style={[styles.distBadge, isFirst && styles.distBadgeFirst]}>
               <Ionicons name="navigate" size={11} color={isFirst ? "#fff" : Colors.primary} />
-              <Text style={[styles.distanceText, isFirst && styles.distanceTextFirst]}>
-                {formatDistance(item.distance, language)}
+              <Text style={[styles.distText, isFirst && styles.distTextFirst]}>
+                {formatDist(item.distance, language)}
               </Text>
             </View>
           )}
         </View>
 
-        <View style={[styles.cardActions, isRTL && styles.rtlRow]}>
+        <View style={[styles.actions, isRTL && styles.rtlRow]}>
           <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: Colors.accent + "15", borderColor: Colors.accent + "35" }]}
+            style={[styles.btn, { backgroundColor: Colors.accent + "15", borderColor: Colors.accent + "30" }]}
             onPress={() => callPharmacy(item.phone)}
             activeOpacity={0.8}
           >
             <Ionicons name="call" size={16} color={Colors.accent} />
-            <Text style={[styles.actionBtnText, { color: Colors.accent }]}>{item.phone}</Text>
+            <Text style={[styles.btnText, { color: Colors.accent }]}>{item.phone}</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: Colors.primary + "10", borderColor: Colors.primary + "30" }]}
+            style={[styles.btn, { backgroundColor: Colors.primary + "10", borderColor: Colors.primary + "25" }]}
             onPress={() => openMaps(item)}
             activeOpacity={0.8}
           >
             <Ionicons name="navigate" size={16} color={Colors.primary} />
-            <Text style={[styles.actionBtnText, { color: Colors.primary }]}>{t("directionsLabel")}</Text>
+            <Text style={[styles.btnText, { color: Colors.primary }]}>{t("directionsLabel")}</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   };
 
-  /* ── Loading screen (locating / fetching) ── */
   const isLoading = phase === "locating" || phase === "fetching";
-  const loadingMsg = {
-    locating: isRTL ? "جارٍ تحديد موقعك..." : "Localisation en cours...",
-    fetching: isRTL ? "جارٍ البحث عن أقرب صيدلية..." : "Recherche des pharmacies...",
-    done: "",
-    denied: "",
-  }[phase];
 
   return (
-    <View style={[styles.container, { paddingTop: Platform.OS === "web" ? 67 : insets.top }]}>
+    <View style={[styles.screen, { paddingTop: Platform.OS === "web" ? 67 : insets.top }]}>
 
       {/* ── Header ── */}
       <View style={[styles.header, isRTL && styles.rtlRow]}>
         <TouchableOpacity
           onPress={() => router.back()}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Ionicons name={isRTL ? "chevron-forward" : "chevron-back"} size={24} color={Colors.light.text} />
+          <Ionicons
+            name={isRTL ? "chevron-forward" : "chevron-back"}
+            size={24}
+            color={Colors.light.text}
+          />
         </TouchableOpacity>
 
-        <View style={[styles.headerTitleWrap, isRTL && { alignItems: "flex-end" }]}>
+        <View style={[styles.headerMid, isRTL && { alignItems: "flex-end" }]}>
           <Text style={styles.headerTitle}>{t("nearestPharmacy")}</Text>
           {region && (
             <Text style={styles.headerSub}>
@@ -378,13 +362,13 @@ export default function NearestPharmacyScreen() {
           )}
         </View>
 
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerBtn} onPress={openGoogleMaps} activeOpacity={0.8}>
+        <View style={styles.headerRight}>
+          <TouchableOpacity style={styles.hBtn} onPress={openGoogleMaps} activeOpacity={0.8}>
             <MaterialCommunityIcons name="google-maps" size={20} color="#34A853" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.headerBtn, isLoading && { opacity: 0.5 }]}
-            onPress={detectLocation}
+            style={[styles.hBtn, isLoading && styles.hBtnDisabled]}
+            onPress={() => detectAndLoad()}
             disabled={isLoading}
             activeOpacity={0.8}
           >
@@ -395,11 +379,11 @@ export default function NearestPharmacyScreen() {
         </View>
       </View>
 
-      {/* ── Location detected banner ── */}
+      {/* ── Location found banner ── */}
       {userLat && phase === "done" && (
-        <View style={[styles.detectedBanner, isRTL && styles.rtlRow]}>
+        <View style={[styles.banner, styles.bannerGreen, isRTL && styles.rtlRow]}>
           <Ionicons name="checkmark-circle" size={15} color={Colors.primary} />
-          <Text style={styles.detectedText}>
+          <Text style={[styles.bannerText, { color: Colors.primary }]}>
             {t("locationDetectedLabel")}
           </Text>
         </View>
@@ -407,15 +391,15 @@ export default function NearestPharmacyScreen() {
 
       {/* ── Permission denied banner ── */}
       {phase === "denied" && (
-        <View style={[styles.deniedBanner, isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#DC2626", flexDirection: "row-reverse" }]}>
+        <View style={[styles.banner, styles.bannerRed, isRTL && styles.rtlRow]}>
           <Ionicons name="warning" size={15} color="#DC2626" />
-          <Text style={[styles.deniedText, isRTL && styles.rtlText]} numberOfLines={2}>
+          <Text style={[styles.bannerText, { color: "#991B1B", flex: 1 }, isRTL && styles.rtlText]}>
             {isRTL
-              ? "لم يتم منح إذن الموقع — ستظهر الصيدليات بدون ترتيب بالقرب"
-              : "Localisation refusée — liste non triée par distance"}
+              ? "لم يُمنح إذن الموقع — القائمة بدون ترتيب بالقرب"
+              : "Localisation refusée — liste non triée"}
           </Text>
-          <TouchableOpacity onPress={() => Linking.openSettings()} activeOpacity={0.7}>
-            <Text style={styles.deniedBtn}>
+          <TouchableOpacity onPress={() => Linking.openSettings().catch(() => {})}>
+            <Text style={styles.settingsLink}>
               {isRTL ? "الإعدادات" : "Paramètres"}
             </Text>
           </TouchableOpacity>
@@ -423,36 +407,35 @@ export default function NearestPharmacyScreen() {
       )}
 
       {/* ── Offline cache banner ── */}
-      {!isOnline && fromCache && cachedPharmacies.length > 0 && (
-        <View style={[
-          styles.cacheBanner,
-          isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#7C3AED", flexDirection: "row-reverse" },
-        ]}>
+      {fromCache && phase === "done" && (
+        <View style={[styles.banner, styles.bannerPurple, isRTL && styles.rtlRow]}>
           <MaterialCommunityIcons name="cloud-off-outline" size={13} color="#7C3AED" />
-          <Text style={[styles.cacheText, isRTL && styles.rtlText]}>
-            {isRTL
-              ? "بيانات محلية • وزارة الصحة الموريتانية"
-              : "Données locales • Ministère de la Santé"}
+          <Text style={[styles.bannerText, { color: "#4C1D95" }, isRTL && styles.rtlText]}>
+            {isRTL ? "بيانات محلية • وزارة الصحة" : "Données locales • Ministère de la Santé"}
           </Text>
         </View>
       )}
 
-      {/* ── Loading screen ── */}
+      {/* ── Loading ── */}
       {isLoading ? (
-        <View style={styles.loadingScreen}>
-          <Animated.View style={[styles.loadingIconWrap, { transform: [{ scale: pulseAnim }] }]}>
+        <View style={styles.loadingBox}>
+          <Animated.View
+            style={[styles.loadingCircle, { transform: [{ scale: pulseAnim }] }]}
+          >
             <MaterialCommunityIcons
-              name={phase === "locating" ? "crosshairs-gps" : "map-marker-plus"}
-              size={52}
+              name={phase === "locating" ? "crosshairs-gps" : "map-marker-multiple"}
+              size={48}
               color={Colors.primary}
             />
           </Animated.View>
-          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 16 }} />
-          <Text style={styles.loadingTitle}>{loadingMsg}</Text>
+          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 20 }} />
+          <Text style={styles.loadingTitle}>
+            {phase === "locating"
+              ? (isRTL ? "جارٍ تحديد موقعك..." : "Localisation en cours...")
+              : (isRTL ? "جارٍ البحث عن أقرب صيدلية..." : "Recherche des pharmacies...")}
+          </Text>
           <Text style={styles.loadingSub}>
-            {isRTL
-              ? "يرجى الانتظار لحظة..."
-              : "Veuillez patienter..."}
+            {isRTL ? "يرجى الانتظار لحظة..." : "Veuillez patienter..."}
           </Text>
         </View>
       ) : (
@@ -460,37 +443,56 @@ export default function NearestPharmacyScreen() {
         <FlatList
           data={pharmacies}
           keyExtractor={item => item.id}
-          renderItem={renderItem}
+          renderItem={renderCard}
           contentContainerStyle={[
             styles.list,
-            pharmacies.length === 0 && styles.emptyList,
-            { paddingBottom: insets.bottom + 20 },
+            pharmacies.length === 0 && styles.listEmpty,
+            { paddingBottom: insets.bottom + 24 },
           ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => fetchOnline(userLat ?? undefined, userLon ?? undefined, true)}
+              onRefresh={handleRefresh}
               tintColor={Colors.primary}
+              colors={[Colors.primary]}
             />
           }
           ListHeaderComponent={
             pharmacies.length > 0 ? (
               <View style={[styles.listHeader, isRTL && styles.rtlRow]}>
-                <MaterialCommunityIcons name="map-marker-multiple" size={16} color={Colors.primary} />
+                <MaterialCommunityIcons name="map-marker-multiple" size={15} color={Colors.primary} />
                 <Text style={[styles.listHeaderText, isRTL && styles.rtlText]}>
                   {isRTL
-                    ? `${pharmacies.length} صيدلية مرتّبة من الأقرب`
-                    : `${pharmacies.length} pharmacies triées par distance`}
+                    ? `${pharmacies.length} صيدلية${userLat ? " — مرتّبة من الأقرب" : ""}`
+                    : `${pharmacies.length} pharmacies${userLat ? " — triées par distance" : ""}`}
                 </Text>
               </View>
             ) : null
           }
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <MaterialCommunityIcons name="map-marker-remove" size={64} color={Colors.light.textTertiary} />
-              <Text style={[styles.emptyTitle, isRTL && styles.rtlText]}>{t("noPharmaciesRegion")}</Text>
-              <Text style={[styles.emptySub, isRTL && styles.rtlText]}>{t("contactToAdd")}</Text>
+            <View style={styles.emptyBox}>
+              <MaterialCommunityIcons
+                name="map-marker-remove"
+                size={64}
+                color={Colors.light.textTertiary}
+              />
+              <Text style={[styles.emptyTitle, isRTL && styles.rtlText]}>
+                {t("noPharmaciesRegion")}
+              </Text>
+              <Text style={[styles.emptySub, isRTL && styles.rtlText]}>
+                {t("contactToAdd")}
+              </Text>
+              <TouchableOpacity
+                style={styles.retryBtn}
+                onPress={() => detectAndLoad()}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="refresh" size={16} color="#fff" />
+                <Text style={styles.retryText}>
+                  {isRTL ? "إعادة المحاولة" : "Réessayer"}
+                </Text>
+              </TouchableOpacity>
             </View>
           }
         />
@@ -500,148 +502,129 @@ export default function NearestPharmacyScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.light.background },
+  screen: { flex: 1, backgroundColor: Colors.light.background },
   rtlRow: { flexDirection: "row-reverse" },
   rtlText: { textAlign: "right" },
 
-  /* ── Header ── */
+  /* Header */
   header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    flexDirection: "row", alignItems: "center",
     paddingHorizontal: 16, paddingVertical: 12,
     borderBottomWidth: 1, borderBottomColor: Colors.light.border,
     backgroundColor: Colors.light.background,
   },
-  headerTitleWrap: { flex: 1, alignItems: "center" },
-  headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.light.text },
+  headerMid: { flex: 1, alignItems: "center", paddingHorizontal: 8 },
+  headerTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: Colors.light.text },
   headerSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, marginTop: 2 },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
-  headerBtn: {
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  hBtn: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: Colors.primary + "12",
     alignItems: "center", justifyContent: "center",
   },
+  hBtnDisabled: { opacity: 0.5 },
 
-  /* ── Banners ── */
-  detectedBanner: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: Colors.primary + "0D",
-    marginHorizontal: 16, marginTop: 10, borderRadius: 10, padding: 10,
-  },
-  detectedText: { fontSize: 12, fontFamily: "Inter_500Medium", color: Colors.primary, flex: 1 },
-
-  deniedBanner: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: "#FEF2F2",
-    borderLeftWidth: 3, borderLeftColor: "#DC2626",
-    marginHorizontal: 16, marginTop: 10,
-    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
-  },
-  deniedText: { flex: 1, fontFamily: "Inter_400Regular", fontSize: 12, color: "#991B1B" },
-  deniedBtn: {
-    fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#DC2626",
-    textDecorationLine: "underline",
-  },
-
-  cacheBanner: {
+  /* Banners */
+  banner: {
     flexDirection: "row", alignItems: "center", gap: 7,
-    backgroundColor: "#F5F3FF",
-    borderLeftWidth: 3, borderLeftColor: "#7C3AED",
-    marginHorizontal: 16, marginTop: 8,
-    paddingHorizontal: 11, paddingVertical: 7, borderRadius: 10,
+    marginHorizontal: 16, marginTop: 10,
+    paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10,
+    borderLeftWidth: 3,
   },
-  cacheText: { flex: 1, fontFamily: "Inter_400Regular", fontSize: 11, color: "#4C1D95" },
+  bannerGreen: { backgroundColor: Colors.primary + "0D", borderLeftColor: Colors.primary },
+  bannerRed:   { backgroundColor: "#FEF2F2", borderLeftColor: "#DC2626" },
+  bannerPurple:{ backgroundColor: "#F5F3FF", borderLeftColor: "#7C3AED" },
+  bannerText: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  settingsLink: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#DC2626", textDecorationLine: "underline" },
 
-  /* ── Loading screen ── */
-  loadingScreen: {
+  /* Loading */
+  loadingBox: {
     flex: 1, alignItems: "center", justifyContent: "center",
     paddingHorizontal: 32, gap: 4,
   },
-  loadingIconWrap: {
-    width: 100, height: 100, borderRadius: 50,
+  loadingCircle: {
+    width: 96, height: 96, borderRadius: 48,
     backgroundColor: Colors.primary + "12",
     alignItems: "center", justifyContent: "center",
   },
   loadingTitle: {
-    marginTop: 12, fontSize: 17, fontFamily: "Inter_600SemiBold",
+    marginTop: 12, fontSize: 16, fontFamily: "Inter_600SemiBold",
     color: Colors.light.text, textAlign: "center",
   },
   loadingSub: {
     fontSize: 13, fontFamily: "Inter_400Regular",
-    color: Colors.light.textSecondary, textAlign: "center",
+    color: Colors.light.textSecondary, textAlign: "center", marginTop: 4,
   },
 
-  /* ── List ── */
+  /* List */
   list: { padding: 16, gap: 12 },
-  emptyList: { flex: 1 },
-
+  listEmpty: { flex: 1 },
   listHeader: {
     flexDirection: "row", alignItems: "center", gap: 6,
-    marginBottom: 8,
-    paddingHorizontal: 4,
+    marginBottom: 8, paddingHorizontal: 2,
   },
-  listHeaderText: {
-    fontSize: 13, fontFamily: "Inter_500Medium",
-    color: Colors.primary,
-  },
+  listHeaderText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.primary },
 
-  /* ── Cards ── */
+  /* Cards */
   card: {
-    backgroundColor: Colors.light.card, borderRadius: 18, padding: 16,
+    backgroundColor: Colors.light.card, borderRadius: 16, padding: 16,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+    shadowOpacity: 0.05, shadowRadius: 8, elevation: 3,
     borderWidth: 1, borderColor: Colors.light.border,
   },
   cardFirst: {
-    borderColor: Colors.primary + "40",
-    shadowColor: Colors.primary,
-    shadowOpacity: 0.12, elevation: 5,
+    borderColor: Colors.primary + "45",
+    shadowColor: Colors.primary, shadowOpacity: 0.12, elevation: 5,
   },
-  cardHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 14 },
+  cardTop: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 14 },
 
   rankBadge: {
     width: 32, height: 32, borderRadius: 16,
     backgroundColor: Colors.primary + "18",
     alignItems: "center", justifyContent: "center", flexShrink: 0,
   },
-  rankBadgeFirst: { backgroundColor: Colors.primary },
+  rankFirst: { backgroundColor: Colors.primary },
   rankText: { fontSize: 14, fontFamily: "Inter_700Bold", color: Colors.primary },
   rankTextFirst: { color: "#fff" },
 
   cardInfo: { flex: 1 },
-  pharmaName: { fontSize: 16, fontFamily: "Inter_700Bold", color: Colors.light.text },
-  addressRow: { flexDirection: "row", alignItems: "flex-start", gap: 4, marginTop: 4 },
-  addressText: {
-    fontSize: 13, fontFamily: "Inter_400Regular",
-    color: Colors.light.textSecondary, flex: 1,
-  },
+  pharmaName: { fontSize: 15, fontFamily: "Inter_700Bold", color: Colors.light.text },
+  addrRow: { flexDirection: "row", alignItems: "flex-start", gap: 4, marginTop: 4 },
+  addrText: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, flex: 1 },
 
-  distanceBadge: {
+  distBadge: {
     flexDirection: "row", alignItems: "center", gap: 3,
     backgroundColor: Colors.primary + "10",
     borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4, flexShrink: 0,
   },
-  distanceBadgeFirst: { backgroundColor: Colors.primary },
-  distanceText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.primary },
-  distanceTextFirst: { color: "#fff" },
+  distBadgeFirst: { backgroundColor: Colors.primary },
+  distText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.primary },
+  distTextFirst: { color: "#fff" },
 
-  cardActions: { flexDirection: "row", gap: 8 },
-  actionBtn: {
+  actions: { flexDirection: "row", gap: 8 },
+  btn: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1,
   },
-  actionBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  btnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
-  /* ── Empty state ── */
-  emptyState: {
+  /* Empty */
+  emptyBox: {
     flex: 1, alignItems: "center", justifyContent: "center",
     paddingVertical: 60, gap: 12, paddingHorizontal: 32,
   },
   emptyTitle: {
-    fontSize: 16, fontFamily: "Inter_600SemiBold",
+    fontSize: 15, fontFamily: "Inter_600SemiBold",
     color: Colors.light.textSecondary, textAlign: "center",
   },
   emptySub: {
     fontSize: 13, fontFamily: "Inter_400Regular",
     color: Colors.light.textTertiary, textAlign: "center", lineHeight: 19,
   },
+  retryBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: Colors.primary, borderRadius: 12,
+    paddingHorizontal: 20, paddingVertical: 10, marginTop: 8,
+  },
+  retryText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

@@ -170,6 +170,13 @@ Express 5 API server. All admin routes protected by `x-admin-secret: DEWAYA_ADMI
 - `requests.ts` DELETE handlers accept both admin (`x-admin-secret`) and pharmacy PIN (`x-pharmacy-pin`) auth; static imports used (no dynamic `await import()`)
 - **queryKey fix**: `deleteB2bMutation` + `deleteAllB2bMutation` invalidate `["admin-b2b"]` (was mistakenly `["admin-b2b-messages"]`)
 
+## EAS Build Configuration (Critical)
+
+- **React Compiler**: DISABLED permanently (`experiments.reactCompiler` removed from `app.json`). Root cause: `babel-plugin-react-compiler@1.0.0` (embedded in `babel-preset-expo`) conflicted with the `^19.0.0-beta-*` version in devDependencies — EAS cloud freshly installs packages and detected the version conflict, causing Metro to fail with `SyntaxError: Unexpected token '{'` at `import { router }`. Local builds succeeded because pnpm had already resolved to a single working version. NEVER re-add `reactCompiler: true` to app.json or `babel-plugin-react-compiler`/`react-compiler-runtime` to package.json.
+- **babel.config.js**: `plugins: ["react-native-worklets/plugin"]` — Required for Reanimated v4 in production builds. Keep this.
+- **New Architecture**: `newArchEnabled: true` in app.json — Required for Reanimated v4 and expo-av.
+- **Local pre-EAS test**: `cd artifacts/pharma-finder && npx expo export:embed --eager --platform android --dev false` — Must succeed (≥1800 modules, no errors) before submitting EAS build.
+
 ## IntroScreen (Splash Screen)
 
 - File: `artifacts/pharma-finder/components/IntroScreen.tsx`

@@ -5,6 +5,7 @@
   },
   "build": {
     "development": {
+      "node": "20.19.4",
       "developmentClient": true,
       "distribution": "internal",
       "android": {
@@ -18,6 +19,7 @@
       }
     },
     "preview": {
+      "node": "20.19.4",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
@@ -26,10 +28,11 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "https://81bb56e1-76ee-465d-9ac0-34cb881be6ef-00-2pjv1kbjhqp7y.spock.replit.dev"
+        "EXPO_PUBLIC_DOMAIN": ""
       }
     },
     "production": {
+      "node": "20.19.4",
       "distribution": "store",
       "android": {
         "buildType": "app-bundle"

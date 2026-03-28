@@ -1,14 +1,63 @@
 {
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "local"
+  },
   "build": {
-    "production": {
+    "development": {
+      "workingDirectory": "artifacts/pharma-finder",
+      "node": "20.19.4",
+      "developmentClient": true,
+      "distribution": "internal",
       "android": {
-        "distribution": "store",
-        "buildType": "app-bundle"
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": ""
       }
     },
     "preview": {
+      "workingDirectory": "artifacts/pharma-finder",
+      "node": "20.19.4",
+      "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": ""
+      }
+    },
+    "production": {
+      "workingDirectory": "artifacts/pharma-finder",
+      "node": "20.19.4",
+      "distribution": "store",
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": ""
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./google-service-account.json",
+        "track": "production"
+      },
+      "ios": {
+        "appleId": "",
+        "ascAppId": "",
+        "appleTeamId": ""
       }
     }
   }

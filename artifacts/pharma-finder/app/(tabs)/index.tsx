@@ -312,6 +312,7 @@ export default function HomeScreen() {
             <View style={styles.appNameGroup}>
               <Text style={styles.appNameAr}>أدوايـا</Text>
               <Text style={styles.logoSubText}>D E W A Y A</Text>
+              <Text style={styles.sloganText}>خدمة صحية متكاملة</Text>
             </View>
           </TouchableOpacity>
 
@@ -650,7 +651,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 10,
     marginBottom: 2,
-    minHeight: 68,
+    minHeight: 76,
   },
   bellBtn: {
     position: "absolute",
@@ -701,9 +702,10 @@ const styles = StyleSheet.create({
     width: 11, height: 11, borderRadius: 6,
     backgroundColor: Colors.accent, borderWidth: 2, borderColor: "#F0F4F8",
   },
-  appNameGroup: { alignItems: "flex-start", gap: 2 },
+  appNameGroup: { alignItems: "flex-start", gap: 1 },
   appNameAr: { fontFamily: "Inter_700Bold", fontSize: 26, color: "#0D1B6E", letterSpacing: 0.3 },
-  logoSubText: { fontFamily: "Inter_600SemiBold", fontSize: 9.5, color: "#546E7A", letterSpacing: 4, marginTop: 0 },
+  logoSubText: { fontFamily: "Inter_600SemiBold", fontSize: 9.5, color: "#546E7A", letterSpacing: 4 },
+  sloganText: { fontFamily: "Inter_400Regular", fontSize: 10, color: "#90A4AE", letterSpacing: 0.3, marginTop: 2 },
 
   /* LANGUAGE LINE */
   langLine: {

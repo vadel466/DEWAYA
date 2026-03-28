@@ -33,9 +33,9 @@ type CompanyOrder = {
   type: string; status: string; companyResponse: string | null; respondedAt: string | null; createdAt: string;
   attachmentData: string | null; attachmentType: string | null; attachmentName: string | null;
 };
-type InventoryItem = { id: string; companyId: string; companyName: string; drugName: string; price: number | null; unit: string | null; notes: string | null; isAd: boolean; createdAt: string; attachmentData: string | null; attachmentType: string | null; attachmentName: string | null };
+type InventoryItem = { id: string; companyId: string; companyName: string; drugName: string; price: number | null; unit: string | null; notes: string | null; isAd: boolean; itemType: string; createdAt: string; attachmentData: string | null; attachmentType: string | null; attachmentName: string | null };
 
-type CompanyTab = "orders" | "inventory" | "announcements";
+type CompanyTab = "orders" | "inventory" | "announcements" | "circulars";
 
 function fmt(d: string, lang: string) {
   return new Date(d).toLocaleString(lang === "ar" ? "ar-SA" : "fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -59,6 +59,7 @@ export default function CompanyPortalScreen() {
 
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [announcements, setAnnouncements] = useState<InventoryItem[]>([]);
+  const [circulars, setCirculars] = useState<InventoryItem[]>([]);
   const [invLoading, setInvLoading] = useState(false);
 
   const [showInvModal, setShowInvModal] = useState(false);
@@ -69,6 +70,12 @@ export default function CompanyPortalScreen() {
   const [invIsAd, setInvIsAd] = useState(false);
   const [invSaving, setInvSaving] = useState(false);
   const [invAttachment, setInvAttachment] = useState<{ data: string; type: string; name: string } | null>(null);
+
+  const [showCircularModal, setShowCircularModal] = useState(false);
+  const [circSubject, setCircSubject] = useState("");
+  const [circMessage, setCircMessage] = useState("");
+  const [circSaving, setCircSaving] = useState(false);
+  const [circAttachment, setCircAttachment] = useState<{ data: string; type: string; name: string } | null>(null);
 
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [showRespondModal, setShowRespondModal] = useState(false);
@@ -134,11 +141,24 @@ export default function CompanyPortalScreen() {
     } catch {} finally { setInvLoading(false); }
   }, [company]);
 
+  const fetchCirculars = useCallback(async () => {
+    if (!company) return;
+    setInvLoading(true);
+    try {
+      const resp = await fetch(`${API_BASE}/company-portal/circulars`);
+      if (resp.ok) {
+        const all = await resp.json();
+        setCirculars(all.filter((c: InventoryItem) => c.companyId === company.id));
+      }
+    } catch {} finally { setInvLoading(false); }
+  }, [company]);
+
   useEffect(() => {
     if (!company) return;
     if (activeTab === "orders") fetchOrders();
     else if (activeTab === "inventory") fetchInventory();
     else if (activeTab === "announcements") fetchAnnouncements();
+    else if (activeTab === "circulars") fetchCirculars();
   }, [activeTab, company]);
 
   const handleRespond = async () => {
@@ -304,9 +324,61 @@ export default function CompanyPortalScreen() {
     } catch {}
   };
 
+  const handleAddCircular = async () => {
+    if (!company || !circSubject.trim()) return;
+    setCircSaving(true);
+    try {
+      const resp = await fetch(`${API_BASE}/company-portal/inventory`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-company-code": company.code },
+        body: JSON.stringify({
+          companyId: company.id, companyName: company.nameAr || company.name,
+          drugName: circSubject.trim(),
+          notes: circMessage.trim() || null,
+          isAd: true, itemType: "circular",
+          price: null, unit: null,
+          attachmentData: circAttachment?.data || null,
+          attachmentType: circAttachment?.type || null,
+          attachmentName: circAttachment?.name || null,
+        }),
+      });
+      if (resp.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setCircSubject(""); setCircMessage(""); setCircAttachment(null);
+        setShowCircularModal(false);
+        fetchCirculars();
+      }
+    } catch {} finally { setCircSaving(false); }
+  };
+
+  const handleRemoveCircular = async (id: string) => {
+    if (!company) return;
+    try {
+      await fetch(`${API_BASE}/company-portal/inventory/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", "x-company-code": company.code },
+        body: JSON.stringify({ companyId: company.id }),
+      });
+      setCirculars(prev => prev.filter(c => c.id !== id));
+    } catch {}
+  };
+
+  const pickCircImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") return;
+      const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: true });
+      if (!result.canceled && result.assets[0].base64) {
+        const asset = result.assets[0];
+        const mimeType = asset.mimeType || "image/jpeg";
+        setCircAttachment({ data: asset.base64!, type: mimeType, name: `photo.${mimeType.split("/")[1] || "jpg"}` });
+      }
+    } catch {}
+  };
+
   const doLogout = () => {
     setCompany(null); setCode(""); setStep("code");
-    setOrders([]); setInventory([]); setAnnouncements([]); setActiveTab("orders");
+    setOrders([]); setInventory([]); setAnnouncements([]); setCirculars([]); setActiveTab("orders");
   };
 
   const pendingOrders = orders.filter(o => o.status === "pending");
@@ -316,6 +388,7 @@ export default function CompanyPortalScreen() {
     { id: "orders", label: isRTL ? `الطلبات${pendingOrders.length > 0 ? ` (${pendingOrders.length})` : ""}` : `Commandes${pendingOrders.length > 0 ? ` (${pendingOrders.length})` : ""}`, icon: "package-variant" },
     { id: "inventory", label: isRTL ? "مخزوني" : "Mon Stock", icon: "pill" },
     { id: "announcements", label: isRTL ? "إعلاناتي" : "Mes Annonces", icon: "bullhorn" },
+    { id: "circulars", label: isRTL ? `التعميمات${circulars.length > 0 ? ` (${circulars.length})` : ""}` : `Circulaires${circulars.length > 0 ? ` (${circulars.length})` : ""}`, icon: "bell-ring-outline" },
   ];
 
   if (step === "code") {
@@ -633,6 +706,130 @@ export default function CompanyPortalScreen() {
           )}
         </View>
       )}
+
+      {activeTab === "circulars" && (
+        <View style={{ flex: 1 }}>
+          <TouchableOpacity
+            style={[styles.addBtn, { backgroundColor: "#0284C7" }]}
+            onPress={() => setShowCircularModal(true)}
+            activeOpacity={0.85}
+          >
+            <MaterialCommunityIcons name="bell-ring-outline" size={18} color="#fff" />
+            <Text style={styles.addBtnText}>{isRTL ? "نشر تعميم جديد" : "Publier un nouveau circulaire"}</Text>
+          </TouchableOpacity>
+          {invLoading ? (
+            <View style={styles.centered}><ActivityIndicator size="large" color="#0284C7" /></View>
+          ) : (
+            <FlatList
+              data={circulars}
+              keyExtractor={c => c.id}
+              contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 20 }]}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => (
+                <View style={[styles.invCard, { borderLeftWidth: 3, borderLeftColor: "#0284C7" }]}>
+                  <View style={[styles.invCardHeader, isRTL && styles.rtlRow]}>
+                    <View style={[styles.invIcon, { backgroundColor: "#0284C715" }]}>
+                      <MaterialCommunityIcons name="bell-ring" size={20} color="#0284C7" />
+                    </View>
+                    <View style={[styles.invInfo, isRTL && { alignItems: "flex-end" }, { flex: 1 }]}>
+                      <Text style={[styles.invDrug, { color: "#0284C7" }, isRTL && styles.rtlText]}>{item.drugName}</Text>
+                      {item.notes && <Text style={[styles.invNotes, isRTL && styles.rtlText]}>{item.notes}</Text>}
+                    </View>
+                    <TouchableOpacity onPress={() => handleRemoveCircular(item.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+                    </TouchableOpacity>
+                  </View>
+                  {item.attachmentData && item.attachmentType?.startsWith("image/") && (
+                    <Image source={{ uri: `data:${item.attachmentType};base64,${item.attachmentData}` }} style={styles.invAttachImg} resizeMode="cover" />
+                  )}
+                  <Text style={styles.invTime}>{fmt(item.createdAt, language)}</Text>
+                </View>
+              )}
+              ListEmptyComponent={
+                <View style={styles.emptyWrap}>
+                  <MaterialCommunityIcons name="bell-outline" size={48} color={Colors.light.textTertiary} />
+                  <Text style={[styles.emptyTitle, isRTL && styles.rtlText]}>
+                    {isRTL ? "لا توجد تعميمات بعد" : "Aucun circulaire pour l'instant"}
+                  </Text>
+                  <Text style={[styles.emptySub, isRTL && styles.rtlText]}>
+                    {isRTL ? "انشر تعميماً لإخبار الصيدليات بأي تحديثات أو عروض" : "Publiez un circulaire pour informer les pharmacies"}
+                  </Text>
+                </View>
+              }
+            />
+          )}
+        </View>
+      )}
+
+      <Modal visible={showCircularModal} transparent animationType="slide" onRequestClose={() => setShowCircularModal(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHandle} />
+              <Text style={[styles.modalTitle, isRTL && styles.rtlText]}>
+                {isRTL ? "نشر تعميم للصيدليات" : "Publier un circulaire aux pharmacies"}
+              </Text>
+              <View style={[styles.formGroup, { backgroundColor: "#EFF6FF", borderRadius: 10, padding: 10, marginHorizontal: 20, marginBottom: 8 }]}>
+                <View style={{ flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", gap: 6 }}>
+                  <MaterialCommunityIcons name="information-outline" size={15} color="#0284C7" />
+                  <Text style={[{ fontSize: 12, color: "#0284C7", flex: 1 }, isRTL && { textAlign: "right" }]}>
+                    {isRTL ? "سيصل هذا التعميم لجميع الصيدليات المشتركة في DEWAYA" : "Ce circulaire sera visible par toutes les pharmacies DEWAYA"}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={[styles.label, isRTL && styles.rtlText]}>{isRTL ? "عنوان التعميم *" : "Objet du circulaire *"}</Text>
+                <TextInput
+                  style={[styles.input, isRTL && styles.rtlText]}
+                  value={circSubject} onChangeText={setCircSubject}
+                  placeholder={isRTL ? "مثال: عروض رمضان 2026" : "Ex: Offres spéciales Mars 2026"}
+                  placeholderTextColor={Colors.light.textTertiary}
+                  textAlign={isRTL ? "right" : "left"}
+                />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={[styles.label, isRTL && styles.rtlText]}>{isRTL ? "نص التعميم" : "Corps du message"}</Text>
+                <TextInput
+                  style={[styles.input, styles.inputMulti, isRTL && styles.rtlText]}
+                  value={circMessage} onChangeText={setCircMessage}
+                  placeholder={isRTL ? "تفاصيل التعميم..." : "Détails du circulaire..."}
+                  placeholderTextColor={Colors.light.textTertiary}
+                  multiline numberOfLines={4}
+                  textAlign={isRTL ? "right" : "left"}
+                />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={[styles.label, isRTL && styles.rtlText]}>{isRTL ? "صورة مرفقة (اختياري)" : "Image jointe (optionnel)"}</Text>
+                <View style={[styles.attachBtnRow, isRTL && styles.rtlRow]}>
+                  <TouchableOpacity style={styles.attachBtn} onPress={pickCircImage} activeOpacity={0.8}>
+                    <Ionicons name="image-outline" size={18} color="#0284C7" />
+                    <Text style={[styles.attachBtnText, { color: "#0284C7" }]}>{isRTL ? "صورة" : "Image"}</Text>
+                  </TouchableOpacity>
+                </View>
+                {circAttachment && (
+                  <View style={styles.attachPreviewRow}>
+                    <Image source={{ uri: `data:${circAttachment.type};base64,${circAttachment.data}` }} style={styles.attachPreviewImg} resizeMode="cover" />
+                    <TouchableOpacity onPress={() => setCircAttachment(null)} style={styles.attachRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="close-circle" size={20} color={Colors.danger} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+              <View style={styles.modalBtns}>
+                <TouchableOpacity
+                  style={[styles.sendBtn, { backgroundColor: "#0284C7" }, (!circSubject.trim() || circSaving) && { opacity: 0.6 }]}
+                  onPress={handleAddCircular} disabled={!circSubject.trim() || circSaving} activeOpacity={0.85}
+                >
+                  {circSaving ? <ActivityIndicator color="#fff" size="small" /> : <><MaterialCommunityIcons name="bell-ring-outline" size={16} color="#fff" /><Text style={styles.sendBtnText}>{isRTL ? "نشر التعميم" : "Publier"}</Text></>}
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowCircularModal(false); setCircSubject(""); setCircMessage(""); setCircAttachment(null); }} activeOpacity={0.7}>
+                  <Text style={styles.cancelBtnText}>{isRTL ? "إلغاء" : "Annuler"}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       <Modal visible={showRespondModal} transparent animationType="slide" onRequestClose={() => setShowRespondModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>

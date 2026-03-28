@@ -6,7 +6,7 @@ import {
   companyInventoryTable,
   pharmaciesTable,
 } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, ne } from "drizzle-orm";
 
 const router: IRouter = Router();
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "DEWAYA_ADMIN_2026";
@@ -109,18 +109,20 @@ router.post("/orders/:id/respond", async (req, res) => {
 
 router.post("/inventory", async (req, res) => {
   try {
-    const { companyId, companyName, drugName, price, unit, notes, isAd, attachmentData, attachmentType, attachmentName } = req.body;
+    const { companyId, companyName, drugName, price, unit, notes, isAd, itemType, attachmentData, attachmentType, attachmentName } = req.body;
     if (!companyId || !companyName || !drugName) { res.status(400).json({ error: "Champs requis" }); return; }
 
     const authorized = isAdmin(req) || await validateCompanyCode(req, companyId);
     if (!authorized) { res.status(401).json({ error: "Non autorisé" }); return; }
 
+    const resolvedItemType: string = itemType === "circular" ? "circular" : (!!isAd ? "ad" : "inventory");
     const id = generateId();
     const [item] = await db.insert(companyInventoryTable).values({
       id, companyId, companyName,
       drugName: drugName.trim(), drugNameLower: drugName.trim().toLowerCase(),
       price: price ? Number(price) : null, unit: unit || null,
-      notes: notes || null, isAd: !!isAd,
+      notes: notes || null, isAd: resolvedItemType !== "inventory",
+      itemType: resolvedItemType,
       attachmentData: attachmentData || null,
       attachmentType: attachmentType || null,
       attachmentName: attachmentName || null,
@@ -175,9 +177,28 @@ router.get("/inventory-search", async (req, res) => {
 router.get("/announcements", async (req, res) => {
   try {
     const items = await db.select().from(companyInventoryTable)
-      .where(and(eq(companyInventoryTable.isActive, true), eq(companyInventoryTable.isAd, true)))
+      .where(and(
+        eq(companyInventoryTable.isActive, true),
+        eq(companyInventoryTable.isAd, true),
+        ne(companyInventoryTable.itemType, "circular"),
+      ))
       .orderBy(desc(companyInventoryTable.createdAt))
       .limit(50);
+    res.json(items.map(serializeInventory));
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+router.get("/circulars", async (_req, res) => {
+  try {
+    const items = await db.select().from(companyInventoryTable)
+      .where(and(
+        eq(companyInventoryTable.isActive, true),
+        eq(companyInventoryTable.itemType, "circular"),
+      ))
+      .orderBy(desc(companyInventoryTable.createdAt))
+      .limit(100);
     res.json(items.map(serializeInventory));
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Erreur serveur" });

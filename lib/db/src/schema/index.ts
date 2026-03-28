@@ -277,6 +277,7 @@ export const companyInventoryTable = pgTable("company_inventory", {
   unit: text("unit"),
   notes: text("notes"),
   isAd: boolean("is_ad").notNull().default(false),
+  itemType: text("item_type").notNull().default("ad"),
   isActive: boolean("is_active").notNull().default(true),
   attachmentData: text("attachment_data"),
   attachmentType: text("attachment_type"),

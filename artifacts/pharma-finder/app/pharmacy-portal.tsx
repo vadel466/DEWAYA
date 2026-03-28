@@ -95,6 +95,7 @@ export default function PharmacyPortalScreen() {
   const [attachment, setAttachment] = useState<{ data: string; type: string; name: string } | null>(null);
 
   const [announcements, setAnnouncements] = useState<CompanyAnnouncement[]>([]);
+  const [circularsPharmacy, setCircularsPharmacy] = useState<CompanyAnnouncement[]>([]);
   const [adsLoading, setAdsLoading] = useState(false);
 
   const stopBellAlert = useCallback(() => {
@@ -276,8 +277,12 @@ export default function PharmacyPortalScreen() {
   const fetchAnnouncements = useCallback(async () => {
     setAdsLoading(true);
     try {
-      const resp = await fetch(`${API_BASE}/company-portal/announcements`);
-      if (resp.ok) setAnnouncements(await resp.json());
+      const [adsResp, circResp] = await Promise.all([
+        fetch(`${API_BASE}/company-portal/announcements`),
+        fetch(`${API_BASE}/company-portal/circulars`),
+      ]);
+      if (adsResp.ok) setAnnouncements(await adsResp.json());
+      if (circResp.ok) setCircularsPharmacy(await circResp.json());
     } catch {} finally { setAdsLoading(false); }
   }, []);
 
@@ -946,32 +951,52 @@ export default function PharmacyPortalScreen() {
           <View style={styles.centered}><ActivityIndicator size="large" color={PARTNER_COLOR} /></View>
         ) : (
           <FlatList
-            data={announcements}
+            data={[...circularsPharmacy.map(c => ({ ...c, _type: "circular" as const })), ...announcements.map(a => ({ ...a, _type: "ad" as const }))]}
             keyExtractor={i => i.id}
-            contentContainerStyle={[styles.list, announcements.length === 0 && styles.emptyList, { paddingBottom: insets.bottom + 20 }]}
+            contentContainerStyle={[styles.list, (announcements.length === 0 && circularsPharmacy.length === 0) && styles.emptyList, { paddingBottom: insets.bottom + 20 }]}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={false} onRefresh={fetchAnnouncements} tintColor={PARTNER_COLOR} />}
-            renderItem={({ item }) => (
-              <View style={styles.adCard}>
-                <View style={[styles.adCardHeader, isRTL && styles.rtlRow]}>
-                  <View style={styles.adIcon}><MaterialCommunityIcons name="bullhorn" size={20} color={Colors.warning} /></View>
-                  <View style={[{ flex: 1 }, isRTL && { alignItems: "flex-end" }]}>
-                    <Text style={[styles.drugName, isRTL && styles.rtlText]}>{item.drugName}</Text>
-                    <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{item.companyName}</Text>
-                  </View>
-                  {item.price != null && (
-                    <Text style={styles.adPrice}>{item.price} MRU{item.unit ? `/${item.unit}` : ""}</Text>
-                  )}
+            ListHeaderComponent={
+              circularsPharmacy.length > 0 ? (
+                <View style={{ marginBottom: 4, marginHorizontal: 16, flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", gap: 6 }}>
+                  <MaterialCommunityIcons name="bell-ring" size={14} color="#0284C7" />
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#0284C7" }}>
+                    {isRTL ? `تعميمات الشركاء (${circularsPharmacy.length})` : `Circulaires des partenaires (${circularsPharmacy.length})`}
+                  </Text>
                 </View>
-                {item.notes && <Text style={[styles.adNotes, isRTL && styles.rtlText]}>{item.notes}</Text>}
-                <Text style={styles.requestTime}>{formatTime(item.createdAt, language)}</Text>
-              </View>
-            )}
+              ) : null
+            }
+            renderItem={({ item }) => {
+              const isCircular = (item as any)._type === "circular";
+              return (
+                <View style={[styles.adCard, isCircular && { borderLeftWidth: 3, borderLeftColor: "#0284C7", backgroundColor: "#F0F9FF" }]}>
+                  <View style={[styles.adCardHeader, isRTL && styles.rtlRow]}>
+                    <View style={[styles.adIcon, isCircular && { backgroundColor: "#0284C715" }]}>
+                      <MaterialCommunityIcons name={isCircular ? "bell-ring" : "bullhorn"} size={20} color={isCircular ? "#0284C7" : Colors.warning} />
+                    </View>
+                    <View style={[{ flex: 1 }, isRTL && { alignItems: "flex-end" }]}>
+                      <Text style={[styles.drugName, isCircular && { color: "#0284C7" }, isRTL && styles.rtlText]}>{item.drugName}</Text>
+                      <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{item.companyName}</Text>
+                    </View>
+                    {!isCircular && item.price != null && (
+                      <Text style={styles.adPrice}>{item.price} MRU{item.unit ? `/${item.unit}` : ""}</Text>
+                    )}
+                    {isCircular && (
+                      <View style={{ backgroundColor: "#0284C720", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                        <Text style={{ fontSize: 10, color: "#0284C7", fontFamily: "Inter_600SemiBold" }}>{isRTL ? "تعميم" : "Circulaire"}</Text>
+                      </View>
+                    )}
+                  </View>
+                  {item.notes && <Text style={[styles.adNotes, isRTL && styles.rtlText]}>{item.notes}</Text>}
+                  <Text style={styles.requestTime}>{formatTime(item.createdAt, language)}</Text>
+                </View>
+              );
+            }}
             ListEmptyComponent={
               <View style={styles.emptyState}>
                 <MaterialCommunityIcons name="bullhorn-outline" size={64} color={Colors.light.textTertiary} />
-                <Text style={[styles.emptyTitle, isRTL && styles.rtlText]}>{isRTL ? "لا توجد إعلانات من الشركاء" : "Aucune annonce des partenaires"}</Text>
-                <Text style={[styles.emptySub, isRTL && styles.rtlText]}>{isRTL ? "ستظهر هنا إعلانات شركات الأدوية" : "Les annonces des sociétés pharma apparaîtront ici"}</Text>
+                <Text style={[styles.emptyTitle, isRTL && styles.rtlText]}>{isRTL ? "لا توجد إعلانات أو تعميمات" : "Aucune annonce ni circulaire"}</Text>
+                <Text style={[styles.emptySub, isRTL && styles.rtlText]}>{isRTL ? "ستظهر هنا إعلانات وتعميمات شركات الأدوية" : "Les annonces des sociétés pharma apparaîtront ici"}</Text>
               </View>
             }
           />

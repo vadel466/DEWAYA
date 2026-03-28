@@ -16,7 +16,14 @@ app.use(helmet({
 
 app.use(compression());
 
-app.use(cors());
+const corsOptions = {
+  origin: "*",
+  methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-admin-secret", "Accept"],
+  credentials: false,
+  optionsSuccessStatus: 200,
+};
+app.use(cors(corsOptions));
 
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

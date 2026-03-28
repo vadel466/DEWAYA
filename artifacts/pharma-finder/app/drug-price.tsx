@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   FlatList,
   Platform,
-  ScrollView,
   KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +16,7 @@ import { router } from "expo-router";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 
+/* ─── API base — uses Replit dev domain for both native & web ── */
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : "/api";
@@ -71,7 +71,6 @@ export default function DrugPriceScreen() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<TextInput>(null);
 
-  /* check if DB is empty on mount (silent) */
   useEffect(() => {
     fetch(`${API_BASE}/drug-prices/stats`)
       .then(r => r.ok ? r.json() : null)
@@ -103,7 +102,7 @@ export default function DrugPriceScreen() {
       setSearched(true);
       setSearchError(false);
     } catch (err) {
-      console.error("[drug search error]", err);
+      console.error("[drug search error]", String(err));
       if (!append) { setResults([]); setSearched(true); setSearchError(true); }
     } finally {
       if (append) setLoadingMore(false);
@@ -111,7 +110,7 @@ export default function DrugPriceScreen() {
     }
   }, []);
 
-  /* debounce — triggers from 2 chars */
+  /* debounce — 2 chars minimum */
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (query.trim().length < 2) {
@@ -133,50 +132,41 @@ export default function DrugPriceScreen() {
     setHasMore(false); setOffset(0); setSearchError(false);
   };
 
-  /* price display helpers */
   const whole = (p: number) => Math.floor(p);
-  const dec = (p: number) => p % 1 !== 0 ? `.${(p % 1).toFixed(1).slice(2)}` : "";
+  const dec   = (p: number) => p % 1 !== 0 ? `.${(p % 1).toFixed(1).slice(2)}` : "";
 
-  /* states for dropdown visibility */
-  const isTyping = query.trim().length >= 2;
-  const showDropdown = isTyping && !searchError;
-  const showNotFound = isTyping && searched && !loading && results.length === 0 && !searchError;
+  const isTyping      = query.trim().length >= 2;
+  const showResults   = isTyping && !searchError && results.length > 0;
+  const showLoading   = isTyping && loading && results.length === 0;
+  const showError     = isTyping && searchError;
+  const showNotFound  = isTyping && searched && !loading && results.length === 0 && !searchError;
+  const showIdle      = !isTyping;
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  /* ─── result row (compact, for dropdown) ─────────────────── */
-  const renderSuggestionRow = ({ item, index }: { item: Drug; index: number }) => {
+  /* ─── suggestion row ─────────────────────────────────────── */
+  const renderRow = ({ item, index }: { item: Drug; index: number }) => {
     const mainName = isRTL && item.nameAr ? item.nameAr : item.name;
     const altName  = isRTL ? item.name : (item.nameAr ?? null);
-    const isLast = index === results.length - 1;
+    const isLast   = index === results.length - 1;
 
     return (
-      <View style={[styles.suggRow, !isLast && styles.suggRowBorder, isRTL && styles.rowReverse]}>
-        <View style={styles.pillDot}>
+      <View style={[styles.row, !isLast && styles.rowBorder, isRTL && styles.rtlRow]}>
+        <View style={styles.rowPill}>
           <MaterialCommunityIcons name="pill" size={14} color={Colors.warning} />
         </View>
-        <View style={[styles.suggNames, isRTL && { alignItems: "flex-end" }]}>
-          <Highlighted
-            text={mainName}
-            query={query}
-            style={[styles.suggMain, isRTL && styles.rtl]}
-            hl={styles.hl}
-          />
-          {altName ? (
-            <Highlighted
-              text={altName}
-              query={query}
-              style={[styles.suggAlt, isRTL && styles.rtl]}
-              hl={styles.hl}
-            />
-          ) : null}
-          {item.unit ? (
-            <Text style={[styles.suggUnit, isRTL && styles.rtl]} numberOfLines={1}>{item.unit}</Text>
-          ) : null}
+        <View style={[styles.rowNames, isRTL && { alignItems: "flex-end" }]}>
+          <Highlighted text={mainName} query={query} style={[styles.rowMain, isRTL && styles.rtl]} hl={styles.hl} />
+          {altName
+            ? <Highlighted text={altName} query={query} style={[styles.rowAlt, isRTL && styles.rtl]} hl={styles.hl} />
+            : null}
+          {item.unit
+            ? <Text style={[styles.rowUnit, isRTL && styles.rtl]} numberOfLines={1}>{item.unit}</Text>
+            : null}
         </View>
-        <View style={styles.suggPrice}>
-          <Text style={styles.suggPriceNum}>{whole(item.price)}{dec(item.price)}</Text>
-          <Text style={styles.suggPriceCur}>MRU</Text>
+        <View style={styles.rowPriceBadge}>
+          <Text style={styles.rowPrice}>{whole(item.price)}{dec(item.price)}</Text>
+          <Text style={styles.rowCur}>MRU</Text>
         </View>
       </View>
     );
@@ -184,14 +174,13 @@ export default function DrugPriceScreen() {
 
   /* ─── render ─────────────────────────────────────────────── */
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={[styles.root, { paddingTop: topPad }]}>
 
-        {/* ── Header ── */}
-        <View style={[styles.header, isRTL && styles.rowReverse]}>
+        {/* ════════════════════════════════════════════
+            HEADER
+           ════════════════════════════════════════════ */}
+        <View style={[styles.header, isRTL && styles.rtlRow]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
             <Ionicons name={isRTL ? "chevron-forward" : "chevron-back"} size={24} color={Colors.primary} />
           </TouchableOpacity>
@@ -208,120 +197,112 @@ export default function DrugPriceScreen() {
           </View>
         </View>
 
-        {/* ══════════════════════════════════════════════════
-            بطاقة البحث + التنبيهات في كتلة واحدة
-            Carte de recherche unifiée
-           ══════════════════════════════════════════════════ */}
-        <View style={styles.searchCard}>
+        {/* ════════════════════════════════════════════
+            تنبيهات ثابتة — فوق البحث
+            Bandeaux fixes — AU-DESSUS de la recherche
+           ════════════════════════════════════════════ */}
 
-          {/* ─ Search bar ─ */}
-          <View style={[styles.searchRow, isRTL && styles.rowReverse]}>
-            <Ionicons name="search-outline" size={20} color={Colors.primary} />
-            <TextInput
-              ref={inputRef}
-              style={[styles.input, isRTL && styles.rtl]}
-              placeholder={isRTL ? "اكتب اسم الدواء (حرفان كافيان)..." : "Nom du médicament (2 lettres suffisent)..."}
-              placeholderTextColor={Colors.light.textTertiary}
-              value={query}
-              onChangeText={setQuery}
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="search"
-              textAlign={isRTL ? "right" : "left"}
-              onSubmitEditing={() => { if (query.trim().length >= 2) search(query, 0, false); }}
-            />
-            {loading
-              ? <ActivityIndicator size="small" color={Colors.primary} />
-              : query.length > 0
-                ? <TouchableOpacity onPress={clearQuery} activeOpacity={0.7}>
-                    <Ionicons name="close-circle" size={19} color={Colors.light.textTertiary} />
-                  </TouchableOpacity>
-                : null
-            }
-          </View>
-
-          {/* ─ Divider ─ */}
-          <View style={styles.cardDivider} />
-
-          {/* ─ Official price notice (amber) ─ */}
-          <View style={[styles.infoRow, isRTL && styles.rowReverse]}>
-            <MaterialCommunityIcons name="shield-check" size={14} color="#B45309" />
-            <Text style={[styles.infoTextAmber, isRTL && styles.rtl]} numberOfLines={2}>
-              {isRTL
-                ? "أسعار موحَّدة معتمَدة من وزارة الصحة الموريتانية — أي زيادة قد تُعدّ غشّاً"
-                : "Prix homologués par le Ministère de la Santé mauritanien — toute hausse peut constituer une fraude"}
-            </Text>
-          </View>
-
-          {/* ─ Small divider ─ */}
-          <View style={styles.cardDividerLight} />
-
-          {/* ─ DCI tip (blue) ─ */}
-          <View style={[styles.infoRow, isRTL && styles.rowReverse]}>
-            <MaterialCommunityIcons name="flask-outline" size={14} color="#2563EB" />
-            <Text style={[styles.infoTextBlue, isRTL && styles.rtl]} numberOfLines={3}>
-              {isRTL
-                ? "لم تجده؟ ابحث بالاسم العلمي (DCI) المكتوب تحت الاسم التجاري على العلبة — مثال: Paracétamol"
-                : "Introuvable ? Cherchez le DCI inscrit sous le nom commercial sur la boîte — Ex. : Paracétamol"}
-            </Text>
-          </View>
+        {/* تنبيه رسمي — أصفر */}
+        <View style={[styles.bannerAmber, isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#B45309", flexDirection: "row-reverse" }]}>
+          <MaterialCommunityIcons name="shield-check" size={13} color="#92400E" />
+          <Text style={[styles.bannerAmberText, isRTL && styles.rtl]} numberOfLines={2}>
+            {isRTL
+              ? "أسعار موحَّدة ومعتمَدة من وزارة الصحة الموريتانية — أي زيادة في السعر قد تُعدّ غشّاً"
+              : "Prix homologués par le Ministère de la Santé mauritanien — toute hausse peut constituer une fraude"}
+          </Text>
         </View>
 
-        {/* ══════════════════════════════════════════════════
-            قائمة الاقتراحات — ملتصقة بالبطاقة أعلاه
-            Liste des suggestions — collée à la carte
-           ══════════════════════════════════════════════════ */}
+        {/* توجيه DCI — أزرق */}
+        <View style={[styles.bannerBlue, isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#2563EB", flexDirection: "row-reverse" }]}>
+          <MaterialCommunityIcons name="flask-outline" size={13} color="#2563EB" />
+          <Text style={[styles.bannerBlueText, isRTL && styles.rtl]} numberOfLines={2}>
+            {isRTL
+              ? "لم تجده؟ ابحث بالاسم العلمي (DCI) على العلبة — مثال: Paracétamol"
+              : "Introuvable ? Cherchez le DCI sur la boîte — Ex. : Paracétamol"}
+          </Text>
+        </View>
 
-        {showDropdown && results.length > 0 && (
-          <View style={styles.dropdownCard}>
-            <View style={[styles.dropdownHeader, isRTL && styles.rowReverse]}>
-              <Text style={[styles.dropdownCount, isRTL && styles.rtl]}>
+        {/* ════════════════════════════════════════════
+            حقل البحث
+            Champ de recherche
+           ════════════════════════════════════════════ */}
+        <View style={[styles.searchBar, isRTL && styles.rtlRow]}>
+          <Ionicons name="search-outline" size={20} color={Colors.primary} />
+          <TextInput
+            ref={inputRef}
+            style={[styles.searchInput, isRTL && styles.rtl]}
+            placeholder={isRTL ? "اكتب اسم الدواء (حرفان كافيان)..." : "Nom du médicament (2 lettres suffisent)..."}
+            placeholderTextColor={Colors.light.textTertiary}
+            value={query}
+            onChangeText={setQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            textAlign={isRTL ? "right" : "left"}
+            onSubmitEditing={() => { if (query.trim().length >= 2) search(query, 0, false); }}
+          />
+          {loading
+            ? <ActivityIndicator size="small" color={Colors.primary} />
+            : query.length > 0
+              ? <TouchableOpacity onPress={clearQuery} activeOpacity={0.7}>
+                  <Ionicons name="close-circle" size={19} color={Colors.light.textTertiary} />
+                </TouchableOpacity>
+              : null}
+        </View>
+
+        {/* ════════════════════════════════════════════
+            قائمة الأدوية — ملتصقة بحقل البحث من الأسفل
+            Liste des médicaments — collée sous le champ
+           ════════════════════════════════════════════ */}
+
+        {/* 1. نتائج البحث */}
+        {showResults && (
+          <View style={styles.resultsCard}>
+            <View style={[styles.resultsHeader, isRTL && styles.rtlRow]}>
+              <Text style={[styles.resultsCount, isRTL && styles.rtl]}>
                 {isRTL
                   ? `${results.length} نتيجة${hasMore ? "+" : ""} لـ «${query}»`
                   : `${results.length} résultat${results.length > 1 ? "s" : ""}${hasMore ? "+" : ""} pour «${query}»`}
               </Text>
-              {searched && (
-                <MaterialCommunityIcons name="check-circle-outline" size={14} color={Colors.accent} />
-              )}
             </View>
             <FlatList
               data={results}
               keyExtractor={item => item.id}
-              renderItem={renderSuggestionRow}
-              style={styles.dropdown}
+              renderItem={renderRow}
+              style={styles.resultsList}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               onEndReached={loadMore}
               onEndReachedThreshold={0.3}
               ListFooterComponent={
-                hasMore ? (
-                  <TouchableOpacity style={styles.moreBtn} onPress={loadMore} disabled={loadingMore} activeOpacity={0.8}>
-                    {loadingMore
-                      ? <ActivityIndicator size="small" color={Colors.primary} />
-                      : <Text style={styles.moreText}>{isRTL ? "تحميل المزيد" : "Charger plus"}</Text>}
-                  </TouchableOpacity>
-                ) : null
+                hasMore
+                  ? <TouchableOpacity style={styles.moreBtn} onPress={loadMore} disabled={loadingMore} activeOpacity={0.8}>
+                      {loadingMore
+                        ? <ActivityIndicator size="small" color={Colors.primary} />
+                        : <Text style={styles.moreText}>{isRTL ? "تحميل المزيد" : "Charger plus"}</Text>}
+                    </TouchableOpacity>
+                  : null
               }
             />
           </View>
         )}
 
-        {/* ─ Loading indicator (under card) ─ */}
-        {isTyping && loading && results.length === 0 && (
-          <View style={styles.loadingRow}>
+        {/* 2. Loading */}
+        {showLoading && (
+          <View style={[styles.inlineBox, isRTL && styles.rtlRow]}>
             <ActivityIndicator size="small" color={Colors.primary} />
-            <Text style={[styles.loadingText, isRTL && styles.rtl]}>
+            <Text style={[styles.inlineText, isRTL && styles.rtl]}>
               {isRTL ? "جاري البحث..." : "Recherche en cours..."}
             </Text>
           </View>
         )}
 
-        {/* ─ Search error ─ */}
-        {isTyping && searchError && (
-          <View style={styles.inlineError}>
-            <MaterialCommunityIcons name="wifi-off" size={18} color="#EF4444" />
-            <Text style={[styles.inlineErrorText, isRTL && styles.rtl]}>
-              {isRTL ? "تعذّر الاتصال" : "Erreur de connexion"}
+        {/* 3. خطأ اتصال */}
+        {showError && (
+          <View style={[styles.errorBox, isRTL && styles.rtlRow]}>
+            <MaterialCommunityIcons name="wifi-off" size={18} color="#DC2626" />
+            <Text style={[styles.errorText, isRTL && styles.rtl]}>
+              {isRTL ? "تعذّر الاتصال بالخادم" : "Erreur de connexion au serveur"}
             </Text>
             <TouchableOpacity onPress={() => search(query, 0, false)} activeOpacity={0.8} style={styles.retryBtn}>
               <Text style={styles.retryText}>{isRTL ? "إعادة" : "Réessayer"}</Text>
@@ -329,25 +310,25 @@ export default function DrugPriceScreen() {
           </View>
         )}
 
-        {/* ─ Not found ─ */}
+        {/* 4. لم يُعثر */}
         {showNotFound && (
-          <View style={styles.notFoundCard}>
-            <MaterialCommunityIcons name="pill-off" size={26} color={Colors.warning} />
+          <View style={[styles.notFoundBox, isRTL && styles.rtlRow]}>
+            <MaterialCommunityIcons name="pill-off" size={22} color={Colors.warning} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.notFoundTitle, isRTL && styles.rtl]}>
                 {isRTL ? "لم يُعثر على هذا الدواء" : "Médicament introuvable"}
               </Text>
               <Text style={[styles.notFoundSub, isRTL && styles.rtl]}>
                 {isRTL
-                  ? "ابحث بالاسم العلمي (DCI) مثل: Paracétamol، Amoxicillin، Ibuprofen"
-                  : "Cherchez le DCI, ex. : Paracétamol, Amoxicillin, Ibuprofen"}
+                  ? "ابحث بالاسم العلمي (DCI) مثل: Paracétamol، Amoxicillin"
+                  : "Cherchez le DCI, ex. : Paracétamol, Amoxicillin"}
               </Text>
             </View>
           </View>
         )}
 
-        {/* ─ Idle placeholder ─ */}
-        {!isTyping && (
+        {/* 5. Placeholder — حالة الخمول */}
+        {showIdle && (
           <View style={styles.placeholder}>
             <View style={styles.placeholderIcon}>
               <MaterialCommunityIcons name="magnify" size={44} color={Colors.primary} />
@@ -355,12 +336,12 @@ export default function DrugPriceScreen() {
             <Text style={[styles.placeholderTitle, isRTL && styles.rtl]}>
               {dbEmpty
                 ? (isRTL ? "قاعدة البيانات فارغة" : "Base de données vide")
-                : (isRTL ? "ابدأ الكتابة" : "Commencez à taper")}
+                : (isRTL ? "ابدأ الكتابة للبحث" : "Commencez à taper")}
             </Text>
             <Text style={[styles.placeholderSub, isRTL && styles.rtl]}>
               {dbEmpty
                 ? (isRTL ? "يُرجى مراجعة الإدارة" : "Contactez l'administrateur")
-                : (isRTL ? "الاقتراحات ستظهر فور كتابة حرفين" : "Les suggestions s'affichent dès 2 caractères")}
+                : (isRTL ? "ستظهر الاقتراحات فور كتابة حرفين" : "Les suggestions s'affichent dès 2 caractères")}
             </Text>
           </View>
         )}
@@ -373,7 +354,7 @@ export default function DrugPriceScreen() {
 /* ─── styles ─────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.light.background },
-  rowReverse: { flexDirection: "row-reverse" },
+  rtlRow: { flexDirection: "row-reverse" },
   rtl: { textAlign: "right", writingDirection: "rtl" },
   hl: { backgroundColor: Colors.warning + "40", color: "#92400E", borderRadius: 3 },
 
@@ -390,110 +371,112 @@ const styles = StyleSheet.create({
   },
   headerTitles: { flex: 1, alignItems: "flex-start" },
   headerTitle: { fontFamily: "Inter_700Bold", fontSize: 16, color: Colors.light.text },
-  headerSub: {
-    fontFamily: "Inter_400Regular", fontSize: 11,
-    color: Colors.light.textSecondary, marginTop: 1,
-  },
+  headerSub: { fontFamily: "Inter_400Regular", fontSize: 11, color: Colors.light.textSecondary, marginTop: 1 },
   tagCircle: {
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: "#FEF9EE", alignItems: "center", justifyContent: "center",
   },
 
-  /* unified search card */
-  searchCard: {
-    backgroundColor: Colors.light.card,
-    borderRadius: 16,
-    marginHorizontal: 14,
-    marginTop: 12,
-    borderWidth: 1.5,
-    borderColor: Colors.light.border,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+  /* ── التنبيهات فوق البحث ── */
+  bannerAmber: {
+    flexDirection: "row", alignItems: "center", gap: 7,
+    backgroundColor: "#FFFBEB",
+    borderLeftWidth: 3, borderLeftColor: "#B45309",
+    marginHorizontal: 14, marginTop: 10, marginBottom: 3,
+    paddingHorizontal: 11, paddingVertical: 8,
+    borderRadius: 10,
   },
-  searchRow: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: Platform.OS === "web" ? 12 : 0,
-    minHeight: 50,
-  },
-  input: {
+  bannerAmberText: {
     flex: 1, fontFamily: "Inter_400Regular",
-    fontSize: 15, color: Colors.light.text, paddingVertical: 13,
+    fontSize: 11.5, color: "#78350F", lineHeight: 17,
   },
-  cardDivider: { height: 1, backgroundColor: Colors.light.border, marginHorizontal: 0 },
-  cardDividerLight: { height: 1, backgroundColor: Colors.light.border + "70", marginHorizontal: 12 },
-
-  /* info rows inside card */
-  infoRow: {
-    flexDirection: "row", alignItems: "flex-start", gap: 8,
-    paddingHorizontal: 13, paddingVertical: 8,
+  bannerBlue: {
+    flexDirection: "row", alignItems: "center", gap: 7,
+    backgroundColor: "#EFF6FF",
+    borderLeftWidth: 3, borderLeftColor: "#2563EB",
+    marginHorizontal: 14, marginTop: 0, marginBottom: 8,
+    paddingHorizontal: 11, paddingVertical: 8,
+    borderRadius: 10,
   },
-  infoTextAmber: {
-    flex: 1, fontFamily: "Inter_400Regular",
-    fontSize: 11.5, color: "#92400E", lineHeight: 17,
-  },
-  infoTextBlue: {
+  bannerBlueText: {
     flex: 1, fontFamily: "Inter_400Regular",
     fontSize: 11.5, color: "#1E40AF", lineHeight: 17,
   },
 
-  /* dropdown suggestions card */
-  dropdownCard: {
+  /* ── حقل البحث ── */
+  searchBar: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2, borderColor: Colors.primary + "60",
+    borderRadius: 14,
+    marginHorizontal: 14,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === "web" ? 12 : 0,
+    minHeight: 52,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  searchInput: {
+    flex: 1, fontFamily: "Inter_400Regular",
+    fontSize: 15, color: Colors.light.text, paddingVertical: 13,
+  },
+
+  /* ── قائمة النتائج — ملتصقة بحقل البحث ── */
+  resultsCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
     marginHorizontal: 14,
-    marginTop: 6,
+    marginTop: 4,                  /* ← ملتصقة بحقل البحث */
     borderWidth: 1,
     borderColor: Colors.light.border,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.10,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 5,
     overflow: "hidden",
-    maxHeight: 340,
+    maxHeight: 360,
   },
-  dropdownHeader: {
+  resultsHeader: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 14, paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: Colors.light.border,
     backgroundColor: Colors.light.backgroundSecondary ?? "#F8FAFC",
+    borderBottomWidth: 1, borderBottomColor: Colors.light.border,
   },
-  dropdownCount: {
+  resultsCount: {
     fontFamily: "Inter_400Regular", fontSize: 11.5,
     color: Colors.light.textTertiary,
   },
-  dropdown: { maxHeight: 300 },
+  resultsList: { maxHeight: 312 },
 
-  /* suggestion row */
-  suggRow: {
+  /* صف نتيجة واحدة */
+  row: {
     flexDirection: "row", alignItems: "center",
     paddingHorizontal: 14, paddingVertical: 11, gap: 10,
   },
-  suggRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.light.border },
-  pillDot: {
+  rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.light.border },
+  rowPill: {
     width: 30, height: 30, borderRadius: 15,
     backgroundColor: Colors.warning + "15",
     alignItems: "center", justifyContent: "center", flexShrink: 0,
   },
-  suggNames: { flex: 1, alignItems: "flex-start", gap: 2 },
-  suggMain: { fontFamily: "Inter_600SemiBold", fontSize: 13.5, color: Colors.light.text },
-  suggAlt: { fontFamily: "Inter_400Regular", fontSize: 11.5, color: Colors.light.textSecondary },
-  suggUnit: { fontFamily: "Inter_400Regular", fontSize: 10.5, color: Colors.light.textTertiary },
-  suggPrice: {
+  rowNames: { flex: 1, alignItems: "flex-start", gap: 2 },
+  rowMain: { fontFamily: "Inter_600SemiBold", fontSize: 13.5, color: Colors.light.text },
+  rowAlt: { fontFamily: "Inter_400Regular", fontSize: 11.5, color: Colors.light.textSecondary },
+  rowUnit: { fontFamily: "Inter_400Regular", fontSize: 10.5, color: Colors.light.textTertiary },
+  rowPriceBadge: {
     alignItems: "center",
     backgroundColor: Colors.warning + "12",
     borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5,
     minWidth: 56, flexShrink: 0,
   },
-  suggPriceNum: { fontFamily: "Inter_700Bold", fontSize: 16, color: Colors.warning },
-  suggPriceCur: { fontFamily: "Inter_400Regular", fontSize: 9.5, color: Colors.warning + "AA" },
+  rowPrice: { fontFamily: "Inter_700Bold", fontSize: 16, color: Colors.warning },
+  rowCur: { fontFamily: "Inter_400Regular", fontSize: 9.5, color: Colors.warning + "AA" },
 
-  /* load more */
+  /* تحميل المزيد */
   moreBtn: {
     alignSelf: "center", marginVertical: 10,
     paddingHorizontal: 22, paddingVertical: 8,
@@ -501,54 +484,40 @@ const styles = StyleSheet.create({
   },
   moreText: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: Colors.primary },
 
-  /* loading inline */
-  loadingRow: {
+  /* loading / error / not-found inline */
+  inlineBox: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    marginHorizontal: 14, marginTop: 10,
+    marginHorizontal: 14, marginTop: 4,
     backgroundColor: Colors.light.card,
-    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11,
     borderWidth: 1, borderColor: Colors.light.border,
   },
-  loadingText: {
-    fontFamily: "Inter_400Regular", fontSize: 13,
-    color: Colors.light.textSecondary,
-  },
+  inlineText: { fontFamily: "Inter_400Regular", fontSize: 13, color: Colors.light.textSecondary },
 
-  /* error inline */
-  inlineError: {
+  errorBox: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    marginHorizontal: 14, marginTop: 8,
+    marginHorizontal: 14, marginTop: 4,
     backgroundColor: "#FEE2E2",
     borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
   },
-  inlineErrorText: {
-    flex: 1, fontFamily: "Inter_400Regular",
-    fontSize: 13, color: "#DC2626",
-  },
+  errorText: { flex: 1, fontFamily: "Inter_400Regular", fontSize: 13, color: "#DC2626" },
   retryBtn: {
     backgroundColor: "#DC2626" + "18",
     borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5,
   },
   retryText: { fontFamily: "Inter_600SemiBold", fontSize: 12, color: "#DC2626" },
 
-  /* not found inline */
-  notFoundCard: {
+  notFoundBox: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    marginHorizontal: 14, marginTop: 8,
+    marginHorizontal: 14, marginTop: 4,
     backgroundColor: "#FEF9EE",
-    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 14,
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
     borderWidth: 1, borderColor: Colors.warning + "30",
   },
-  notFoundTitle: {
-    fontFamily: "Inter_600SemiBold", fontSize: 14,
-    color: Colors.light.text, marginBottom: 3,
-  },
-  notFoundSub: {
-    fontFamily: "Inter_400Regular", fontSize: 12,
-    color: Colors.light.textSecondary, lineHeight: 17,
-  },
+  notFoundTitle: { fontFamily: "Inter_600SemiBold", fontSize: 13.5, color: Colors.light.text, marginBottom: 2 },
+  notFoundSub: { fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.light.textSecondary, lineHeight: 17 },
 
-  /* idle placeholder */
+  /* placeholder حالة الخمول */
   placeholder: {
     flex: 1, alignItems: "center", justifyContent: "center",
     paddingHorizontal: 32, gap: 10,

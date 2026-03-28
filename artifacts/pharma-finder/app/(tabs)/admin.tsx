@@ -209,6 +209,10 @@ export default function AdminScreen() {
     queryKey: ["admin-pharmacies"],
     queryFn: async () => { const r = await fetch(`${API_BASE}/pharmacies`, { headers: { "x-admin-secret": ADMIN_SECRET } }); if (!r.ok) throw new Error(); return r.json(); },
     enabled: isAdmin && activeTab === "pharmacies",
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
   });
 
   const { data: dutyRegionImages = [], isLoading: dutyImgLoading, refetch: refetchDutyImages, isRefetching: dutyImgRefetching } = useQuery<{ id: string; region: string; mimeType: string; caption: string | null; isActive: boolean; uploadedAt: string }[]>({
@@ -273,6 +277,10 @@ export default function AdminScreen() {
       if (!r.ok) throw new Error(); return r.json();
     },
     enabled: isAdmin && activeTab === "prices",
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
   });
 
   const filteredDrugPrices = prSearch.trim()
@@ -462,26 +470,6 @@ export default function AdminScreen() {
     onError: (e: any) => Alert.alert(isRTL ? "خطأ" : "Erreur", String(e?.message || e)),
   });
 
-  const seedDemoMutation = useMutation({
-    mutationFn: async () => {
-      const r = await fetch(`${API_BASE}/drug-prices/seed-demo`, {
-        method: "POST",
-        headers: { "x-admin-secret": ADMIN_SECRET },
-      });
-      const text = await r.text();
-      if (!r.ok) throw new Error(`HTTP ${r.status}: ${text}`);
-      return JSON.parse(text);
-    },
-    onSuccess: (data: any) => {
-      qc.invalidateQueries({ queryKey: ["admin-drug-prices"] });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        isRTL ? "✅ تم إضافة بيانات تجريبية" : "✅ Données de démonstration ajoutées",
-        isRTL ? `تم إضافة ${data.inserted} دواء تجريبياً للقاعدة` : `${data.inserted} médicaments de démonstration ajoutés`
-      );
-    },
-    onError: (e: any) => Alert.alert(isRTL ? "خطأ" : "Erreur", String(e?.message || e)),
-  });
 
   const openAddPrice = () => {
     setEditingPrice(null);
@@ -529,14 +517,14 @@ export default function AdminScreen() {
     }
   };
 
-  const sendFileToApi = async (base64: string, mimeType: string, fileName: string) => {
+  const doSendFileToApi = async (base64: string, mimeType: string, fileName: string, replaceAll: boolean) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 180_000);
     try {
       const resp = await fetch(`${API_BASE}/drug-prices/upload-and-save`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
-        body: JSON.stringify({ fileData: base64, fileType: mimeType || "application/octet-stream", fileName, replaceAll: true }),
+        body: JSON.stringify({ fileData: base64, fileType: mimeType || "application/octet-stream", fileName, replaceAll }),
         signal: controller.signal,
       });
       const data = await resp.json();
@@ -555,11 +543,53 @@ export default function AdminScreen() {
       webAlert(
         isRTL ? "تم الاستيراد ✓" : "Import réussi ✓",
         isRTL
-          ? `تمت إضافة ${data.imported} دواء إلى قاعدة البيانات بنجاح`
-          : `${data.imported} médicaments importés avec succès`
+          ? `تمت ${replaceAll ? "استبدال قاعدة الأدوية بـ" : "إضافة"} ${data.imported} دواء بنجاح`
+          : `${data.imported} médicaments ${replaceAll ? "importés (base remplacée)" : "ajoutés"} avec succès`
       );
     } finally {
       clearTimeout(timer);
+    }
+  };
+
+  const sendFileToApi = async (base64: string, mimeType: string, fileName: string) => {
+    /* Ask user: add to existing OR replace all */
+    if (Platform.OS === "web") {
+      const replace = typeof window !== "undefined" && window.confirm(
+        isRTL
+          ? `هل تريد استبدال جميع الأدوية الحالية بهذا الملف؟\n\n• اضغط "موافق" لاستبدال الكل (خطر: يحذف ${drugTotalCount} دواء حالي)\n• اضغط "إلغاء" لإضافة الأدوية الجديدة فقط`
+          : `Remplacer tous les médicaments actuels par ce fichier ?\n\n• OK = Remplacer tout (supprime ${drugTotalCount} médicaments)\n• Annuler = Ajouter uniquement`
+      );
+      await doSendFileToApi(base64, mimeType, fileName, replace);
+    } else {
+      Alert.alert(
+        isRTL ? "وضع الاستيراد" : "Mode d'import",
+        isRTL
+          ? `الملف: ${fileName}\n\nاختر وضع الاستيراد:`
+          : `Fichier: ${fileName}\n\nChoisissez le mode d'import:`,
+        [
+          { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+          {
+            text: isRTL ? "➕ إضافة فقط" : "➕ Ajouter seulement",
+            onPress: () => doSendFileToApi(base64, mimeType, fileName, false),
+          },
+          {
+            text: isRTL ? "🔄 استبدال الكل" : "🔄 Remplacer tout",
+            style: "destructive",
+            onPress: () => {
+              Alert.alert(
+                isRTL ? "⚠️ تأكيد الاستبدال" : "⚠️ Confirmer remplacement",
+                isRTL
+                  ? `سيتم حذف ${drugTotalCount} دواء حالي نهائياً واستبدالهم بمحتوى الملف.\n\nهل أنت متأكد تماماً؟`
+                  : `Les ${drugTotalCount} médicaments actuels seront définitivement supprimés.\n\nÊtes-vous sûr ?`,
+                [
+                  { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+                  { text: isRTL ? "نعم، استبدل" : "Oui, remplacer", style: "destructive", onPress: () => doSendFileToApi(base64, mimeType, fileName, true) },
+                ]
+              );
+            },
+          },
+        ]
+      );
     }
   };
 
@@ -657,18 +687,35 @@ export default function AdminScreen() {
   };
 
   const handleClearAllPrices = () => {
-    const msg = isRTL ? "سيتم حذف جميع بيانات الأسعار نهائياً. هل أنت متأكد؟" : "Toutes les données de prix seront supprimées définitivement. Confirmer ?";
+    const step1Msg = isRTL
+      ? `⚠️ سيتم حذف ${drugTotalCount} دواء نهائياً من قاعدة البيانات.\n\nهذه العملية لا يمكن التراجع عنها!`
+      : `⚠️ ${drugTotalCount} médicaments seront définitivement supprimés.\n\nCette opération est irréversible !`;
     if (Platform.OS === "web") {
-      if (typeof window !== "undefined" && window.confirm(msg)) {
-        clearAllPricesMutation.mutate();
+      if (typeof window !== "undefined" && window.confirm(step1Msg)) {
+        if (window.confirm(isRTL ? "تأكيد نهائي: هل أنت متأكد 100%؟" : "Confirmation finale: êtes-vous sûr à 100% ?")) {
+          clearAllPricesMutation.mutate();
+        }
       }
     } else {
       Alert.alert(
-        isRTL ? "مسح جميع الأدوية" : "Effacer tous les médicaments",
-        msg,
+        isRTL ? "⚠️ مسح جميع الأدوية" : "⚠️ Effacer tous les médicaments",
+        step1Msg,
         [
           { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
-          { text: isRTL ? "مسح الكل" : "Tout effacer", style: "destructive", onPress: () => clearAllPricesMutation.mutate() },
+          {
+            text: isRTL ? "نعم، احذف الكل" : "Oui, tout supprimer",
+            style: "destructive",
+            onPress: () => {
+              Alert.alert(
+                isRTL ? "تأكيد نهائي" : "Confirmation finale",
+                isRTL ? "آخر تحذير: لا يمكن استعادة البيانات بعد الحذف." : "Dernier avertissement: les données ne pourront pas être récupérées.",
+                [
+                  { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+                  { text: isRTL ? "🗑️ نعم، امسح نهائياً" : "🗑️ Oui, supprimer", style: "destructive", onPress: () => clearAllPricesMutation.mutate() },
+                ]
+              );
+            },
+          },
         ]
       );
     }

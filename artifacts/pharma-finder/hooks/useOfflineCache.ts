@@ -226,15 +226,20 @@ export function useOfflineCache() {
     try {
       const data = await downloadAllPharmacies(controller.signal);
       if (controller.signal.aborted || !mountedRef.current) return;
-      const ts = Date.now();
-      await AsyncStorage.multiSet([
-        [PHARM_KEY, JSON.stringify(data)],
-        [PHARM_TS_KEY, String(ts)],
-      ]);
-      if (!mountedRef.current) return;
-      setPharmacies(data);
-      setPharmCachedAt(ts);
-      setPharmStatus("ready");
+      /* SAFETY: never overwrite cache with an empty array — keeps existing data intact */
+      if (data.length > 0) {
+        const ts = Date.now();
+        await AsyncStorage.multiSet([
+          [PHARM_KEY, JSON.stringify(data)],
+          [PHARM_TS_KEY, String(ts)],
+        ]);
+        if (!mountedRef.current) return;
+        setPharmacies(data);
+        setPharmCachedAt(ts);
+        setPharmStatus("ready");
+      } else {
+        if (mountedRef.current) setPharmStatus(pharmacies.length > 0 ? "ready" : "error");
+      }
     } catch {
       if (mountedRef.current && !controller.signal.aborted) {
         setPharmStatus(pharmacies.length > 0 ? "ready" : "error");

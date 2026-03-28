@@ -438,14 +438,20 @@ router.post("/bulk", async (req, res) => {
   }
 });
 
-/* ─── ADMIN: seed demo data ──────────────────────────────────── */
+/* ─── ADMIN: seed demo data — ONLY when DB is empty ─────────── */
 router.post("/seed-demo", async (req, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: "Forbidden" });
 
-  /* If data already exists, wipe it first to avoid duplicates */
+  /* SAFETY: refuse if real data already exists — prevents accidental wipe */
   try {
     const [countRow] = await db.select({ c: sql<number>`count(*)::int` }).from(drugPricesTable);
-    if (countRow.c > 0) await db.delete(drugPricesTable);
+    if (countRow.c > 0) {
+      return res.status(409).json({
+        error: `La base contient déjà ${countRow.c} médicaments. Opération refusée pour protéger les données.`,
+        errorAr: `قاعدة البيانات تحتوي على ${countRow.c} دواء. تم رفض العملية لحماية البيانات.`,
+        count: countRow.c,
+      });
+    }
   } catch {}
 
   const demoDrugs = [

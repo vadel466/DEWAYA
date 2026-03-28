@@ -248,9 +248,7 @@ export default function HomeScreen() {
       label: isRTL ? "التمريض المنزلي\nوالرعاية الصحية" : "Soins infirmiers\nà domicile",
       strip: "#00796B", iconBg: "#E0F2F1",
       mainIcon: "medical-bag" as const, mainColor: "#00796B",
-      secondIcon: "doctor" as const, secondColor: "#00796B",
-      textColor: "#00695C", barBg: "#00796B12",
-      tail: <Text style={{ fontSize: 11 }}>🏠</Text>,
+      textColor: "#004D40", barBg: "#00796B14",
       onPress: goToFindDoctor,
     },
     {
@@ -258,9 +256,7 @@ export default function HomeScreen() {
       label: isRTL ? "سعر الدواء" : "Prix médicament",
       strip: "#E65100", iconBg: "#FFF3E0",
       mainIcon: "tag" as const, mainColor: "#E65100",
-      secondIcon: "content-cut" as const, secondColor: "#00796B",
-      textColor: "#BF360C", barBg: "#E6510012",
-      tail: null,
+      textColor: "#BF360C", barBg: "#E6510014",
       onPress: goToDrugPrice,
     },
     {
@@ -268,9 +264,7 @@ export default function HomeScreen() {
       label: isRTL ? "صيدليات المداومة" : "Pharmacies de Garde",
       strip: "#283593", iconBg: "#E8EAF6",
       mainIcon: "weather-night" as const, mainColor: "#283593",
-      secondIcon: null, secondColor: "",
-      textColor: "#1A237E", barBg: "#28359312",
-      tail: <Text style={{ fontSize: 11 }}>🌙</Text>,
+      textColor: "#1A237E", barBg: "#28359314",
       onPress: goToDutyDirect,
     },
     {
@@ -278,9 +272,7 @@ export default function HomeScreen() {
       label: isRTL ? "أقرب صيدلية" : "Pharmacie la plus proche",
       strip: "#1565C0", iconBg: "#E3F2FD",
       mainIcon: "map-marker" as const, mainColor: "#1565C0",
-      secondIcon: "store-outline" as const, secondColor: "#78909C",
-      textColor: "#0D47A1", barBg: "#1565C012",
-      tail: null,
+      textColor: "#0D47A1", barBg: "#1565C014",
       onPress: goToNearest,
     },
   ];
@@ -295,12 +287,13 @@ export default function HomeScreen() {
 
         {/* ════ HEADER ════ */}
         <View style={styles.header}>
+          {/* Bell — left corner */}
           <TouchableOpacity
             style={styles.bellBtn}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/(tabs)/notifications"); }}
             activeOpacity={0.75}
           >
-            <Ionicons name={lockedCount > 0 ? "notifications" : "notifications-outline"} size={21} color="#1A237E" />
+            <Ionicons name={lockedCount > 0 ? "notifications" : "notifications-outline"} size={22} color="#1A237E" />
             {lockedCount > 0 && (
               <View style={styles.bellBadge}>
                 <Text style={styles.bellBadgeText}>{lockedCount > 9 ? "9+" : String(lockedCount)}</Text>
@@ -308,8 +301,7 @@ export default function HomeScreen() {
             )}
           </TouchableOpacity>
 
-          <View style={{ flex: 1 }} />
-
+          {/* Logo — centered */}
           <TouchableOpacity
             style={styles.appIdentity}
             onPressIn={handleLogoPressIn}
@@ -318,24 +310,25 @@ export default function HomeScreen() {
             delayLongPress={5000}
             activeOpacity={0.9}
           >
-            <View style={styles.appNameGroup}>
-              <Text style={styles.appNameAr}>أدوايـا</Text>
-              <View style={styles.appSubIcons}>
-                <MaterialCommunityIcons name="pill" size={9} color="#78909C" />
-                <MaterialCommunityIcons name="hospital-box" size={9} color="#78909C" />
-              </View>
-            </View>
-            <View style={styles.logoWrap}>
+            {/* Bubble + animated ring as one group */}
+            <View style={styles.logoGroup}>
               <Animated.View style={[styles.logoRing, {
                 borderColor: logoProgress.interpolate({ inputRange: [0, 1], outputRange: [Colors.primary + "00", Colors.primary] }),
               }]} />
               <View style={styles.logoBubble}>
-                <MaterialCommunityIcons name="stethoscope" size={20} color="#fff" />
+                <MaterialCommunityIcons name="stethoscope" size={22} color="#fff" />
               </View>
               {isAdmin && <View style={styles.adminDot} />}
-              <Text style={styles.logoSubText}>DEWAYA</Text>
+            </View>
+            {/* App name + tagline */}
+            <View style={styles.appNameGroup}>
+              <Text style={styles.appNameAr}>أدوايـا</Text>
+              <Text style={styles.logoSubText}>D E W A Y A</Text>
             </View>
           </TouchableOpacity>
+
+          {/* Invisible spacer — same width as bell to keep logo truly centered */}
+          <View style={styles.bellPlaceholder} />
         </View>
 
         {/* ════ LANGUAGE LINE ════ */}
@@ -444,57 +437,33 @@ export default function HomeScreen() {
 
         {/* ════ CARDS GRID — flex:1 fills remaining space ════ */}
         <View style={styles.cardsGrid}>
-          {/* Row 1 */}
-          <View style={styles.cardsRow}>
-            {cards.slice(0, 2).map((c) => (
-              <TouchableOpacity key={c.id} style={styles.card} onPress={c.onPress} activeOpacity={0.82}>
-                <View style={[styles.cardTopStrip, { backgroundColor: c.strip }]} />
-                <View style={styles.cardIconsArea}>
-                  <View style={[styles.cardMainIconBox, { backgroundColor: c.iconBg }]}>
-                    <MaterialCommunityIcons name={c.mainIcon} size={26} color={c.mainColor} />
+          {[cards.slice(0, 2), cards.slice(2, 4)].map((row, ri) => (
+            <View key={ri} style={styles.cardsRow}>
+              {row.map((c) => (
+                <TouchableOpacity key={c.id} style={styles.card} onPress={c.onPress} activeOpacity={0.82}>
+                  <View style={[styles.cardTopStrip, { backgroundColor: c.strip }]} />
+                  {/* Single centered icon */}
+                  <View style={styles.cardIconsArea}>
+                    <View style={[styles.cardMainIconBox, { backgroundColor: c.iconBg }]}>
+                      <MaterialCommunityIcons name={c.mainIcon} size={30} color={c.mainColor} />
+                    </View>
                   </View>
-                  {c.secondIcon && (
-                    <MaterialCommunityIcons name={c.secondIcon} size={c.id === "nursing" ? 36 : 22} color={c.secondColor} style={c.id === "nursing" ? styles.cardSecondaryIcon : styles.cardSecondaryIconSm} />
-                  )}
-                </View>
-                <View style={[styles.cardBottomBar, { backgroundColor: c.barBg }]}>
-                  <Text style={[styles.cardBottomText, { color: c.textColor }, isRTL && styles.textRight]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.72}>
-                    {c.label}
-                  </Text>
-                  <View style={styles.cardBottomTrail}>
-                    {c.tail}
-                    <Ionicons name={ch} size={12} color={c.strip} />
+                  {/* Label bar — no extra icons */}
+                  <View style={[styles.cardBottomBar, { backgroundColor: c.barBg }]}>
+                    <Text
+                      style={[styles.cardBottomText, { color: c.textColor }, isRTL && styles.textRight]}
+                      numberOfLines={2}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.75}
+                    >
+                      {c.label}
+                    </Text>
+                    <Ionicons name={ch} size={13} color={c.strip} style={{ flexShrink: 0 }} />
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Row 2 */}
-          <View style={styles.cardsRow}>
-            {cards.slice(2, 4).map((c) => (
-              <TouchableOpacity key={c.id} style={styles.card} onPress={c.onPress} activeOpacity={0.82}>
-                <View style={[styles.cardTopStrip, { backgroundColor: c.strip }]} />
-                <View style={styles.cardIconsArea}>
-                  <View style={[styles.cardMainIconBox, { backgroundColor: c.iconBg }]}>
-                    <MaterialCommunityIcons name={c.mainIcon} size={26} color={c.mainColor} />
-                  </View>
-                  {c.secondIcon && (
-                    <MaterialCommunityIcons name={c.secondIcon} size={24} color={c.secondColor} style={styles.cardSecondaryIcon} />
-                  )}
-                </View>
-                <View style={[styles.cardBottomBar, { backgroundColor: c.barBg }]}>
-                  <Text style={[styles.cardBottomText, { color: c.textColor }, isRTL && styles.textRight]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.72}>
-                    {c.label}
-                  </Text>
-                  <View style={styles.cardBottomTrail}>
-                    {c.tail}
-                    <Ionicons name={ch} size={12} color={c.strip} />
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ))}
         </View>
 
         {/* ════ FOOTER ════ */}
@@ -695,29 +664,42 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: "#F0F4F8",
   },
   bellBadgeText: { color: "#fff", fontSize: 8, fontFamily: "Inter_700Bold", lineHeight: 10 },
-  appIdentity: { flexDirection: "row", alignItems: "center", gap: 8 },
-  appNameGroup: { alignItems: "flex-end" },
-  appNameAr: { fontFamily: "Inter_700Bold", fontSize: 20, color: "#1A237E", letterSpacing: 0.3 },
-  appSubIcons: { flexDirection: "row", gap: 3, marginTop: 1 },
-  logoWrap: { alignItems: "center", position: "relative" },
+  bellPlaceholder: { width: 48, height: 48 },
+
+  /* Logo centered in header */
+  appIdentity: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  logoGroup: {
+    width: 46, height: 46,
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   logoRing: {
     position: "absolute", top: -3, left: -3,
-    width: 48, height: 48, borderRadius: 24,
+    width: 52, height: 52, borderRadius: 26,
     borderWidth: 2, borderColor: "transparent",
   },
   logoBubble: {
-    width: 42, height: 42, borderRadius: 21,
+    width: 46, height: 46, borderRadius: 23,
     backgroundColor: Colors.primary,
     alignItems: "center", justifyContent: "center",
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6,
     elevation: 4,
   },
   adminDot: {
-    position: "absolute", bottom: 12, right: -2,
-    width: 9, height: 9, borderRadius: 5,
+    position: "absolute", bottom: 0, right: -1,
+    width: 10, height: 10, borderRadius: 5,
     backgroundColor: Colors.accent, borderWidth: 1.5, borderColor: "#F0F4F8",
   },
-  logoSubText: { fontFamily: "Inter_700Bold", fontSize: 8, color: "#78909C", letterSpacing: 2.5, marginTop: 2 },
+  appNameGroup: { alignItems: "flex-start" },
+  appNameAr: { fontFamily: "Inter_700Bold", fontSize: 22, color: "#1A237E", letterSpacing: 0.3 },
+  logoSubText: { fontFamily: "Inter_600SemiBold", fontSize: 9, color: "#90A4AE", letterSpacing: 3, marginTop: 1 },
 
   /* LANGUAGE LINE */
   langLine: {
@@ -812,17 +794,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   cardMainIconBox: {
-    width: 48, height: 48, borderRadius: 13,
+    width: 56, height: 56, borderRadius: 16,
     alignItems: "center", justifyContent: "center",
   },
-  cardSecondaryIcon: { marginLeft: 5, opacity: 0.85 },
-  cardSecondaryIconSm: { marginLeft: 4, marginTop: 8, opacity: 0.8 },
   cardBottomBar: {
     flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 9, paddingVertical: 8, gap: 3,
+    paddingHorizontal: 10, paddingVertical: 9, gap: 4,
   },
-  cardBottomText: { flex: 1, fontFamily: "Inter_700Bold", fontSize: 12, lineHeight: 16 },
-  cardBottomTrail: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
+  cardBottomText: {
+    flex: 1,
+    fontFamily: "Inter_700Bold",
+    fontSize: 12.5,
+    lineHeight: 17,
+    letterSpacing: 0.1,
+  },
 
   /* FOOTER */
   aboutLink: {

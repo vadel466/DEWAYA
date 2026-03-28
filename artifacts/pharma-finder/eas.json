@@ -8,7 +8,6 @@
       "node": "20.19.4",
       "developmentClient": true,
       "distribution": "internal",
-      "prebuildCommand": "npm install --no-audit && npx expo prebuild",
       "android": {
         "buildType": "apk"
       },
@@ -19,7 +18,6 @@
     "preview": {
       "node": "20.19.4",
       "distribution": "internal",
-      "prebuildCommand": "npm install --no-audit && npx expo prebuild",
       "android": {
         "buildType": "apk"
       },
@@ -30,7 +28,6 @@
     "production": {
       "node": "20.19.4",
       "distribution": "store",
-      "prebuildCommand": "npm install --no-audit && npx expo prebuild",
       "android": {
         "buildType": "app-bundle"
       },

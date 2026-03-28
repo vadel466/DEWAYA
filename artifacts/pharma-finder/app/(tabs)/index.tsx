@@ -168,19 +168,13 @@ export default function HomeScreen() {
 
   const handleSearch = async () => {
     if (!drugName.trim() && !capturedImage) return;
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (drugName.trim()) {
-      router.push({ pathname: "/pharmacy-results", params: { drug: drugName.trim() } });
-      return;
-    }
-    /* Image-only: submit a request as before */
     setLoading(true);
     setError(null);
     try {
       const resp = await fetch(`${API_BASE}/requests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, drugName: t("imageDrug") }),
+        body: JSON.stringify({ userId, drugName: drugName.trim() || t("imageDrug") }),
       });
       if (!resp.ok) throw new Error("Failed");
       await resp.json();

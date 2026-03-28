@@ -88,14 +88,14 @@ router.post("/", async (req, res) => {
   try {
     if (!isAdmin(req)) { res.status(401).json({ error: "Non autorisé" }); return; }
     const { name, nameAr, address, addressAr, phone, lat, lon, region, portalPin } = req.body;
-    if (!name || !address || !phone) {
-      res.status(400).json({ error: "name, address, and phone are required" });
+    if (!name || !phone) {
+      res.status(400).json({ error: "name and phone are required" });
       return;
     }
     const id = generateId();
     const [pharmacy] = await db
       .insert(pharmaciesTable)
-      .values({ id, name, nameAr, address, addressAr, phone, lat, lon, region, portalPin, isActive: true })
+      .values({ id, name: name.trim(), nameAr: nameAr?.trim() || undefined, address: address?.trim() || "", addressAr: addressAr?.trim() || undefined, phone: phone.trim(), lat, lon, region: region || undefined, portalPin: portalPin?.trim() || undefined, isActive: true })
       .returning();
     res.status(201).json({ ...pharmacy, createdAt: pharmacy.createdAt.toISOString() });
   } catch (err) {

@@ -50,7 +50,7 @@ export const pharmaciesTable = pgTable("pharmacies", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   nameAr: text("name_ar"),
-  address: text("address").notNull(),
+  address: text("address").notNull().default(""),
   addressAr: text("address_ar"),
   phone: text("phone").notNull(),
   lat: real("lat"),

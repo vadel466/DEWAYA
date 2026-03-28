@@ -697,7 +697,7 @@ export default function AdminScreen() {
 
   const savePharmacyMutation = useMutation({
     mutationFn: async () => {
-      const body = { name: pName, nameAr: pNameAr || undefined, address: pAddress, addressAr: pAddressAr || undefined, phone: pPhone, lat: pLat ? parseFloat(pLat) : undefined, lon: pLon ? parseFloat(pLon) : undefined, region: pRegion || undefined, portalPin: pPin || undefined };
+      const body = { name: pName.trim() || pNameAr.trim(), nameAr: pNameAr.trim() || undefined, address: "", addressAr: undefined, phone: pPhone.trim(), lat: pLat ? parseFloat(pLat) : undefined, lon: pLon ? parseFloat(pLon) : undefined, region: undefined, portalPin: pPin.trim() || undefined };
       const HEADERS = { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET };
       if (editingPharmacy) {
         const r = await fetch(`${API_BASE}/pharmacies/${editingPharmacy.id}`, { method: "PUT", headers: HEADERS, body: JSON.stringify(body) });
@@ -2226,31 +2226,33 @@ export default function AdminScreen() {
                   {editingPharmacy ? (isRTL ? "تعديل صيدلية" : "Modifier la pharmacie") : (isRTL ? "إضافة صيدلية جديدة" : "Ajouter une pharmacie")}
                 </Text>
                 {[
-                  { label: isRTL ? "الاسم (فرنسي)" : "Nom (français)", value: pName, setter: setPName, placeholder: "Pharmacie..." },
-                  { label: isRTL ? "الاسم (عربي)" : "Nom (arabe)", value: pNameAr, setter: setPNameAr, placeholder: "صيدلية..." },
-                  { label: isRTL ? "العنوان" : "Adresse", value: pAddress, setter: setPAddress, placeholder: isRTL ? "العنوان بالفرنسية..." : "Adresse..." },
-                  { label: isRTL ? "العنوان (عربي)" : "Adresse (arabe)", value: pAddressAr, setter: setPAddressAr, placeholder: isRTL ? "العنوان بالعربية..." : "Adresse en arabe..." },
-                  { label: isRTL ? "رقم الهاتف" : "Téléphone", value: pPhone, setter: setPPhone, placeholder: "XX XXX XXX", keyboardType: "phone-pad" as any },
-                  { label: isRTL ? "خط العرض (GPS)" : "Latitude (GPS)", value: pLat, setter: setPLat, placeholder: "18.08...", keyboardType: "decimal-pad" as any },
-                  { label: isRTL ? "خط الطول (GPS)" : "Longitude (GPS)", value: pLon, setter: setPLon, placeholder: "-15.97...", keyboardType: "decimal-pad" as any },
-                  { label: isRTL ? "رمز البوابة (للصيدلية)" : "Code portail (pharmacie)", value: pPin, setter: setPPin, placeholder: "PIN..." },
+                  { label: isRTL ? "اسم الصيدلية (عربي) *" : "Nom pharmacie (arabe) *", value: pNameAr, setter: setPNameAr, placeholder: "صيدلية...", icon: "business-outline" },
+                  { label: isRTL ? "اسم الصيدلية (فرنسي) *" : "Nom pharmacie (français) *", value: pName, setter: setPName, placeholder: "Pharmacie...", icon: "business-outline" },
+                  { label: isRTL ? "رقم الهاتف *" : "Téléphone *", value: pPhone, setter: setPPhone, placeholder: "XX XXX XXX", keyboardType: "phone-pad" as any, icon: "call-outline" },
+                  { label: isRTL ? "رمز الدخول الخاص بالصيدلية" : "Code d'accès de la pharmacie", value: pPin, setter: setPPin, placeholder: isRTL ? "رمز سري..." : "Code secret...", icon: "lock-closed-outline" },
                 ].map((field) => (
                   <View key={field.label} style={styles.formGroup}>
                     <Text style={[styles.label, isRTL && styles.rtlText]}>{field.label}</Text>
-                    <TextInput style={[styles.input, { marginHorizontal: 0 }, isRTL && styles.rtlInput]} placeholder={field.placeholder} placeholderTextColor={Colors.light.textTertiary} value={field.value} onChangeText={field.setter} textAlign={isRTL ? "right" : "left"} keyboardType={field.keyboardType} />
+                    <View style={[styles.inputRow, isRTL && styles.rtlRow]}>
+                      <Ionicons name={field.icon as any} size={16} color={Colors.light.textSecondary} style={styles.inputIcon} />
+                      <TextInput style={[styles.input, isRTL && styles.rtlInput]} placeholder={field.placeholder} placeholderTextColor={Colors.light.textTertiary} value={field.value} onChangeText={field.setter} textAlign={isRTL ? "right" : "left"} keyboardType={field.keyboardType} />
+                    </View>
                   </View>
                 ))}
                 <View style={styles.formGroup}>
-                  <Text style={[styles.label, isRTL && styles.rtlText]}>{isRTL ? "المنطقة" : "Région"}</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
-                    {REGIONS.map((r) => (
-                      <TouchableOpacity key={r.id} style={[styles.regionChip, pRegion === r.id && styles.regionChipActive]} onPress={() => setPRegion(r.id)} activeOpacity={0.8}>
-                        <Text style={[styles.regionChipText, pRegion === r.id && { color: "#fff" }]}>{isRTL ? r.ar : r.fr}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                  <Text style={[styles.label, isRTL && styles.rtlText]}>{isRTL ? "موقع GPS" : "Localisation GPS"}</Text>
+                  <View style={{ flexDirection: isRTL ? "row-reverse" : "row", gap: 8 }}>
+                    <View style={[styles.inputRow, isRTL && styles.rtlRow, { flex: 1 }]}>
+                      <Ionicons name="navigate-outline" size={16} color={Colors.light.textSecondary} style={styles.inputIcon} />
+                      <TextInput style={[styles.input, isRTL && styles.rtlInput]} placeholder={isRTL ? "خط العرض" : "Latitude"} placeholderTextColor={Colors.light.textTertiary} value={pLat} onChangeText={setPLat} keyboardType="decimal-pad" textAlign={isRTL ? "right" : "left"} />
+                    </View>
+                    <View style={[styles.inputRow, isRTL && styles.rtlRow, { flex: 1 }]}>
+                      <Ionicons name="navigate-outline" size={16} color={Colors.light.textSecondary} style={styles.inputIcon} />
+                      <TextInput style={[styles.input, isRTL && styles.rtlInput]} placeholder={isRTL ? "خط الطول" : "Longitude"} placeholderTextColor={Colors.light.textTertiary} value={pLon} onChangeText={setPLon} keyboardType="decimal-pad" textAlign={isRTL ? "right" : "left"} />
+                    </View>
+                  </View>
                 </View>
-                <TouchableOpacity style={[styles.sendButton, (!pName || !pAddress || !pPhone) && styles.sendButtonDisabled]} onPress={() => savePharmacyMutation.mutate()} disabled={!pName || !pAddress || !pPhone || savePharmacyMutation.isPending} activeOpacity={0.85}>
+                <TouchableOpacity style={[styles.sendButton, ((!pNameAr && !pName) || !pPhone) && styles.sendButtonDisabled]} onPress={() => savePharmacyMutation.mutate()} disabled={(!pNameAr && !pName) || !pPhone || savePharmacyMutation.isPending} activeOpacity={0.85}>
                   {savePharmacyMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="save-outline" size={18} color="#fff" /><Text style={styles.sendButtonText}>{isRTL ? "حفظ" : "Enregistrer"}</Text></>}
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.cancelButton} onPress={() => setShowPharmacyModal(false)} activeOpacity={0.7}>

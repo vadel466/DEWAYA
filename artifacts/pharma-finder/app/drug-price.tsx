@@ -98,7 +98,7 @@ export default function DrugPriceScreen() {
       setSearchError(false);
     } catch (err: any) {
       if (err?.name === "AbortError") console.warn("[search timeout]");
-      else console.error("[drug search error]", String(err));
+      else console.warn("[drug search error]", String(err));
       if (!append) {
         /* fall back to local cache */
         const cached = drugsRef.current;
@@ -198,7 +198,21 @@ export default function DrugPriceScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── حقل البحث في أعلى الشاشة مباشرة ───────────────── */}
+        {/* ── التنبيه — يظهر فوق حقل البحث عند التركيز ───────── */}
+        {searchFocused && (
+          <View style={styles.alertsBox}>
+            <View style={[styles.alertRow, styles.alertBlue, isRTL && styles.rtlRow]}>
+              <MaterialCommunityIcons name="flask-outline" size={13} color="#2563EB" />
+              <Text style={[styles.alertText, { color: "#1E40AF" }, isRTL && styles.rtl]} numberOfLines={2}>
+                {isRTL
+                  ? "لم تجده؟ ابحث بالاسم العلمي (DCI) على العلبة — مثال: Paracétamol"
+                  : "Introuvable ? Cherchez le DCI sur la boîte — Ex. : Paracétamol"}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* ── حقل البحث ────────────────────────────────────────── */}
         <View style={[styles.searchBar, isRTL && styles.rtlRow, searchFocused && styles.searchBarFocused]}>
           <Ionicons name="search-outline" size={20} color={Colors.primary} />
           <TextInput
@@ -226,29 +240,6 @@ export default function DrugPriceScreen() {
                 </TouchableOpacity>
               : null}
         </View>
-
-        {/* ── التنبيهات — تظهر فقط عند التركيز على البحث ─────── */}
-        {searchFocused && (
-          <View style={styles.alertsBox}>
-            <View style={[styles.alertRow, styles.alertAmber, isRTL && styles.rtlRow]}>
-              <MaterialCommunityIcons name="shield-check" size={13} color="#92400E" />
-              <Text style={[styles.alertText, { color: "#78350F" }, isRTL && styles.rtl]} numberOfLines={2}>
-                {isRTL
-                  ? "أسعار موحَّدة ومعتمَدة من وزارة الصحة — أي زيادة قد تُعدّ غشّاً"
-                  : "Prix homologués par le Ministère de la Santé — toute hausse peut constituer une fraude"}
-              </Text>
-            </View>
-            <View style={styles.alertSep} />
-            <View style={[styles.alertRow, styles.alertBlue, isRTL && styles.rtlRow]}>
-              <MaterialCommunityIcons name="flask-outline" size={13} color="#2563EB" />
-              <Text style={[styles.alertText, { color: "#1E40AF" }, isRTL && styles.rtl]} numberOfLines={2}>
-                {isRTL
-                  ? "لم تجده؟ ابحث بالاسم العلمي (DCI) على العلبة — مثال: Paracétamol"
-                  : "Introuvable ? Cherchez le DCI sur la boîte — Ex. : Paracétamol"}
-              </Text>
-            </View>
-          </View>
-        )}
 
         {/* ── offline banners ─────────────────────────────────── */}
         {!isOnline && hasCacheData && (
@@ -423,7 +414,7 @@ const styles = StyleSheet.create({
 
   /* مستطيل التنبيهات الموحَّد */
   alertsBox: {
-    marginHorizontal: 14, marginTop: 8, marginBottom: 4,
+    marginHorizontal: 14, marginTop: 4, marginBottom: 4,
     borderRadius: 12, overflow: "hidden",
     borderWidth: 1.5, borderColor: "#BFDBFE",
   },

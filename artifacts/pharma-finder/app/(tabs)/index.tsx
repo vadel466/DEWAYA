@@ -269,18 +269,34 @@ export default function HomeScreen() {
     Alert.alert(t("comingSoon"), t("comingSoonMsg"));
   };
 
-  const goToNearest = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const mapsUrl = Platform.OS === "ios"
-      ? "maps://?q=pharmacy&ll=18.0857,-15.9785&z=13"
-      : "geo:18.0857,-15.9785?q=pharmacy+Nouakchott&z=13";
-    Linking.canOpenURL(mapsUrl).then((ok) => {
-      if (ok) {
-        Linking.openURL(mapsUrl);
-      } else {
-        Linking.openURL("https://www.google.com/maps/search/pharmacy/@18.0857,-15.9785,13z");
+  const goToNearest = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    /* على الويب: لا يمكن طلب إذن الموقع بنفس الطريقة — فتح خرائط جوجل مباشرة */
+    if (Platform.OS === "web") {
+      Linking.openURL("https://www.google.com/maps/search/pharmacy+near+me");
+      return;
+    }
+
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === "granted") {
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        const { latitude, longitude } = loc.coords;
+        /* فتح خرائط جوجل على موقع المستخدم الفعلي مع البحث عن صيدلية */
+        Linking.openURL(
+          `https://www.google.com/maps/search/pharmacy/@${latitude},${longitude},15z`
+        );
+        return;
       }
-    });
+    } catch {
+      /* تجاهل أخطاء الموقع والانتقال إلى الاحتياطي */
+    }
+
+    /* احتياطي: مركز نواكشوط */
+    Linking.openURL("https://www.google.com/maps/search/pharmacy+Nouakchott/@18.0857,-15.9785,13z");
   };
 
   const goToDutyDirect = () => {
@@ -1254,7 +1270,7 @@ const styles = StyleSheet.create({
 
   /* GRID — البطاقات الأربع */
   grid: { flex: 1 },
-  gridRow: { flex: 1, flexDirection: "row", gap: 10 },
+  gridRow: { flex: 1, flexDirection: "row", gap: 10, minHeight: 135 },
   card: {
     flex: 1,
     backgroundColor: "#fff",

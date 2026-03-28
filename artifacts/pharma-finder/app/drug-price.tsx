@@ -47,48 +47,62 @@ export default function DrugPriceScreen() {
   const { isOnline } = useNetworkStatus();
   const { drugs, drugStatus, syncDrugs } = useOfflineCache();
 
-  const [query, setQuery]         = useState("");
-  const [results, setResults]     = useState<CachedDrug[]>([]);
-  const [loading, setLoading]     = useState(false);
+  const [query, setQuery]             = useState("");
+  const [results, setResults]         = useState<CachedDrug[]>([]);
+  const [loading, setLoading]         = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore]     = useState(false);
-  const [offset, setOffset]       = useState(0);
+  const [hasMore, setHasMore]         = useState(false);
+  const [offset, setOffset]           = useState(0);
   const [searchError, setSearchError] = useState(false);
-  const [searched, setSearched]   = useState(false);
+  const [searched, setSearched]       = useState(false);
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inputRef = useRef<TextInput>(null);
+  const debounceRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef     = useRef<TextInput>(null);
+  /* keep a ref to latest drugs so async callbacks always see fresh data */
+  const drugsRef     = useRef<CachedDrug[]>(drugs);
+  useEffect(() => { drugsRef.current = drugs; }, [drugs]);
 
-  /* on mount: focus + trigger background sync */
+  /* on mount: focus; defer cache sync so UI appears instantly */
   useEffect(() => {
-    setTimeout(() => inputRef.current?.focus(), 350);
-    if (isOnline) syncDrugs();
+    const t = setTimeout(() => inputRef.current?.focus(), 200);
+    /* sync cache after short delay so it doesn't block first paint */
+    const s = setTimeout(() => { if (isOnline) syncDrugs(); }, 800);
+    return () => { clearTimeout(t); clearTimeout(s); };
   }, []);
 
-  /* ── online search via API ── */
-  const searchOnline = useCallback(async (q: string, off = 0, append = false) => {
+  /* ── core search: always hit API, fall back to local cache ── */
+  const doSearch = useCallback(async (q: string, off: number, append: boolean) => {
     const trimmed = q.trim();
-    if (trimmed.length < 2) { reset(); return; }
+    if (trimmed.length < 2) return;
+
     if (append) setLoadingMore(true);
     else { setLoading(true); setSearchError(false); }
 
     try {
       const url = `${API_BASE}/drug-prices/search?q=${encodeURIComponent(trimmed)}&limit=${LIMIT}&offset=${off}`;
-      const resp = await fetch(url);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000); // 8s timeout
+      const resp = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data: CachedDrug[] = await resp.json();
+
+      if (!Array.isArray(data)) throw new Error("bad response");
       if (append) setResults(prev => [...prev, ...data]);
       else setResults(data);
       setHasMore(data.length === LIMIT);
       setOffset(off + data.length);
       setSearched(true);
       setSearchError(false);
-    } catch (err) {
-      console.error("[drug search error]", String(err));
+    } catch (err: any) {
+      if (err?.name === "AbortError") console.warn("[search timeout]");
+      else console.error("[drug search error]", String(err));
       if (!append) {
-        /* fall back to offline cache if available */
-        if (drugs.length > 0) {
-          const local = localDrugSearch(drugs, trimmed, LIMIT, 0);
+        /* fall back to local cache */
+        const cached = drugsRef.current;
+        if (cached.length > 0) {
+          const local = localDrugSearch(cached, trimmed, LIMIT, off);
           setResults(local);
           setHasMore(false);
           setOffset(local.length);
@@ -104,42 +118,28 @@ export default function DrugPriceScreen() {
       if (append) setLoadingMore(false);
       else setLoading(false);
     }
-  }, [drugs]);
+  }, []);
 
-  /* ── offline search (local) ── */
-  const searchOffline = useCallback((q: string, off = 0, append = false) => {
-    const trimmed = q.trim();
-    if (trimmed.length < 2) { reset(); return; }
-    const local = localDrugSearch(drugs, trimmed, LIMIT, off);
-    if (append) setResults(prev => [...prev, ...local]);
-    else setResults(local);
-    setHasMore(local.length === LIMIT);
-    setOffset(off + local.length);
-    setSearched(true);
-  }, [drugs]);
-
-  const reset = () => {
+  const reset = useCallback(() => {
     setResults([]); setSearched(false); setLoading(false);
     setHasMore(false); setOffset(0); setSearchError(false);
-  };
+  }, []);
 
-  /* debounce — always try API first; fallback to cache on failure */
+  /* debounce search — stable effect with no stale closure */
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (query.trim().length < 2) { reset(); return; }
+    const q = query.trim();
+    if (q.length < 2) { reset(); return; }
     setLoading(true);
-    debounceRef.current = setTimeout(() => {
-      /* always attempt online search; searchOnline falls back to cache on error */
-      searchOnline(query, 0, false);
-    }, 300);
+    debounceRef.current = setTimeout(() => { doSearch(q, 0, false); }, 280);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query]);
+  }, [query, doSearch, reset]);
 
-  const loadMore = () => {
+  const loadMore = useCallback(() => {
     if (!loadingMore && hasMore && query.trim().length >= 2) {
-      searchOnline(query, offset, true);
+      doSearch(query.trim(), offset, true);
     }
-  };
+  }, [loadingMore, hasMore, query, offset, doSearch]);
 
   const clearQuery = () => {
     setQuery(""); reset();
@@ -265,10 +265,7 @@ export default function DrugPriceScreen() {
             returnKeyType="search"
             textAlign={isRTL ? "right" : "left"}
             onSubmitEditing={() => {
-              if (query.trim().length >= 2) {
-                if (isOnline) searchOnline(query, 0, false);
-                else searchOffline(query, 0, false);
-              }
+              if (query.trim().length >= 2) doSearch(query.trim(), 0, false);
             }}
           />
           {loading
@@ -333,7 +330,7 @@ export default function DrugPriceScreen() {
             <Text style={[styles.errorText, isRTL && styles.rtl]}>
               {isRTL ? "تعذّر الاتصال بالخادم" : "Erreur de connexion au serveur"}
             </Text>
-            <TouchableOpacity onPress={() => searchOnline(query, 0, false)} activeOpacity={0.8} style={styles.retryBtn}>
+            <TouchableOpacity onPress={() => doSearch(query.trim(), 0, false)} activeOpacity={0.8} style={styles.retryBtn}>
               <Text style={styles.retryText}>{isRTL ? "إعادة" : "Réessayer"}</Text>
             </TouchableOpacity>
           </View>

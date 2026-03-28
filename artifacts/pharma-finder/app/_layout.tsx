@@ -8,11 +8,14 @@ import * as Font from "expo-font";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useState } from "react";
 import { Image, Platform, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+
+const INTRO_KEY = "@dewaya_intro_shown";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import IntroScreen from "@/components/IntroScreen";
@@ -68,10 +71,16 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
-  const [showIntro, setShowIntro] = useState(true);
+  /* null = checking, true = show, false = skip */
+  const [showIntro, setShowIntro] = useState<boolean | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+
+    /* Check if intro was already shown (skip on repeat launches) */
+    AsyncStorage.getItem(INTRO_KEY)
+      .then(val => { if (!cancelled) setShowIntro(val !== "1"); })
+      .catch(() => { if (!cancelled) setShowIntro(true); });
 
     if (Platform.OS === "web") {
       setReady(true);
@@ -106,7 +115,10 @@ export default function RootLayout() {
     }
   }, [ready]);
 
-  const handleIntroFinish = useCallback(() => setShowIntro(false), []);
+  const handleIntroFinish = useCallback(() => {
+    AsyncStorage.setItem(INTRO_KEY, "1").catch(() => {});
+    setShowIntro(false);
+  }, []);
 
   return (
     <SafeAreaProvider>
@@ -116,7 +128,7 @@ export default function RootLayout() {
             <KeyboardProvider>
               <AppProvider>
                 <RootLayoutNav />
-                {showIntro && <IntroScreen onFinish={handleIntroFinish} />}
+                {showIntro === true && <IntroScreen onFinish={handleIntroFinish} />}
               </AppProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>

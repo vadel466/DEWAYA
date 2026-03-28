@@ -28,21 +28,21 @@ export default function IntroScreen({ onFinish }: IntroScreenProps) {
   const screenOpacity  = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    const fallback = setTimeout(onFinish, 5000);
+    const fallback = setTimeout(onFinish, 2500);
 
     Animated.sequence([
-      Animated.timing(logoAnim, { toValue: 1, duration: 280, useNativeDriver: ND }),
-      Animated.delay(120),
+      Animated.timing(logoAnim, { toValue: 1, duration: 250, useNativeDriver: ND }),
+      Animated.delay(80),
       Animated.parallel([
-        Animated.timing(titleOpacity, { toValue: 1, duration: 280, useNativeDriver: ND }),
-        Animated.timing(titleY,       { toValue: 0, duration: 280, useNativeDriver: ND }),
+        Animated.timing(titleOpacity, { toValue: 1, duration: 240, useNativeDriver: ND }),
+        Animated.timing(titleY,       { toValue: 0, duration: 240, useNativeDriver: ND }),
       ]),
       Animated.parallel([
-        Animated.timing(taglineOpacity, { toValue: 1, duration: 260, useNativeDriver: ND }),
-        Animated.timing(taglineY,       { toValue: 0, duration: 260, useNativeDriver: ND }),
+        Animated.timing(taglineOpacity, { toValue: 1, duration: 220, useNativeDriver: ND }),
+        Animated.timing(taglineY,       { toValue: 0, duration: 220, useNativeDriver: ND }),
       ]),
-      Animated.delay(1600),
-      Animated.timing(screenOpacity, { toValue: 0, duration: 320, useNativeDriver: ND }),
+      Animated.delay(600),
+      Animated.timing(screenOpacity, { toValue: 0, duration: 260, useNativeDriver: ND }),
     ]).start(() => {
       clearTimeout(fallback);
       onFinish();

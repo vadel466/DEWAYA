@@ -10,8 +10,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useCallback, useEffect, useState } from "react";
-import { Image, Platform, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Animated, Image, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -22,15 +22,21 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import IntroScreen from "@/components/IntroScreen";
 import { AppProvider } from "@/context/AppContext";
 
+/* ── Keep native OS splash visible until we are ready ── */
 if (Platform.OS !== "web") {
   SplashScreen.preventAutoHideAsync().catch(() => {});
 }
 
+/* ── Suppress known harmless web rejections ── */
 if (Platform.OS === "web" && typeof window !== "undefined") {
   window.addEventListener("unhandledrejection", (e) => {
     const msg: string =
       e?.reason?.message ?? e?.reason ?? String(e?.reason ?? "");
-    if (msg.includes("timed out") || msg.includes("Délai") || msg.includes("FontFaceObserver")) {
+    if (
+      msg.includes("timed out") ||
+      msg.includes("Délai") ||
+      msg.includes("FontFaceObserver")
+    ) {
       e.preventDefault();
     }
   });
@@ -67,63 +73,85 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  const [fontsReady, setFontsReady] = useState(false);
-  /* null = checking AsyncStorage, true/false = result */
+  const [appReady, setAppReady] = useState(false);
   const [showIntro, setShowIntro] = useState<boolean | null>(null);
+  const [splashVisible, setSplashVisible] = useState(true);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  /* ── Font loading ── */
+  /* ── Load everything in parallel: fonts + assets + intro check ── */
   useEffect(() => {
-    const fallback = setTimeout(() => setFontsReady(true), 1500);
+    let cancelled = false;
 
-    Font.loadAsync({
-      Inter_400Regular,
-      Inter_500Medium,
-      Inter_600SemiBold,
-      Inter_700Bold,
-      /* Load icon fonts so glyphs render immediately on web & native */
-      ...Ionicons.font,
-      ...MaterialCommunityIcons.font,
-    })
-      .catch(() => {})
-      .finally(() => {
-        clearTimeout(fallback);
-        setFontsReady(true);
-      });
+    const fontTimeout = setTimeout(() => {
+      if (!cancelled) setAppReady(true);
+    }, 2000);
 
-    return () => clearTimeout(fallback);
+    const introTimeout = setTimeout(() => {
+      if (!cancelled && showIntro === null) setShowIntro(false);
+    }, 600);
+
+    Promise.all([
+      /* Fonts */
+      Font.loadAsync({
+        Inter_400Regular,
+        Inter_500Medium,
+        Inter_600SemiBold,
+        Inter_700Bold,
+        ...Ionicons.font,
+        ...MaterialCommunityIcons.font,
+      }).catch(() => {}),
+
+      /* Intro check */
+      AsyncStorage.getItem(INTRO_KEY)
+        .then((val) => {
+          if (!cancelled) {
+            clearTimeout(introTimeout);
+            setShowIntro(val !== "1");
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            clearTimeout(introTimeout);
+            setShowIntro(true);
+          }
+        }),
+    ]).finally(() => {
+      if (!cancelled) {
+        clearTimeout(fontTimeout);
+        setAppReady(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(fontTimeout);
+      clearTimeout(introTimeout);
+    };
   }, []);
 
-  /* ── Intro check — fast, with 500ms safety timeout ── */
+  /* ── Once app is ready + intro state known: hide native splash, then fade React splash ── */
   useEffect(() => {
-    const safetyTimeout = setTimeout(() => setShowIntro(false), 500);
+    if (!appReady || showIntro === null) return;
 
-    AsyncStorage.getItem(INTRO_KEY)
-      .then((val) => {
-        clearTimeout(safetyTimeout);
-        setShowIntro(val !== "1");
-      })
-      .catch(() => {
-        clearTimeout(safetyTimeout);
-        setShowIntro(true);
-      });
-
-    return () => clearTimeout(safetyTimeout);
-  }, []);
-
-  /* ── Hide native splash once both are ready ── */
-  useEffect(() => {
-    if (fontsReady && showIntro !== null && Platform.OS !== "web") {
+    /* Hide the native OS splash first */
+    if (Platform.OS !== "web") {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [fontsReady, showIntro]);
+
+    /* Fade out the React overlay over 350ms */
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 350,
+      useNativeDriver: true,
+    }).start(() => {
+      setSplashVisible(false);
+    });
+  }, [appReady, showIntro, fadeAnim]);
 
   const handleIntroFinish = useCallback(() => {
     AsyncStorage.setItem(INTRO_KEY, "1").catch(() => {});
     setShowIntro(false);
   }, []);
-
-  /* Show splash overlay while fonts or intro state are loading */
-  const showingSplash = !fontsReady || showIntro === null;
 
   return (
     <SafeAreaProvider>
@@ -132,8 +160,8 @@ export default function RootLayout() {
           <GestureHandlerRootView style={styles.root}>
             <KeyboardProvider>
               <AppProvider>
-                {fontsReady && <RootLayoutNav />}
-                {fontsReady && showIntro === true && (
+                {appReady && <RootLayoutNav />}
+                {appReady && showIntro === true && (
                   <IntroScreen onFinish={handleIntroFinish} />
                 )}
               </AppProvider>
@@ -142,24 +170,27 @@ export default function RootLayout() {
         </QueryClientProvider>
       </ErrorBoundary>
 
-      {/* Splash overlay — hides once fonts + intro state are both known */}
-      {showingSplash && (
-        <View style={styles.splash} pointerEvents="none">
-          {/* App icon — same icon used on Play Store / App Store */}
+      {/* React splash overlay — covers everything until app is ready, then fades out */}
+      {splashVisible && (
+        <Animated.View
+          style={[styles.splash, { opacity: fadeAnim }]}
+          pointerEvents="none"
+        >
+          {/* App icon */}
           <View style={styles.splashIconWrap}>
             <Image
               source={require("../assets/images/icon_v2.png")}
               style={styles.splashIcon}
               resizeMode="cover"
+              fadeDuration={0}
             />
           </View>
-          {/* App name in Arabic */}
+
+          {/* App name */}
           <Text style={styles.splashNameAr}>أدوايـا</Text>
-          {/* Tagline in Latin */}
           <Text style={styles.splashNameLat}>D E W A Y A</Text>
-          {/* Subtle tagline */}
           <Text style={styles.splashSub}>خدمة صحية متكاملة · موريتانيا</Text>
-        </View>
+        </Animated.View>
       )}
     </SafeAreaProvider>
   );
@@ -175,26 +206,42 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   splashIconWrap: {
-    width: 140, height: 140, borderRadius: 36,
+    width: 140,
+    height: 140,
+    borderRadius: 36,
     backgroundColor: "#fff",
-    alignItems: "center", justifyContent: "center",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 28,
     overflow: "hidden",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
     elevation: 10,
   },
   splashIcon: { width: 140, height: 140 },
   splashNameAr: {
-    color: "#fff", fontSize: 36, fontWeight: "800",
-    letterSpacing: 0.5, marginBottom: 4,
-    textShadowColor: "rgba(0,0,0,0.15)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
+    color: "#fff",
+    fontSize: 36,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    marginBottom: 4,
+    textShadowColor: "rgba(0,0,0,0.15)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   splashNameLat: {
-    color: "rgba(255,255,255,0.75)", fontSize: 12,
-    fontWeight: "700", letterSpacing: 6, marginBottom: 20,
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 6,
+    marginBottom: 20,
   },
   splashSub: {
-    color: "rgba(255,255,255,0.5)", fontSize: 12,
-    fontWeight: "400", letterSpacing: 0.3,
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 12,
+    fontWeight: "400",
+    letterSpacing: 0.3,
   },
 });

@@ -10,7 +10,6 @@ name = "expo"
 version = "1.0.0"
 
 [[services]]
-ensurePreviewReachable = "/status"
 localPort = 19768
 name = "expo"
 paths = ["/"]

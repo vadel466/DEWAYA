@@ -221,16 +221,38 @@ export default function NearestPharmacyScreen() {
 
   const openMaps = (item: NearestPharmacy) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    let url: string;
+    const nameEnc = encodeURIComponent(item.nameAr || item.name);
+    const addrEnc = encodeURIComponent((item.addressAr || item.address) + ", Mauritanie");
+    let primary: string;
+    let fallback: string;
+
     if (item.lat && item.lon) {
-      url = Platform.OS === "ios"
-        ? `maps:?ll=${item.lat},${item.lon}&q=${encodeURIComponent(item.name)}`
-        : `https://maps.google.com/?q=${item.lat},${item.lon}`;
+      if (Platform.OS === "ios") {
+        primary  = `maps:?ll=${item.lat},${item.lon}&q=${nameEnc}`;
+        fallback = `https://maps.apple.com/?ll=${item.lat},${item.lon}&q=${nameEnc}`;
+      } else if (Platform.OS === "android") {
+        primary  = `geo:${item.lat},${item.lon}?q=${item.lat},${item.lon}(${nameEnc})`;
+        fallback = `https://maps.google.com/maps?q=${item.lat},${item.lon}`;
+      } else {
+        primary  = `https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lon}`;
+        fallback = primary;
+      }
     } else {
-      const q = encodeURIComponent((item.addressAr || item.address) + ", Mauritanie");
-      url = Platform.OS === "ios" ? `maps:?q=${q}` : `https://maps.google.com/?q=${q}`;
+      if (Platform.OS === "ios") {
+        primary  = `maps:?q=${addrEnc}`;
+        fallback = `https://maps.apple.com/?q=${addrEnc}`;
+      } else if (Platform.OS === "android") {
+        primary  = `geo:0,0?q=${addrEnc}`;
+        fallback = `https://maps.google.com/maps?q=${addrEnc}`;
+      } else {
+        primary  = `https://www.google.com/maps/search/?api=1&query=${addrEnc}`;
+        fallback = primary;
+      }
     }
-    Linking.openURL(url);
+
+    Linking.canOpenURL(primary)
+      .then(can => Linking.openURL(can ? primary : fallback))
+      .catch(() => Linking.openURL(fallback));
   };
 
   const validMapPharmacies = pharmacies.filter(p => isValidCoord(p.lat, p.lon));

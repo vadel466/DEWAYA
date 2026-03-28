@@ -503,13 +503,7 @@ export default function HomeScreen() {
 
           <TouchableOpacity style={[styles.card, styles.nurseCard]} onPress={goToFindDoctor} activeOpacity={0.82}>
             <View style={[styles.cardAccent, { backgroundColor: "#0D9488" }]} />
-
-            {/* Title — elegant, on top of images */}
-            <Text style={[styles.nurseCardTitle, isRTL && styles.textRight]} numberOfLines={2}>
-              {isRTL ? "التمريض المنزلي\nوالرعاية الصحية" : "Soins à domicile\net infirmiers"}
-            </Text>
-
-            {/* Nurse images — female + male in medical uniform with stethoscope */}
+            {/* Nurse images — absolute background decoration */}
             <Image
               source={require("@/assets/images/nurse-female.png")}
               style={styles.nurseImgFemale}
@@ -520,7 +514,16 @@ export default function HomeScreen() {
               style={styles.nurseImgMale}
               resizeMode="contain"
             />
-
+            {/* Card content — same structure as sibling cards */}
+            <View style={[styles.cardIconCircle, { backgroundColor: "#0D94881E" }]}>
+              <MaterialCommunityIcons name="medical-bag" size={22} color="#0D9488" />
+            </View>
+            <Text style={[styles.cardTitle, { color: "#0D9488" }, isRTL && styles.textRight]} numberOfLines={2}>
+              {isRTL ? "التمريض المنزلي\nوالرعاية الصحية" : "Soins à domicile\net infirmiers"}
+            </Text>
+            <Text style={[styles.cardDesc, isRTL && styles.textRight]} numberOfLines={1}>
+              {isRTL ? "رعاية طبية في منزلك" : "Soins médicaux à domicile"}
+            </Text>
             <View style={[styles.cardChevron, { backgroundColor: "#0D948814" }]}>
               <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={12} color="#0D9488" />
             </View>
@@ -863,6 +866,8 @@ const styles = StyleSheet.create({
   },
   miniLogoRing: {
     position: "absolute",
+    top: -4,
+    left: -4,
     width: 58,
     height: 58,
     borderRadius: 29,
@@ -1267,34 +1272,22 @@ const styles = StyleSheet.create({
   nurseCard: {
     backgroundColor: "#E0F5F1",
     overflow: "hidden",
-    justifyContent: "flex-start",
-    minHeight: 130,
-  },
-  nurseCardTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 12.5,
-    color: "#0A6B62",
-    lineHeight: 18,
-    paddingLeft: 8,
-    paddingRight: 8,
-    marginTop: 8,
-    marginBottom: 0,
   },
   nurseImgFemale: {
     position: "absolute",
-    right: 16,
-    bottom: 0,
-    width: 72,
-    height: 90,
-    opacity: 1,
+    right: 12,
+    top: 4,
+    width: 60,
+    height: 75,
+    opacity: 0.85,
   },
   nurseImgMale: {
     position: "absolute",
     right: -4,
-    bottom: 0,
-    width: 60,
-    height: 76,
-    opacity: 0.9,
+    top: 8,
+    width: 50,
+    height: 63,
+    opacity: 0.75,
   },
   nurseCardImg: {
     position: "absolute",

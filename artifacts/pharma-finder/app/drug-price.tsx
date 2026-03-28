@@ -190,73 +190,20 @@ export default function DrugPriceScreen() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={[styles.root, { paddingTop: topPad }]}>
 
-        {/* Header */}
-        <View style={[styles.header, isRTL && styles.rtlRow]}>
+        {/* ── Compact top bar (back button only) ─────────────── */}
+        <View style={[styles.topBar, isRTL && styles.rtlRow]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
             <Ionicons name={isRTL ? "chevron-forward" : "chevron-back"} size={24} color={Colors.primary} />
           </TouchableOpacity>
-          <View style={[styles.headerTitles, isRTL && { alignItems: "flex-end" }]}>
-            <Text style={[styles.headerTitle, isRTL && styles.rtl]}>
-              {isRTL ? "سعر الدواء" : "Prix du médicament"}
-            </Text>
-            <Text style={[styles.headerSub, isRTL && styles.rtl]}>
-              {isRTL ? "ابحث للاطلاع على السعر الرسمي" : "Recherchez le prix officiel"}
-            </Text>
-          </View>
-          <View style={styles.tagCircle}>
-            <MaterialCommunityIcons name="tag-outline" size={20} color={Colors.warning} />
-          </View>
         </View>
 
-        {/* ── offline banner ─────────────────────────────────── */}
-        {!isOnline && hasCacheData && (
-          <View style={[styles.offlineBanner, isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#7C3AED", flexDirection: "row-reverse" }]}>
-            <MaterialCommunityIcons name="cloud-off-outline" size={13} color="#7C3AED" />
-            <Text style={[styles.offlineText, isRTL && styles.rtl]}>
-              {isRTL
-                ? "أنت تصفح قاعدة البيانات المخزنة • بيانات رسمية من وزارة الصحة"
-                : "Vous consultez la base locale • Données officielles du Ministère de la Santé"}
-            </Text>
-          </View>
-        )}
-
-        {!isOnline && !hasCacheData && (
-          <View style={[styles.offlineBannerWarn, isRTL && { flexDirection: "row-reverse" }]}>
-            <MaterialCommunityIcons name="wifi-off" size={13} color="#DC2626" />
-            <Text style={[styles.offlineWarnText, isRTL && styles.rtl]}>
-              {isRTL
-                ? "لا يوجد اتصال ولا توجد بيانات مخزنة. يُرجى الاتصال بالإنترنت مرة واحدة للتحميل."
-                : "Pas de connexion et aucune donnée locale. Connectez-vous une fois pour télécharger."}
-            </Text>
-          </View>
-        )}
-
-        {/* ── تنبيهات فوق البحث ─────────────────────────────── */}
-        <View style={[styles.bannerAmber, isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#B45309", flexDirection: "row-reverse" }]}>
-          <MaterialCommunityIcons name="shield-check" size={13} color="#92400E" />
-          <Text style={[styles.bannerAmberText, isRTL && styles.rtl]} numberOfLines={2}>
-            {isRTL
-              ? "أسعار موحَّدة ومعتمَدة من وزارة الصحة الموريتانية — أي زيادة في السعر قد تُعدّ غشّاً"
-              : "Prix homologués par le Ministère de la Santé mauritanien — toute hausse peut constituer une fraude"}
-          </Text>
-        </View>
-
-        <View style={[styles.bannerBlue, isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#2563EB", flexDirection: "row-reverse" }]}>
-          <MaterialCommunityIcons name="flask-outline" size={13} color="#2563EB" />
-          <Text style={[styles.bannerBlueText, isRTL && styles.rtl]} numberOfLines={2}>
-            {isRTL
-              ? "لم تجده؟ ابحث بالاسم العلمي (DCI) على العلبة — مثال: Paracétamol"
-              : "Introuvable ? Cherchez le DCI sur la boîte — Ex. : Paracétamol"}
-          </Text>
-        </View>
-
-        {/* ── حقل البحث ─────────────────────────────────────── */}
+        {/* ── حقل البحث (أعلى الصفحة مباشرة) ───────────────── */}
         <View style={[styles.searchBar, isRTL && styles.rtlRow]}>
           <Ionicons name="search-outline" size={20} color={Colors.primary} />
           <TextInput
             ref={inputRef}
             style={[styles.searchInput, isRTL && styles.rtl]}
-            placeholder={isRTL ? "اكتب اسم الدواء (حرفان كافيان)..." : "Nom du médicament (2 lettres suffisent)..."}
+            placeholder={isRTL ? "ابحث عن سعر الدواء..." : "Rechercher le prix du médicament..."}
             placeholderTextColor={Colors.light.textTertiary}
             value={query}
             onChangeText={setQuery}
@@ -275,6 +222,51 @@ export default function DrugPriceScreen() {
                   <Ionicons name="close-circle" size={19} color={Colors.light.textTertiary} />
                 </TouchableOpacity>
               : null}
+        </View>
+
+        {/* ── offline banners (حالة غياب الشبكة) ────────────── */}
+        {!isOnline && hasCacheData && (
+          <View style={[styles.offlineBanner, isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#7C3AED", flexDirection: "row-reverse" }]}>
+            <MaterialCommunityIcons name="cloud-off-outline" size={13} color="#7C3AED" />
+            <Text style={[styles.offlineText, isRTL && styles.rtl]}>
+              {isRTL
+                ? "أنت تصفح قاعدة البيانات المخزنة • بيانات رسمية من وزارة الصحة"
+                : "Vous consultez la base locale • Données officielles du Ministère de la Santé"}
+            </Text>
+          </View>
+        )}
+        {!isOnline && !hasCacheData && (
+          <View style={[styles.offlineBannerWarn, isRTL && { flexDirection: "row-reverse" }]}>
+            <MaterialCommunityIcons name="wifi-off" size={13} color="#DC2626" />
+            <Text style={[styles.offlineWarnText, isRTL && styles.rtl]}>
+              {isRTL
+                ? "لا يوجد اتصال ولا توجد بيانات مخزنة. يُرجى الاتصال بالإنترنت مرة واحدة للتحميل."
+                : "Pas de connexion et aucune donnée locale. Connectez-vous une fois pour télécharger."}
+            </Text>
+          </View>
+        )}
+
+        {/* ── مستطيل التنبيهات الموحَّد ──────────────────────── */}
+        <View style={styles.alertsBox}>
+          {/* تنبيه أول: الأسعار الرسمية (أصفر/برتقالي) */}
+          <View style={[styles.alertRow, styles.alertAmber, isRTL && styles.rtlRow]}>
+            <MaterialCommunityIcons name="shield-check" size={13} color="#92400E" />
+            <Text style={[styles.alertText, { color: "#78350F" }, isRTL && styles.rtl]} numberOfLines={2}>
+              {isRTL
+                ? "أسعار موحَّدة ومعتمَدة من وزارة الصحة — أي زيادة قد تُعدّ غشّاً"
+                : "Prix homologués par le Ministère de la Santé — toute hausse peut constituer une fraude"}
+            </Text>
+          </View>
+          <View style={styles.alertSep} />
+          {/* تنبيه ثانٍ: البحث بالاسم العلمي (أزرق) */}
+          <View style={[styles.alertRow, styles.alertBlue, isRTL && styles.rtlRow]}>
+            <MaterialCommunityIcons name="flask-outline" size={13} color="#2563EB" />
+            <Text style={[styles.alertText, { color: "#1E40AF" }, isRTL && styles.rtl]} numberOfLines={2}>
+              {isRTL
+                ? "لم تجده؟ ابحث بالاسم العلمي (DCI) على العلبة — مثال: Paracétamol"
+                : "Introuvable ? Cherchez le DCI sur la boîte — Ex. : Paracétamol"}
+            </Text>
+          </View>
         </View>
 
         {/* ── قائمة الأدوية ────────────────────────────────── */}
@@ -389,22 +381,15 @@ const styles = StyleSheet.create({
   rtl: { textAlign: "right", writingDirection: "rtl" },
   hl: { backgroundColor: Colors.warning + "40", color: "#92400E", borderRadius: 3 },
 
-  header: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: Colors.light.border,
+  /* compact top bar */
+  topBar: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 12, paddingVertical: 6,
   },
   backBtn: {
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: Colors.primary + "12",
     alignItems: "center", justifyContent: "center",
-  },
-  headerTitles: { flex: 1, alignItems: "flex-start" },
-  headerTitle: { fontFamily: "Inter_700Bold", fontSize: 16, color: Colors.light.text },
-  headerSub: { fontFamily: "Inter_400Regular", fontSize: 11, color: Colors.light.textSecondary, marginTop: 1 },
-  tagCircle: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "#FEF9EE", alignItems: "center", justifyContent: "center",
   },
 
   /* offline banners */
@@ -412,7 +397,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 7,
     backgroundColor: "#F5F3FF",
     borderLeftWidth: 3, borderLeftColor: "#7C3AED",
-    marginHorizontal: 14, marginTop: 8, marginBottom: 0,
+    marginHorizontal: 14, marginTop: 6, marginBottom: 0,
     paddingHorizontal: 11, paddingVertical: 7,
     borderRadius: 10,
   },
@@ -424,7 +409,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 7,
     backgroundColor: "#FEE2E2",
     borderLeftWidth: 3, borderLeftColor: "#DC2626",
-    marginHorizontal: 14, marginTop: 8, marginBottom: 0,
+    marginHorizontal: 14, marginTop: 6, marginBottom: 0,
     paddingHorizontal: 11, paddingVertical: 7,
     borderRadius: 10,
   },
@@ -433,28 +418,22 @@ const styles = StyleSheet.create({
     fontSize: 11, color: "#7F1D1D", lineHeight: 16,
   },
 
-  /* banners above search */
-  bannerAmber: {
-    flexDirection: "row", alignItems: "center", gap: 7,
-    backgroundColor: "#FFFBEB",
-    borderLeftWidth: 3, borderLeftColor: "#B45309",
-    marginHorizontal: 14, marginTop: 10, marginBottom: 3,
-    paddingHorizontal: 11, paddingVertical: 8, borderRadius: 10,
+  /* مستطيل التنبيهات الموحَّد */
+  alertsBox: {
+    marginHorizontal: 14, marginTop: 8, marginBottom: 4,
+    borderRadius: 12, overflow: "hidden",
+    borderWidth: 1.5, borderColor: "#BFDBFE",
   },
-  bannerAmberText: {
+  alertRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 12, paddingVertical: 9,
+  },
+  alertAmber: { backgroundColor: "#FFFBEB", borderLeftWidth: 3, borderLeftColor: "#B45309" },
+  alertBlue:  { backgroundColor: "#EFF6FF", borderLeftWidth: 3, borderLeftColor: "#2563EB" },
+  alertSep:   { height: 1, backgroundColor: "#DBEAFE" },
+  alertText: {
     flex: 1, fontFamily: "Inter_400Regular",
-    fontSize: 11.5, color: "#78350F", lineHeight: 17,
-  },
-  bannerBlue: {
-    flexDirection: "row", alignItems: "center", gap: 7,
-    backgroundColor: "#EFF6FF",
-    borderLeftWidth: 3, borderLeftColor: "#2563EB",
-    marginHorizontal: 14, marginTop: 0, marginBottom: 8,
-    paddingHorizontal: 11, paddingVertical: 8, borderRadius: 10,
-  },
-  bannerBlueText: {
-    flex: 1, fontFamily: "Inter_400Regular",
-    fontSize: 11.5, color: "#1E40AF", lineHeight: 17,
+    fontSize: 11.5, lineHeight: 17,
   },
 
   /* search bar */

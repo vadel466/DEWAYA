@@ -253,7 +253,7 @@ export default function AdminScreen() {
   const { data: allDrugPrices = [], isLoading: priceLoading, refetch: refetchPrices, isRefetching: priceRefetching } = useQuery<DrugPrice[]>({
     queryKey: ["admin-drug-prices"],
     queryFn: async () => {
-      const r = await fetch(`${API_BASE}/drug-prices?limit=500`, { headers: { "x-admin-secret": ADMIN_SECRET } });
+      const r = await fetch(`${API_BASE}/drug-prices?limit=10000`, { headers: { "x-admin-secret": ADMIN_SECRET } });
       if (!r.ok) throw new Error(); return r.json();
     },
     enabled: isAdmin && activeTab === "prices",

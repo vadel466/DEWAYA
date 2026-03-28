@@ -16,7 +16,7 @@ const PHARM_TS_KEY  = "@dewaya_pharmacies_ts_v2";
 
 const DRUGS_TTL   = 24 * 60 * 60 * 1000;   // 24 h
 const PHARM_TTL   = 12 * 60 * 60 * 1000;   // 12 h
-const PAGE_SIZE   = 500;
+const PAGE_SIZE   = 1000;
 
 export type CachedDrug = {
   id: string;

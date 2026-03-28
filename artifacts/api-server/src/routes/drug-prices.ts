@@ -58,7 +58,7 @@ router.get("/search", async (req, res) => {
 
 /* ─── PUBLIC: export all drugs for offline caching ──────────── */
 router.get("/export", async (req, res) => {
-  const limitParam  = Math.min(Number(req.query.limit  ?? 500), 1000);
+  const limitParam  = Math.min(Number(req.query.limit  ?? 1000), 5000);
   const offsetParam = Math.max(Number(req.query.offset ?? 0), 0);
   try {
     const results = await db
@@ -154,7 +154,7 @@ router.get("/category/:cat", async (req, res) => {
 /* ─── ADMIN: list all ────────────────────────────────────────── */
 router.get("/", async (req, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: "Forbidden" });
-  const limitParam = Math.min(Number(req.query.limit ?? 500), 2000);
+  const limitParam = Math.min(Number(req.query.limit ?? 5000), 20000);
   const offsetParam = Math.max(Number(req.query.offset ?? 0), 0);
   const searchQ = req.query.q ? String(req.query.q).trim() : null;
   try {

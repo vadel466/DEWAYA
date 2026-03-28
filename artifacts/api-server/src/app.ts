@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
@@ -25,6 +25,24 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+/* ── Root keep-alive endpoints — NO rate limit, instant response ── */
+const startedAt = new Date().toISOString();
+
+app.get("/status", (_req: Request, res: Response) => {
+  res.json({
+    status: "ok",
+    uptime: Math.floor(process.uptime()),
+    startedAt,
+    timestamp: new Date().toISOString(),
+    service: "dewaya-api",
+  });
+});
+
+app.get("/ping", (_req: Request, res: Response) => {
+  res.send("pong");
+});
+
+/* ── Rate limiters ── */
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,

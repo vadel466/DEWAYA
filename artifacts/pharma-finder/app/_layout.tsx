@@ -12,7 +12,14 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Platform, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Animated,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -74,6 +81,7 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded, setFontsLoaded]     = useState(false);
   const [appReady, setAppReady]           = useState(false);
   const [showIntro, setShowIntro]         = useState<boolean | null>(null);
   const [imageLoaded, setImageLoaded]     = useState(false);
@@ -84,19 +92,24 @@ export default function RootLayout() {
   useEffect(() => {
     let cancelled = false;
 
-    /* Hard timeout: 1 second max — don't make user wait */
+    /*
+     * Hard fallback: 3 seconds max.
+     * If fonts still aren't done we show an ActivityIndicator placeholder
+     * (fontsLoaded stays false → no broken icon squares rendered).
+     */
     const hardTimeout = setTimeout(() => {
       if (!cancelled) {
         setAppReady(true);
         setShowIntro((v) => (v === null ? false : v));
       }
-    }, 1000);
+    }, 3000);
 
     const introFallback = setTimeout(() => {
       if (!cancelled) setShowIntro((v) => (v === null ? false : v));
-    }, 400);
+    }, 600);
 
     Promise.all([
+      /* Font loading — must complete before icons can render */
       Font.loadAsync({
         Inter_400Regular,
         Inter_500Medium,
@@ -104,7 +117,12 @@ export default function RootLayout() {
         Inter_700Bold,
         ...Ionicons.font,
         ...MaterialCommunityIcons.font,
-      }).catch(() => {}),
+      }).then(() => {
+        if (!cancelled) setFontsLoaded(true);
+      }).catch(() => {
+        /* fonts failed — fontsLoaded stays false;
+           icons will be hidden, no broken squares */
+      }),
 
       AsyncStorage.getItem(INTRO_KEY)
         .then((val) => {
@@ -148,9 +166,9 @@ export default function RootLayout() {
     }).start(() => setSplashVisible(false));
   }, [appReady, showIntro, imageLoaded, fadeAnim]);
 
-  /* ── Safety: imageLoaded within 200ms ── */
+  /* ── Safety: imageLoaded within 300ms ── */
   useEffect(() => {
-    const t = setTimeout(() => setImageLoaded(true), 200);
+    const t = setTimeout(() => setImageLoaded(true), 300);
     return () => clearTimeout(t);
   }, []);
 
@@ -159,14 +177,28 @@ export default function RootLayout() {
     setShowIntro(false);
   }, []);
 
+  /*
+   * App content guard:
+   *  - appReady=true + fontsLoaded=true  → show full app  ✅
+   *  - appReady=true + fontsLoaded=false → show spinner while fonts finish loading
+   *    (prevents broken icon squares from ever appearing)
+   */
+  const showApp = appReady && fontsLoaded;
+  const showFontSpinner = appReady && !fontsLoaded;
+
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={styles.root}>
             <AppProvider>
-              {appReady && <RootLayoutNav />}
-              {appReady && showIntro === true && (
+              {showFontSpinner && (
+                <View style={styles.fontWait}>
+                  <ActivityIndicator size="large" color="#0D9488" />
+                </View>
+              )}
+              {showApp && <RootLayoutNav />}
+              {showApp && showIntro === true && (
                 <IntroScreen onFinish={handleIntroFinish} />
               )}
             </AppProvider>
@@ -201,6 +233,14 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+
+  fontWait: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+  },
 
   splash: {
     ...StyleSheet.absoluteFillObject,

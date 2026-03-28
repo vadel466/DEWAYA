@@ -47,3 +47,28 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Expo / EAS
+.expo/
+.expo-shared/
+expo-env.d.ts
+*.orig.*
+dist/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.metro-health-check*
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Logs
+pnpm-debug.log*
+npm-debug.log*
+yarn-error.log*
+*.log

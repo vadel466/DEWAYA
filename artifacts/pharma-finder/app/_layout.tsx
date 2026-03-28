@@ -5,29 +5,34 @@ import {
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
 import * as Font from "expo-font";
+import { Image } from "expo-image";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Image, Platform, StyleSheet, Text, View } from "react-native";
+import { Animated, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 const INTRO_KEY = "@dewaya_intro_shown";
+const ICON = require("../assets/images/icon_v2.png");
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import IntroScreen from "@/components/IntroScreen";
 import { AppProvider } from "@/context/AppContext";
 
-/* ── Keep native OS splash visible until we are ready ── */
+/* ── Keep native OS splash visible until React is fully ready ── */
 if (Platform.OS !== "web") {
   SplashScreen.preventAutoHideAsync().catch(() => {});
 }
 
-/* ── Suppress known harmless web rejections ── */
+/* ── Preload the icon immediately (before first render) ── */
+Image.prefetch(ICON).catch(() => {});
+
+/* ── Suppress harmless web font-load rejections ── */
 if (Platform.OS === "web" && typeof window !== "undefined") {
   window.addEventListener("unhandledrejection", (e) => {
     const msg: string =
@@ -73,25 +78,29 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  const [appReady, setAppReady] = useState(false);
-  const [showIntro, setShowIntro] = useState<boolean | null>(null);
+  const [appReady, setAppReady]       = useState(false);
+  const [showIntro, setShowIntro]     = useState<boolean | null>(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [splashVisible, setSplashVisible] = useState(true);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  /* ── Load everything in parallel: fonts + assets + intro check ── */
+  /* ── Step 1: Load fonts + check intro in parallel ── */
   useEffect(() => {
     let cancelled = false;
 
-    const fontTimeout = setTimeout(() => {
-      if (!cancelled) setAppReady(true);
-    }, 2000);
+    /* Safety fallback so we never hang forever */
+    const hardTimeout = setTimeout(() => {
+      if (!cancelled) {
+        setAppReady(true);
+        setShowIntro((v) => (v === null ? false : v));
+      }
+    }, 2500);
 
-    const introTimeout = setTimeout(() => {
-      if (!cancelled && showIntro === null) setShowIntro(false);
+    const introFallback = setTimeout(() => {
+      if (!cancelled) setShowIntro((v) => (v === null ? false : v));
     }, 600);
 
     Promise.all([
-      /* Fonts */
       Font.loadAsync({
         Inter_400Regular,
         Inter_500Medium,
@@ -101,52 +110,57 @@ export default function RootLayout() {
         ...MaterialCommunityIcons.font,
       }).catch(() => {}),
 
-      /* Intro check */
       AsyncStorage.getItem(INTRO_KEY)
         .then((val) => {
           if (!cancelled) {
-            clearTimeout(introTimeout);
+            clearTimeout(introFallback);
             setShowIntro(val !== "1");
           }
         })
         .catch(() => {
           if (!cancelled) {
-            clearTimeout(introTimeout);
+            clearTimeout(introFallback);
             setShowIntro(true);
           }
         }),
     ]).finally(() => {
       if (!cancelled) {
-        clearTimeout(fontTimeout);
+        clearTimeout(hardTimeout);
         setAppReady(true);
       }
     });
 
     return () => {
       cancelled = true;
-      clearTimeout(fontTimeout);
-      clearTimeout(introTimeout);
+      clearTimeout(hardTimeout);
+      clearTimeout(introFallback);
     };
   }, []);
 
-  /* ── Once app is ready + intro state known: hide native splash, then fade React splash ── */
+  /* ── Step 2: Once fonts + intro + image are ready → hide native splash then fade ── */
   useEffect(() => {
-    if (!appReady || showIntro === null) return;
+    if (!appReady || showIntro === null || !imageLoaded) return;
 
-    /* Hide the native OS splash first */
+    /* Hide native OS splash — React overlay is already showing the icon */
     if (Platform.OS !== "web") {
       SplashScreen.hideAsync().catch(() => {});
     }
 
-    /* Fade out the React overlay over 350ms */
+    /* Smooth 400ms fade-out */
     Animated.timing(fadeAnim, {
       toValue: 0,
-      duration: 350,
+      duration: 400,
       useNativeDriver: true,
     }).start(() => {
       setSplashVisible(false);
     });
-  }, [appReady, showIntro, fadeAnim]);
+  }, [appReady, showIntro, imageLoaded, fadeAnim]);
+
+  /* ── Safety: ensure imageLoaded becomes true within 500ms ── */
+  useEffect(() => {
+    const t = setTimeout(() => setImageLoaded(true), 500);
+    return () => clearTimeout(t);
+  }, []);
 
   const handleIntroFinish = useCallback(() => {
     AsyncStorage.setItem(INTRO_KEY, "1").catch(() => {});
@@ -170,26 +184,30 @@ export default function RootLayout() {
         </QueryClientProvider>
       </ErrorBoundary>
 
-      {/* React splash overlay — covers everything until app is ready, then fades out */}
+      {/* ── React splash overlay:
+            • Replaces native splash seamlessly (no white frame)
+            • Image fades in instantly via expo-image cache
+            • Whole overlay fades out gracefully when app is ready ── */}
       {splashVisible && (
         <Animated.View
           style={[styles.splash, { opacity: fadeAnim }]}
           pointerEvents="none"
         >
-          {/* App icon */}
-          <View style={styles.splashIconWrap}>
+          <View style={styles.iconWrap}>
             <Image
-              source={require("../assets/images/icon_v2.png")}
-              style={styles.splashIcon}
-              resizeMode="cover"
-              fadeDuration={0}
+              source={ICON}
+              style={styles.icon}
+              contentFit="cover"
+              priority="high"
+              cachePolicy="memory"
+              onLoadEnd={() => setImageLoaded(true)}
+              transition={0}
             />
           </View>
 
-          {/* App name */}
-          <Text style={styles.splashNameAr}>أدوايـا</Text>
-          <Text style={styles.splashNameLat}>D E W A Y A</Text>
-          <Text style={styles.splashSub}>خدمة صحية متكاملة · موريتانيا</Text>
+          <Text style={styles.nameAr}>أدوايـا</Text>
+          <Text style={styles.nameLat}>D E W A Y A</Text>
+          <Text style={styles.sub}>خدمة صحية متكاملة · موريتانيا</Text>
         </Animated.View>
       )}
     </SafeAreaProvider>
@@ -198,6 +216,7 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+
   splash: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "#0D9488",
@@ -205,9 +224,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     zIndex: 9999,
   },
-  splashIconWrap: {
-    width: 140,
-    height: 140,
+
+  iconWrap: {
+    width: 144,
+    height: 144,
     borderRadius: 36,
     backgroundColor: "#fff",
     alignItems: "center",
@@ -216,12 +236,14 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 20,
-    elevation: 10,
+    elevation: 12,
   },
-  splashIcon: { width: 140, height: 140 },
-  splashNameAr: {
+
+  icon: { width: 144, height: 144 },
+
+  nameAr: {
     color: "#fff",
     fontSize: 36,
     fontWeight: "800",
@@ -231,15 +253,17 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
-  splashNameLat: {
-    color: "rgba(255,255,255,0.75)",
+
+  nameLat: {
+    color: "rgba(255,255,255,0.7)",
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 6,
     marginBottom: 20,
   },
-  splashSub: {
-    color: "rgba(255,255,255,0.5)",
+
+  sub: {
+    color: "rgba(255,255,255,0.45)",
     fontSize: 12,
     fontWeight: "400",
     letterSpacing: 0.3,

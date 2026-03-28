@@ -392,6 +392,24 @@ export default function HomeScreen() {
               </TouchableOpacity>
             ) : null}
           </View>
+          {/* ── Search button ── */}
+          <TouchableOpacity
+            style={[styles.searchSubmitBtn, (!canSubmit || loading) && styles.searchSubmitBtnDisabled]}
+            onPress={handleSearch}
+            activeOpacity={0.82}
+            disabled={loading || !canSubmit}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="search" size={17} color="#fff" />
+                <Text style={styles.searchSubmitText}>
+                  {isRTL ? "بحث" : "Rechercher"}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
           {error && <Text style={styles.errorText}>{error}</Text>}
         </View>
 
@@ -734,7 +752,36 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: Colors.danger, fontFamily: "Inter_400Regular", fontSize: 11.5,
-    paddingHorizontal: 12, paddingBottom: 8, textAlign: "center",
+    paddingHorizontal: 12, paddingBottom: 4, textAlign: "center",
+  },
+
+  /* SEARCH SUBMIT BUTTON */
+  searchSubmitBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginTop: 10,
+    marginHorizontal: 2,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  searchSubmitBtnDisabled: {
+    backgroundColor: "#B0BEC5",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  searchSubmitText: {
+    color: "#fff",
+    fontFamily: "Inter_700Bold",
+    fontSize: 14.5,
+    letterSpacing: 0.4,
   },
   thumbWrap: { width: 33, height: 33, borderRadius: 7, position: "relative", overflow: "visible" },
   thumb: { width: 33, height: 33, borderRadius: 7 },

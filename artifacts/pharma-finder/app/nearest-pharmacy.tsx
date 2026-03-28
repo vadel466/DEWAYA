@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -42,6 +42,7 @@ type Pharmacy = {
   lon: number | null;
   region: string | null;
   distance?: number | null;
+  hasPortal?: boolean;
 };
 
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -80,6 +81,8 @@ export default function NearestPharmacyScreen() {
   const insets = useSafeAreaInsets();
   const { t, language, region } = useApp();
   const isRTL = language === "ar";
+  const params = useLocalSearchParams<{ drug?: string }>();
+  const drugQuery = params.drug?.trim() ?? "";
 
   const [phase, setPhase]           = useState<Phase>("locating");
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
@@ -132,7 +135,8 @@ export default function NearestPharmacyScreen() {
       const params = new URLSearchParams();
       if (lat != null) params.set("lat", String(lat));
       if (lon != null) params.set("lon", String(lon));
-      if (region?.id) params.set("region", region.id);
+      /* Don't filter by region when searching for a specific drug — show all pharmacies */
+      if (region?.id && !drugQuery) params.set("region", region.id);
 
       const resp = await fetch(`${API_BASE}/pharmacies/nearest?${params}`, {
         signal: ctrl.signal,
@@ -292,9 +296,17 @@ export default function NearestPharmacyScreen() {
           </View>
 
           <View style={[styles.cardInfo, isRTL && { alignItems: "flex-end" }]}>
-            <Text style={[styles.pharmaName, isRTL && styles.rtlText]} numberOfLines={2}>
-              {isRTL && item.nameAr ? item.nameAr : item.name}
-            </Text>
+            <View style={[styles.nameRow, isRTL && styles.rtlRow]}>
+              <Text style={[styles.pharmaName, isRTL && styles.rtlText]} numberOfLines={2}>
+                {isRTL && item.nameAr ? item.nameAr : item.name}
+              </Text>
+              {item.hasPortal && (
+                <View style={styles.portalBadge}>
+                  <MaterialCommunityIcons name="store-check-outline" size={11} color="#1565C0" />
+                  <Text style={styles.portalBadgeText}>{isRTL ? "بوابة" : "Portail"}</Text>
+                </View>
+              )}
+            </View>
             <View style={[styles.addrRow, isRTL && styles.rtlRow]}>
               <Ionicons name="location-outline" size={13} color={Colors.light.textSecondary} />
               <Text style={[styles.addrText, isRTL && styles.rtlText]} numberOfLines={2}>
@@ -378,6 +390,19 @@ export default function NearestPharmacyScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* ── Drug search banner ── */}
+      {drugQuery !== "" && (
+        <View style={[styles.banner, styles.bannerDrug, isRTL && styles.rtlRow]}>
+          <MaterialCommunityIcons name="pill" size={15} color="#1565C0" />
+          <Text style={[styles.bannerText, { color: "#1565C0", flex: 1 }, isRTL && styles.rtlText]} numberOfLines={1}>
+            {isRTL ? `يبحث عن: "${drugQuery}"` : `Recherche: « ${drugQuery} »`}
+          </Text>
+          <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close-circle" size={16} color="#1565C0" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* ── Location found banner ── */}
       {userLat && phase === "done" && (
@@ -534,6 +559,7 @@ const styles = StyleSheet.create({
   bannerGreen: { backgroundColor: Colors.primary + "0D", borderLeftColor: Colors.primary },
   bannerRed:   { backgroundColor: "#FEF2F2", borderLeftColor: "#DC2626" },
   bannerPurple:{ backgroundColor: "#F5F3FF", borderLeftColor: "#7C3AED" },
+  bannerDrug:  { backgroundColor: "#E3F2FD", borderLeftColor: "#1565C0" },
   bannerText: { fontSize: 12, fontFamily: "Inter_500Medium" },
   settingsLink: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#DC2626", textDecorationLine: "underline" },
 
@@ -588,6 +614,14 @@ const styles = StyleSheet.create({
   rankTextFirst: { color: "#fff" },
 
   cardInfo: { flex: 1 },
+  nameRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
+  portalBadge: {
+    flexDirection: "row", alignItems: "center", gap: 3,
+    backgroundColor: "#E3F2FD", borderRadius: 6,
+    paddingHorizontal: 6, paddingVertical: 2,
+    borderWidth: 1, borderColor: "#1565C033",
+  },
+  portalBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#1565C0" },
   pharmaName: { fontSize: 15, fontFamily: "Inter_700Bold", color: Colors.light.text },
   addrRow: { flexDirection: "row", alignItems: "flex-start", gap: 4, marginTop: 4 },
   addrText: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, flex: 1 },

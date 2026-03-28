@@ -59,27 +59,20 @@ router.get("/nearest", async (req, res) => {
       );
     }
 
+    const safeMap = (p: typeof filtered[0], distance: number | null) => {
+      const { portalPin, ...rest } = p;
+      return { ...rest, createdAt: p.createdAt.toISOString(), hasPortal: !!portalPin, distance };
+    };
+
     if (lat && lon) {
       const userLat = parseFloat(lat as string);
       const userLon = parseFloat(lon as string);
-      const withDistance = filtered.map((p) => ({
-        ...p,
-        createdAt: p.createdAt.toISOString(),
-        distance:
-          p.lat && p.lon
-            ? haversineDistance(userLat, userLon, p.lat, p.lon)
-            : 9999,
-      }));
-      withDistance.sort((a, b) => a.distance - b.distance);
+      const withDistance = filtered
+        .map((p) => safeMap(p, p.lat && p.lon ? haversineDistance(userLat, userLon, p.lat, p.lon) : 9999))
+        .sort((a, b) => (a.distance ?? 9999) - (b.distance ?? 9999));
       res.json(withDistance);
     } else {
-      res.json(
-        filtered.map((p) => ({
-          ...p,
-          createdAt: p.createdAt.toISOString(),
-          distance: null,
-        }))
-      );
+      res.json(filtered.map((p) => safeMap(p, null)));
     }
   } catch (err) {
     console.error(err);

@@ -51,6 +51,9 @@ Thumbs.db
 # Chat attachments — not part of the codebase
 attached_assets/
 
+# Root-level app.json is not part of this monorepo — real config is in artifacts/pharma-finder/
+/app.json
+
 # Canvas assets
 .canvas/
 

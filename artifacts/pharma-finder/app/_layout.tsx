@@ -5,6 +5,7 @@ import {
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
 import * as Font from "expo-font";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -72,19 +73,16 @@ export default function RootLayout() {
 
   /* ── Font loading ── */
   useEffect(() => {
-    if (Platform.OS === "web") {
-      /* On web fonts load via CSS — mark ready immediately */
-      setFontsReady(true);
-      return;
-    }
-
-    const fallback = setTimeout(() => setFontsReady(true), 2500);
+    const fallback = setTimeout(() => setFontsReady(true), 1500);
 
     Font.loadAsync({
       Inter_400Regular,
       Inter_500Medium,
       Inter_600SemiBold,
       Inter_700Bold,
+      /* Load icon fonts so glyphs render immediately on web & native */
+      ...Ionicons.font,
+      ...MaterialCommunityIcons.font,
     })
       .catch(() => {})
       .finally(() => {
@@ -95,9 +93,9 @@ export default function RootLayout() {
     return () => clearTimeout(fallback);
   }, []);
 
-  /* ── Intro check — fast, with 1s safety timeout ── */
+  /* ── Intro check — fast, with 500ms safety timeout ── */
   useEffect(() => {
-    const safetyTimeout = setTimeout(() => setShowIntro(false), 1000);
+    const safetyTimeout = setTimeout(() => setShowIntro(false), 500);
 
     AsyncStorage.getItem(INTRO_KEY)
       .then((val) => {
@@ -177,14 +175,14 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   splashIconWrap: {
-    width: 130, height: 130, borderRadius: 32,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    width: 140, height: 140, borderRadius: 36,
+    backgroundColor: "#fff",
     alignItems: "center", justifyContent: "center",
-    marginBottom: 24,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 12,
-    elevation: 8,
+    marginBottom: 28,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16,
+    elevation: 10,
   },
-  splashIcon: { width: 100, height: 100 },
+  splashIcon: { width: 112, height: 112, borderRadius: 24 },
   splashNameAr: {
     color: "#fff", fontSize: 36, fontWeight: "800",
     letterSpacing: 0.5, marginBottom: 4,

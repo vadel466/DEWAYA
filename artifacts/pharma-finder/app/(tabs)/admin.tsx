@@ -1589,43 +1589,99 @@ export default function AdminScreen() {
   const renderDrugPrice = ({ item }: { item: DrugPrice }) => {
     const isToggling = togglePriceMutation.isPending && togglePriceMutation.variables === item.id;
     const isDeleting = deletePriceMutation.isPending && deletePriceMutation.variables === item.id;
+    const inactive = !item.isActive;
     return (
-      <View style={[styles.requestCard, !item.isActive && { opacity: 0.5 }]}>
+      <View style={[
+        styles.requestCard,
+        inactive && { borderWidth: 1.5, borderColor: "#F59E0B55", backgroundColor: "#FFFBEB" },
+      ]}>
         <View style={[styles.cardRow, isRTL && styles.rtlRow]}>
-          <View style={[styles.cardIconCircle2, { backgroundColor: item.isActive ? "#F59E0B22" : "#9CA3AF22" }]}>
-            <MaterialCommunityIcons name="tag-outline" size={20} color={item.isActive ? "#F59E0B" : "#9CA3AF"} />
+          <View style={[styles.cardIconCircle2, { backgroundColor: inactive ? "#F59E0B22" : "#F59E0B22" }]}>
+            <MaterialCommunityIcons
+              name={inactive ? "eye-off-outline" : "tag-outline"}
+              size={20}
+              color={inactive ? "#F59E0B" : "#F59E0B"}
+            />
           </View>
           <View style={[styles.requestInfo, isRTL && styles.rtlInfo, { flex: 1 }]}>
             <Text style={[styles.drugName, isRTL && styles.rtlText]}>{item.name}</Text>
             {item.nameAr ? <Text style={[styles.userId, isRTL && styles.rtlText]}>{item.nameAr}</Text> : null}
             <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-              <View style={[styles.priceBadge, !item.isActive && { backgroundColor: "#9CA3AF22" }]}>
-                <Text style={[styles.priceBadgeText, !item.isActive && { color: "#9CA3AF" }]}>{item.price.toFixed(2)} MRU{item.unit ? ` / ${item.unit}` : ""}</Text>
+              <View style={styles.priceBadge}>
+                <Text style={styles.priceBadgeText}>{item.price.toFixed(2)} MRU{item.unit ? ` / ${item.unit}` : ""}</Text>
               </View>
-              {!item.isActive && (
-                <View style={[styles.categoryBadge, { backgroundColor: "#9CA3AF22" }]}>
-                  <Text style={[styles.categoryText, { color: "#9CA3AF" }]}>{isRTL ? "معطّل" : "Désactivé"}</Text>
-                </View>
-              )}
               {item.category ? <View style={styles.categoryBadge}><Text style={styles.categoryText}>{item.category}</Text></View> : null}
             </View>
+            {/* Clear status message for inactive drugs */}
+            {inactive && (
+              <View style={{
+                marginTop: 6, flexDirection: isRTL ? "row-reverse" : "row",
+                alignItems: "center", gap: 5,
+                backgroundColor: "#FEF3C7", borderRadius: 6,
+                paddingHorizontal: 8, paddingVertical: 4,
+                borderWidth: 1, borderColor: "#FCD34D",
+              }}>
+                <Ionicons name="warning-outline" size={13} color="#D97706" />
+                <Text style={{ fontSize: 11, color: "#92400E", fontFamily: "Inter_600SemiBold", textAlign: isRTL ? "right" : "left", flex: 1 }}>
+                  {isRTL
+                    ? "مخفي عن المستخدمين — لن يظهر في البحث. اضغط 👁 لإعادة تفعيله."
+                    : "Caché aux utilisateurs — n'apparaît pas dans la recherche. Appuyez 👁 pour réactiver."}
+                </Text>
+              </View>
+            )}
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <View style={{ flexDirection: "column", alignItems: "center", gap: 6 }}>
+            {/* Toggle visibility button */}
             <TouchableOpacity
-              onPress={() => togglePriceMutation.mutate(item.id)}
+              onPress={() => {
+                if (inactive) {
+                  togglePriceMutation.mutate(item.id);
+                } else {
+                  Alert.alert(
+                    isRTL ? "إخفاء الدواء" : "Masquer le médicament",
+                    isRTL
+                      ? `هل تريد إخفاء "${item.name}" من نتائج البحث؟ لن يُحذف من القاعدة.`
+                      : `Masquer "${item.name}" des résultats de recherche? Il ne sera pas supprimé.`,
+                    [
+                      { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+                      { text: isRTL ? "إخفاء" : "Masquer", style: "destructive", onPress: () => togglePriceMutation.mutate(item.id) },
+                    ]
+                  );
+                }
+              }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               disabled={isToggling || isDeleting}
-              style={{ padding: 8 }}
+              style={[{
+                padding: 8, borderRadius: 8,
+                backgroundColor: inactive ? "#059669" + "15" : "#6B728015",
+              }]}
             >
               {isToggling
                 ? <ActivityIndicator size="small" color="#6B7280" />
-                : <Ionicons name={item.isActive ? "eye-outline" : "eye-off-outline"} size={20} color={item.isActive ? "#059669" : "#9CA3AF"} />}
+                : <Ionicons
+                    name={inactive ? "eye-outline" : "eye-off-outline"}
+                    size={20}
+                    color={inactive ? "#059669" : "#6B7280"}
+                  />}
             </TouchableOpacity>
+            {/* Edit button */}
             <TouchableOpacity
-              onPress={() => confirmDelete(isRTL ? `حذف "${item.name}"؟` : `Supprimer "${item.name}" ?`, () => deletePriceMutation.mutate(item.id))}
+              onPress={() => openEditPrice(item)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ padding: 8, borderRadius: 8, backgroundColor: Colors.primary + "12" }}
+              disabled={isDeleting || isToggling}
+            >
+              <Ionicons name="create-outline" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+            {/* Delete button */}
+            <TouchableOpacity
+              onPress={() => confirmDelete(
+                isRTL ? `حذف "${item.name}" نهائياً؟` : `Supprimer définitivement "${item.name}" ?`,
+                () => deletePriceMutation.mutate(item.id)
+              )}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               disabled={isDeleting || isToggling}
-              style={{ padding: 8 }}
+              style={{ padding: 8, borderRadius: 8, backgroundColor: Colors.danger + "10" }}
             >
               {isDeleting
                 ? <ActivityIndicator size="small" color={Colors.danger} />
@@ -1896,29 +1952,34 @@ export default function AdminScreen() {
             activeTab === "prices" ? (
               <View>
                 {/* Stats banner */}
-                {allDrugPrices.length > 0 && (
-                  <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#FEF3C7", borderRadius: 12, marginBottom: 10, paddingHorizontal: 14, paddingVertical: 10, gap: 6, borderWidth: 1, borderColor: "#D9770630" }}>
-                    <MaterialCommunityIcons name="pill" size={20} color="#D97706" />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontFamily: "Inter_700Bold", fontSize: 14, color: "#D97706" }}>
-                        {isRTL ? `${allDrugPrices.length} دواء مسجّل` : `${allDrugPrices.length} médicament(s) enregistrés`}
-                      </Text>
-                      {(() => {
-                        const cats = [...new Set(allDrugPrices.map(d => d.category).filter(Boolean))];
-                        return cats.length > 0 ? (
-                          <Text style={{ fontFamily: "Inter_400Regular", fontSize: 11, color: "#92400E", marginTop: 1 }}>
-                            {isRTL ? `${cats.length} فئة` : `${cats.length} catégorie(s)`}
+                {allDrugPrices.length > 0 && (() => {
+                  const activeCount = allDrugPrices.filter(d => d.isActive).length;
+                  const hiddenCount = allDrugPrices.length - activeCount;
+                  return (
+                    <View style={{ gap: 8, marginBottom: 10 }}>
+                      {/* Active count row */}
+                      <View style={{ flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", backgroundColor: "#F0FDF4", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, gap: 8, borderWidth: 1, borderColor: "#86EFAC" }}>
+                        <Ionicons name="eye-outline" size={18} color="#059669" />
+                        <Text style={{ fontFamily: "Inter_700Bold", fontSize: 13, color: "#065F46", flex: 1, textAlign: isRTL ? "right" : "left" }}>
+                          {isRTL
+                            ? `${activeCount} دواء ظاهر للمستخدمين  •  ${allDrugPrices.length} إجمالي`
+                            : `${activeCount} visible(s) · ${allDrugPrices.length} total`}
+                        </Text>
+                      </View>
+                      {/* Hidden drugs warning */}
+                      {hiddenCount > 0 && (
+                        <View style={{ flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", backgroundColor: "#FEF3C7", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, gap: 8, borderWidth: 1, borderColor: "#FCD34D" }}>
+                          <Ionicons name="eye-off-outline" size={18} color="#D97706" />
+                          <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 12, color: "#92400E", flex: 1, textAlign: isRTL ? "right" : "left" }}>
+                            {isRTL
+                              ? `⚠️ ${hiddenCount} دواء مخفي — لا يظهر للمستخدمين في البحث. لم يُحذف. اضغط أيقونة 👁 لإعادة تفعيله.`
+                              : `⚠️ ${hiddenCount} médicament(s) caché(s) — pas visible dans la recherche. Non supprimé(s). Appuyez sur 👁 pour réactiver.`}
                           </Text>
-                        ) : null;
-                      })()}
+                        </View>
+                      )}
                     </View>
-                    <View style={{ backgroundColor: "#D97706", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                      <Text style={{ fontFamily: "Inter_700Bold", fontSize: 12, color: "#fff" }}>
-                        {isRTL ? "محدّثة" : "À jour"}
-                      </Text>
-                    </View>
-                  </View>
-                )}
+                  );
+                })()}
                 {/* Upload + Clear row */}
                 <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
                   <TouchableOpacity

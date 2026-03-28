@@ -148,9 +148,9 @@ export default function RootLayout() {
           {/* App icon — same icon used on Play Store / App Store */}
           <View style={styles.splashIconWrap}>
             <Image
-              source={require("../assets/images/icon.png")}
+              source={require("../assets/images/icon_v2.png")}
               style={styles.splashIcon}
-              resizeMode="contain"
+              resizeMode="cover"
             />
           </View>
           {/* App name in Arabic */}
@@ -179,10 +179,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     alignItems: "center", justifyContent: "center",
     marginBottom: 28,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 20,
     elevation: 10,
   },
-  splashIcon: { width: 112, height: 112, borderRadius: 24 },
+  splashIcon: { width: 140, height: 140 },
   splashNameAr: {
     color: "#fff", fontSize: 36, fontWeight: "800",
     letterSpacing: 0.5, marginBottom: 4,

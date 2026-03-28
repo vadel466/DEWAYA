@@ -355,7 +355,7 @@ export default function HomeScreen() {
                 </View>
               ) : (
                 <View style={styles.cameraBtn}>
-                  <Ionicons name="camera-outline" size={19} color="#607D8B" />
+                  <Ionicons name="camera-outline" size={19} color={Colors.primary} />
                 </View>
               )}
             </TouchableOpacity>
@@ -451,7 +451,7 @@ export default function HomeScreen() {
                   {/* Label bar — no extra icons */}
                   <View style={[styles.cardBottomBar, { backgroundColor: c.barBg }]}>
                     <Text
-                      style={[styles.cardBottomText, { color: c.textColor }, isRTL && styles.textRight]}
+                      style={[styles.cardBottomText, { color: c.textColor }]}
                       numberOfLines={2}
                       adjustsFontSizeToFit
                       minimumFontScale={0.75}
@@ -477,9 +477,12 @@ export default function HomeScreen() {
             {isRTL ? "عن دواية • سياسة الخصوصية" : "À propos de Dewaya • Confidentialité"}
           </Text>
         </TouchableOpacity>
-        <Text style={styles.sourceText}>
-          {"🇲🇷 "}{isRTL ? "المصدر: وزارة الصحة الموريتانية" : "Source: Ministère de la Santé Mauritanien"}
-        </Text>
+        <View style={styles.sourceRow}>
+          <Text style={styles.sourceFlag}>🇲🇷</Text>
+          <Text style={styles.sourceText}>
+            {isRTL ? "المصدر: وزارة الصحة الموريتانية" : "Source: Ministère de la Santé Mauritanien"}
+          </Text>
+        </View>
 
       </View>
 
@@ -698,9 +701,9 @@ const styles = StyleSheet.create({
     width: 11, height: 11, borderRadius: 6,
     backgroundColor: Colors.accent, borderWidth: 2, borderColor: "#F0F4F8",
   },
-  appNameGroup: { alignItems: "flex-start", gap: 1 },
-  appNameAr: { fontFamily: "Inter_700Bold", fontSize: 24, color: "#1A237E", letterSpacing: 0.2 },
-  logoSubText: { fontFamily: "Inter_600SemiBold", fontSize: 9, color: "#78909C", letterSpacing: 3.5, marginTop: 0 },
+  appNameGroup: { alignItems: "flex-start", gap: 2 },
+  appNameAr: { fontFamily: "Inter_700Bold", fontSize: 26, color: "#0D1B6E", letterSpacing: 0.3 },
+  logoSubText: { fontFamily: "Inter_600SemiBold", fontSize: 9.5, color: "#546E7A", letterSpacing: 4, marginTop: 0 },
 
   /* LANGUAGE LINE */
   langLine: {
@@ -713,9 +716,9 @@ const styles = StyleSheet.create({
   searchCard: {
     backgroundColor: "#fff",
     borderRadius: 14, marginBottom: 8,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8,
-    elevation: 3, overflow: "hidden",
-    borderWidth: 1, borderColor: "#ECEFF1",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.10, shadowRadius: 10,
+    elevation: 4, overflow: "hidden",
+    borderWidth: 1.5, borderColor: "#CFD8DC",
   },
   searchRow1: {
     flexDirection: "row", alignItems: "center", gap: 10,
@@ -723,20 +726,20 @@ const styles = StyleSheet.create({
   },
   cameraBtn: {
     width: 44, height: 44, borderRadius: 11,
-    backgroundColor: "#F0F4F8",
+    backgroundColor: Colors.primary + "12",
     alignItems: "center", justifyContent: "center",
   },
   searchRow1Label: {
-    flex: 1, fontFamily: "Inter_500Medium", fontSize: 13.5, color: "#B0BEC5", textAlign: "left",
+    flex: 1, fontFamily: "Inter_500Medium", fontSize: 13.5, color: "#90A4AE", textAlign: "left",
   },
-  searchHDivider: { height: 1, backgroundColor: "#ECEFF1" },
+  searchHDivider: { height: 1, backgroundColor: "#CFD8DC" },
   searchRow2: { flexDirection: "row", alignItems: "center", minHeight: 46 },
   regionChip: {
     flexDirection: "row", alignItems: "center", gap: 3,
     paddingHorizontal: 10, paddingVertical: 12, minWidth: 95,
   },
   regionChipText: { fontFamily: "Inter_600SemiBold", fontSize: 11.5, color: Colors.primary, flexShrink: 1 },
-  inputVDivider: { width: 1, height: 26, backgroundColor: "#ECEFF1" },
+  inputVDivider: { width: 1, height: 26, backgroundColor: "#CFD8DC" },
   drugInput: {
     flex: 1, fontFamily: "Inter_400Regular", fontSize: 13.5, color: "#37474F",
     paddingHorizontal: 10, paddingVertical: 12, textAlign: "left",
@@ -762,7 +765,9 @@ const styles = StyleSheet.create({
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 5, backgroundColor: "#F5F3FF", borderRadius: 12,
     paddingVertical: 9, paddingHorizontal: 8,
-    borderWidth: 1.5, borderColor: "#7C3AED30",
+    borderWidth: 1.5, borderColor: "#7C3AED40",
+    shadowColor: "#7C3AED", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.10, shadowRadius: 4,
+    elevation: 2,
   },
   portalPartnerText: { flex: 1, fontFamily: "Inter_600SemiBold", fontSize: 12, color: "#7C3AED", textAlign: "center" },
 
@@ -782,9 +787,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 16,
     overflow: "hidden",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 7,
-    elevation: 3,
-    borderWidth: 1, borderColor: "rgba(0,0,0,0.05)",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 10,
+    elevation: 5,
+    borderWidth: 1, borderColor: "rgba(0,0,0,0.06)",
   },
   cardTopStrip: { height: 4, width: "100%" },
   cardIconsArea: {
@@ -808,6 +813,7 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     lineHeight: 17,
     letterSpacing: 0.1,
+    textAlign: "center",
   },
 
   /* FOOTER */
@@ -816,7 +822,12 @@ const styles = StyleSheet.create({
     gap: 4, paddingVertical: 5,
   },
   aboutLinkText: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#90A4AE" },
-  sourceText: { textAlign: "center", fontFamily: "Inter_400Regular", fontSize: 11, color: "#78909C", marginBottom: 2 },
+  sourceRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 5, marginBottom: 2,
+  },
+  sourceFlag: { fontSize: 14, lineHeight: 17 },
+  sourceText: { fontFamily: "Inter_400Regular", fontSize: 11, color: "#78909C" },
 
   /* REGION PICKER */
   pickerContainer: { flex: 1, backgroundColor: Colors.light.background },

@@ -520,7 +520,7 @@ export default function HomeScreen() {
               <View style={[styles.cardIcon, { backgroundColor: "#E3F0FF" }]}>
                 <MaterialCommunityIcons name="map-marker-radius" size={28} color="#1565C0" />
               </View>
-              <Text style={[styles.cardLabel, { color: "#1565C0" }]} numberOfLines={2}>
+              <Text style={[styles.cardLabel, { color: "#1565C0" }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>
                 {isRTL ? "أقرب صيدلية" : "Pharmacie proche"}
               </Text>
               <Ionicons
@@ -538,7 +538,7 @@ export default function HomeScreen() {
               <View style={[styles.cardIcon, { backgroundColor: "#E0F2F0" }]}>
                 <MaterialCommunityIcons name="medical-bag" size={28} color="#00796B" />
               </View>
-              <Text style={[styles.cardLabel, { color: "#00796B" }]} numberOfLines={2}>
+              <Text style={[styles.cardLabel, { color: "#00796B" }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>
                 {isRTL ? "التمريض المنزلي\nوالرعاية الصحية" : "Soins infirmiers\nà domicile"}
               </Text>
               <Ionicons
@@ -560,7 +560,7 @@ export default function HomeScreen() {
               <View style={[styles.cardIcon, { backgroundColor: "#E8EBF8" }]}>
                 <MaterialCommunityIcons name="moon-waning-crescent" size={28} color="#283593" />
               </View>
-              <Text style={[styles.cardLabel, { color: "#283593" }]} numberOfLines={2}>
+              <Text style={[styles.cardLabel, { color: "#283593" }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>
                 {isRTL ? "صيدليات\nالمداومة" : "Pharmacies\nde Garde"}
               </Text>
               <Ionicons
@@ -578,7 +578,7 @@ export default function HomeScreen() {
               <View style={[styles.cardIcon, { backgroundColor: "#FFF3E0" }]}>
                 <MaterialCommunityIcons name="tag-outline" size={28} color="#E65100" />
               </View>
-              <Text style={[styles.cardLabel, { color: "#E65100" }]} numberOfLines={2}>
+              <Text style={[styles.cardLabel, { color: "#E65100" }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>
                 {isRTL ? "سعر الدواء" : "Prix du\nmédicament"}
               </Text>
               <Ionicons
@@ -1290,22 +1290,23 @@ const styles = StyleSheet.create({
   },
   cardBody: {
     flex: 1,
-    padding: 10,
+    padding: 8,
+    paddingBottom: 22,
     alignItems: "flex-start",
     justifyContent: "center",
   },
   cardIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 13,
+    width: 46,
+    height: 46,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 10,
+    marginBottom: 7,
   },
   cardLabel: {
     fontSize: 13,
     fontFamily: "Inter_700Bold",
-    lineHeight: 18,
+    lineHeight: 17,
     flexShrink: 1,
   },
   cardArrow: {

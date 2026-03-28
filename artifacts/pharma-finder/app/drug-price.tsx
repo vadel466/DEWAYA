@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, FlatList,
-  Platform, KeyboardAvoidingView,
+  Platform, KeyboardAvoidingView, LogBox,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -11,6 +11,8 @@ import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useOfflineCache, localDrugSearch, type CachedDrug } from "@/hooks/useOfflineCache";
+
+LogBox.ignoreLogs(["[drug search error]", "[search timeout]"]);
 
 /* ── For web: use relative path (same origin, routed by Replit proxy)
    For native: use absolute URL to reach the API server            ── */

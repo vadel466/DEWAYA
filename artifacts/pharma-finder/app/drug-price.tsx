@@ -197,7 +197,50 @@ export default function DrugPriceScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── حقل البحث (أعلى الصفحة مباشرة) ───────────────── */}
+        {/* ── offline banners ─────────────────────────────────── */}
+        {!isOnline && hasCacheData && (
+          <View style={[styles.offlineBanner, isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#7C3AED", flexDirection: "row-reverse" }]}>
+            <MaterialCommunityIcons name="cloud-off-outline" size={13} color="#7C3AED" />
+            <Text style={[styles.offlineText, isRTL && styles.rtl]}>
+              {isRTL
+                ? "أنت تصفح قاعدة البيانات المخزنة • بيانات رسمية من وزارة الصحة"
+                : "Vous consultez la base locale • Données officielles du Ministère de la Santé"}
+            </Text>
+          </View>
+        )}
+        {!isOnline && !hasCacheData && (
+          <View style={[styles.offlineBannerWarn, isRTL && { flexDirection: "row-reverse" }]}>
+            <MaterialCommunityIcons name="wifi-off" size={13} color="#DC2626" />
+            <Text style={[styles.offlineWarnText, isRTL && styles.rtl]}>
+              {isRTL
+                ? "لا يوجد اتصال ولا توجد بيانات مخزنة. يُرجى الاتصال بالإنترنت مرة واحدة للتحميل."
+                : "Pas de connexion et aucune donnée locale. Connectez-vous une fois pour télécharger."}
+            </Text>
+          </View>
+        )}
+
+        {/* ── مستطيل التنبيهات (مباشرة فوق البحث) ───────────── */}
+        <View style={styles.alertsBox}>
+          <View style={[styles.alertRow, styles.alertAmber, isRTL && styles.rtlRow]}>
+            <MaterialCommunityIcons name="shield-check" size={13} color="#92400E" />
+            <Text style={[styles.alertText, { color: "#78350F" }, isRTL && styles.rtl]} numberOfLines={2}>
+              {isRTL
+                ? "أسعار موحَّدة ومعتمَدة من وزارة الصحة — أي زيادة قد تُعدّ غشّاً"
+                : "Prix homologués par le Ministère de la Santé — toute hausse peut constituer une fraude"}
+            </Text>
+          </View>
+          <View style={styles.alertSep} />
+          <View style={[styles.alertRow, styles.alertBlue, isRTL && styles.rtlRow]}>
+            <MaterialCommunityIcons name="flask-outline" size={13} color="#2563EB" />
+            <Text style={[styles.alertText, { color: "#1E40AF" }, isRTL && styles.rtl]} numberOfLines={2}>
+              {isRTL
+                ? "لم تجده؟ ابحث بالاسم العلمي (DCI) على العلبة — مثال: Paracétamol"
+                : "Introuvable ? Cherchez le DCI sur la boîte — Ex. : Paracétamol"}
+            </Text>
+          </View>
+        </View>
+
+        {/* ── حقل البحث (مباشرة تحت التنبيهات) ──────────────── */}
         <View style={[styles.searchBar, isRTL && styles.rtlRow]}>
           <Ionicons name="search-outline" size={20} color={Colors.primary} />
           <TextInput
@@ -222,51 +265,6 @@ export default function DrugPriceScreen() {
                   <Ionicons name="close-circle" size={19} color={Colors.light.textTertiary} />
                 </TouchableOpacity>
               : null}
-        </View>
-
-        {/* ── offline banners (حالة غياب الشبكة) ────────────── */}
-        {!isOnline && hasCacheData && (
-          <View style={[styles.offlineBanner, isRTL && { borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: "#7C3AED", flexDirection: "row-reverse" }]}>
-            <MaterialCommunityIcons name="cloud-off-outline" size={13} color="#7C3AED" />
-            <Text style={[styles.offlineText, isRTL && styles.rtl]}>
-              {isRTL
-                ? "أنت تصفح قاعدة البيانات المخزنة • بيانات رسمية من وزارة الصحة"
-                : "Vous consultez la base locale • Données officielles du Ministère de la Santé"}
-            </Text>
-          </View>
-        )}
-        {!isOnline && !hasCacheData && (
-          <View style={[styles.offlineBannerWarn, isRTL && { flexDirection: "row-reverse" }]}>
-            <MaterialCommunityIcons name="wifi-off" size={13} color="#DC2626" />
-            <Text style={[styles.offlineWarnText, isRTL && styles.rtl]}>
-              {isRTL
-                ? "لا يوجد اتصال ولا توجد بيانات مخزنة. يُرجى الاتصال بالإنترنت مرة واحدة للتحميل."
-                : "Pas de connexion et aucune donnée locale. Connectez-vous une fois pour télécharger."}
-            </Text>
-          </View>
-        )}
-
-        {/* ── مستطيل التنبيهات الموحَّد ──────────────────────── */}
-        <View style={styles.alertsBox}>
-          {/* تنبيه أول: الأسعار الرسمية (أصفر/برتقالي) */}
-          <View style={[styles.alertRow, styles.alertAmber, isRTL && styles.rtlRow]}>
-            <MaterialCommunityIcons name="shield-check" size={13} color="#92400E" />
-            <Text style={[styles.alertText, { color: "#78350F" }, isRTL && styles.rtl]} numberOfLines={2}>
-              {isRTL
-                ? "أسعار موحَّدة ومعتمَدة من وزارة الصحة — أي زيادة قد تُعدّ غشّاً"
-                : "Prix homologués par le Ministère de la Santé — toute hausse peut constituer une fraude"}
-            </Text>
-          </View>
-          <View style={styles.alertSep} />
-          {/* تنبيه ثانٍ: البحث بالاسم العلمي (أزرق) */}
-          <View style={[styles.alertRow, styles.alertBlue, isRTL && styles.rtlRow]}>
-            <MaterialCommunityIcons name="flask-outline" size={13} color="#2563EB" />
-            <Text style={[styles.alertText, { color: "#1E40AF" }, isRTL && styles.rtl]} numberOfLines={2}>
-              {isRTL
-                ? "لم تجده؟ ابحث بالاسم العلمي (DCI) على العلبة — مثال: Paracétamol"
-                : "Introuvable ? Cherchez le DCI sur la boîte — Ex. : Paracétamol"}
-            </Text>
-          </View>
         </View>
 
         {/* ── قائمة الأدوية ────────────────────────────────── */}

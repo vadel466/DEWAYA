@@ -45,6 +45,11 @@ A bilingual **Arabic/French** (RTL-aware) mobile app for finding pharmacies in M
 - Pharmacy portal: **per-pharmacy** unique `portalPin` (set by admin). Sent as `x-pharmacy-pin` header on mutations. No shared/master code.
 - Company portal: **per-company** unique `code` (set by admin). Sent as `x-company-code` header on mutations. No shared/master code.
 
+**UI Design (Last Updated):**
+- Home cards: 4 action cards with colored top-band design (`cardBand`), larger 48×48 icons, `justifyContent: "flex-start"`. Colors: blue (#1565C0) nearest, teal (#00796B) nursing, indigo (#283593) duty, burnt-orange (#BF360C) drug price.
+- Drug-price screen layout order: topBar → offline banners → alertsBox → searchBar → results.
+- All pharmacy coordinates validated (32 pharmacies, all within Mauritanian bounds).
+
 **Features:**
 - Search for medicine by name or box photo (camera + gallery)
 - Submit request → notification flow with 10 MRU fee

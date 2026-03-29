@@ -208,15 +208,19 @@ const POLL_INTERVAL_MS = 15_000;
 /* Delay before first poll — let the UI settle first */
 const POLL_STARTUP_DELAY_MS = 3_000;
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+} catch {
+  /* expo-notifications may not be available on all platforms/configs */
+}
 
 const AppContext = createContext<AppContextType | null>(null);
 

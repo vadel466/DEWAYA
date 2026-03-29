@@ -134,15 +134,21 @@ export default function RootLayout() {
   useEffect(() => {
     if (!ready || showIntro === null || !imageLoaded) return;
 
-    if (Platform.OS !== "web") {
-      SplashScreen.hideAsync().catch(() => {});
-    }
+    /* Wait one animation frame so the JS splash overlay is painted
+     * before the native splash is removed — prevents a white flash. */
+    const raf = requestAnimationFrame(() => {
+      if (Platform.OS !== "web") {
+        SplashScreen.hideAsync().catch(() => {});
+      }
 
-    Animated.timing(fadeAnim, {
-      toValue:         0,
-      duration:        300,
-      useNativeDriver: true,
-    }).start(() => setSplashDone(true));
+      Animated.timing(fadeAnim, {
+        toValue:         0,
+        duration:        300,
+        useNativeDriver: true,
+      }).start(() => setSplashDone(true));
+    });
+
+    return () => cancelAnimationFrame(raf);
   }, [ready, showIntro, imageLoaded, fadeAnim]);
 
   /* ── Safety: mark icon loaded after 250 ms even if onLoadEnd is slow ── */
@@ -157,7 +163,7 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider style={styles.safeArea}>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={styles.root}>
@@ -202,7 +208,8 @@ export default function RootLayout() {
 /* ─────────────────────────────────────────────────────────────── */
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
+  safeArea: { flex: 1, backgroundColor: "#0D9488" },
+  root: { flex: 1, backgroundColor: "#0D9488" },
 
   splash: {
     ...StyleSheet.absoluteFillObject,

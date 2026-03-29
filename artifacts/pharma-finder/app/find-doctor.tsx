@@ -918,14 +918,14 @@ export default function NursingCareScreen() {
                 </Text>
                 <Text style={[styles.paySub, isRTL && styles.rtlText]}>
                   {isRTL
-                    ? "يرجى دفع 50 أوقية عبر بنكيلي باستخدام الكود التالي كمرجع للتحويل:"
-                    : "Veuillez payer 50 MRU via Bankily en utilisant le code suivant comme référence:"}
+                    ? "يرجى دفع 100 أوقية عبر بنكيلي باستخدام الكود التالي كمرجع للتحويل:"
+                    : "Veuillez payer 100 MRU via Bankily en utilisant le code suivant comme référence:"}
                 </Text>
 
                 <View style={styles.payCodeBox}>
                   <Text style={styles.payCodeLabel}>{isRTL ? "كود المعاملة" : "Code transaction"}</Text>
                   <Text style={styles.payCode}>{pendingPaymentCode}</Text>
-                  <Text style={styles.payAmount}>50 MRU</Text>
+                  <Text style={styles.payAmount}>100 MRU</Text>
                 </View>
 
                 <View style={styles.paySteps}>
@@ -933,7 +933,7 @@ export default function NursingCareScreen() {
                     {isRTL ? "١. افتح تطبيق بنكيلي" : "1. Ouvrez l'appli Bankily"}
                   </Text>
                   <Text style={[styles.payStepText, isRTL && styles.rtlText]}>
-                    {isRTL ? `٢. ادفع 50 أوقية بمرجع: ${pendingPaymentCode}` : `2. Payez 50 MRU avec référence: ${pendingPaymentCode}`}
+                    {isRTL ? `٢. ادفع 100 أوقية بمرجع: ${pendingPaymentCode}` : `2. Payez 100 MRU avec référence: ${pendingPaymentCode}`}
                   </Text>
                   <Text style={[styles.payStepText, isRTL && styles.rtlText]}>
                     {isRTL ? "٣. اضغط 'لقد دفعت' أدناه" : "3. Appuyez sur 'J'ai payé' ci-dessous"}

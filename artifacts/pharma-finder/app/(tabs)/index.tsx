@@ -483,7 +483,7 @@ export default function HomeScreen() {
         <View style={styles.sourceRow}>
           <Text style={styles.sourceFlag}>🇲🇷</Text>
           <Text style={styles.sourceText}>
-            {isRTL ? "المصدر: وزارة الصحة الموريتانية" : "Source: Ministère de la Santé Mauritanien"}
+            {isRTL ? "جميع البيانات في دوايا مستمدة من المصادر الصحية الرسمية في موريتانيا" : "Toutes les données de Dewaya proviennent des sources sanitaires officielles en Mauritanie"}
           </Text>
         </View>
 

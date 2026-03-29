@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -30,6 +30,17 @@ const API_BASE =
       ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
       : "/api";
 
+type NotifItem = {
+  id: string;
+  pharmacyName: string;
+  pharmacyAddress: string;
+  pharmacyPhone: string;
+  isLocked: boolean;
+  isRead: boolean;
+  paymentPending: boolean;
+  createdAt: string;
+};
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { t, language, setLanguage, userId, lockedCount, region, setRegion, isAdmin, setIsAdmin } = useApp();
@@ -53,6 +64,35 @@ export default function HomeScreen() {
   const [adminPinInput, setAdminPinInput] = useState("");
   const [adminPinError, setAdminPinError] = useState(false);
   const [adminPinSuccess, setAdminPinSuccess] = useState(false);
+
+  /* ── Notification panel ── */
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [notifs, setNotifs] = useState<NotifItem[]>([]);
+  const [notifsLoading, setNotifsLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const fetchNotifs = useCallback(async () => {
+    if (!userId) return;
+    setNotifsLoading(true);
+    try {
+      const resp = await fetch(`${API_BASE}/notifications/${userId}`);
+      if (resp.ok) setNotifs(await resp.json());
+    } catch { /* silent */ } finally { setNotifsLoading(false); }
+  }, [userId]);
+
+  useEffect(() => {
+    if (showNotifPanel) fetchNotifs();
+  }, [showNotifPanel, fetchNotifs]);
+
+  const deleteNotif = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await fetch(`${API_BASE}/notifications/${id}`, { method: "DELETE" });
+      setNotifs(prev => prev.filter(n => n.id !== id));
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch { /* silent */ } finally { setDeletingId(null); }
+  };
+
   const logoProgress = useRef(new Animated.Value(0)).current;
   const logoAnimation = useRef<Animated.CompositeAnimation | null>(null);
   const adminPinRef = useRef<TextInput>(null);
@@ -311,7 +351,7 @@ export default function HomeScreen() {
           {/* Bell — absolute, top-right corner */}
           <TouchableOpacity
             style={styles.bellBtn}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/(tabs)/notifications"); }}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowNotifPanel(true); }}
             activeOpacity={0.75}
           >
             <Ionicons name={lockedCount > 0 ? "notifications" : "notifications-outline"} size={20} color="#1A237E" />
@@ -684,6 +724,96 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
+      {/* ════ NOTIFICATION PANEL ════ */}
+      <Modal
+        visible={showNotifPanel}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowNotifPanel(false)}
+        statusBarTranslucent
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
+            onPress={() => setShowNotifPanel(false)}
+          />
+          <View style={[styles.notifPanel, { paddingBottom: insets.bottom + 12 }]}>
+          {/* Panel header */}
+          <View style={[styles.notifPanelHeader, isRTL && styles.rowReverse]}>
+            <View style={[styles.notifPanelTitleRow, isRTL && styles.rowReverse]}>
+              <Ionicons name="notifications" size={18} color="#1A237E" />
+              <Text style={styles.notifPanelTitle}>
+                {isRTL ? "الإشعارات" : "Notifications"}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => setShowNotifPanel(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close" size={22} color="#546E7A" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Content */}
+          {notifsLoading ? (
+            <View style={styles.notifCentered}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+            </View>
+          ) : notifs.length === 0 ? (
+            <View style={styles.notifCentered}>
+              <Ionicons name="notifications-off-outline" size={36} color="#CFD8DC" />
+              <Text style={styles.notifEmpty}>
+                {isRTL ? "لا توجد إشعارات" : "Aucune notification"}
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={[...notifs].reverse()}
+              keyExtractor={n => n.id}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => {
+                const isPending = item.isLocked && item.paymentPending;
+                const isUnlocked = !item.isLocked;
+                return (
+                  <View style={[styles.notifRow, isRTL && styles.rowReverse]}>
+                    <View style={[styles.notifIconWrap,
+                      isUnlocked ? styles.notifIconGreen : isPending ? styles.notifIconBlue : styles.notifIconAmber
+                    ]}>
+                      <Ionicons
+                        name={isUnlocked ? "checkmark-circle" : isPending ? "time" : "lock-closed"}
+                        size={18}
+                        color={isUnlocked ? "#059669" : isPending ? Colors.primary : "#D97706"}
+                      />
+                    </View>
+                    <View style={[styles.notifText, isRTL && { alignItems: "flex-end" }]}>
+                      <Text style={styles.notifTitle} numberOfLines={1}>
+                        {isUnlocked ? item.pharmacyName : (isRTL ? "إشعار جديد" : "Nouvelle notification")}
+                      </Text>
+                      <Text style={styles.notifSub} numberOfLines={1}>
+                        {isUnlocked
+                          ? item.pharmacyAddress
+                          : isPending
+                            ? (isRTL ? "في انتظار التأكيد..." : "En attente de confirmation...")
+                            : (isRTL ? "يتطلب الدفع" : "Paiement requis")}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => deleteNotif(item.id)}
+                      disabled={deletingId === item.id}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={styles.notifDeleteBtn}
+                    >
+                      {deletingId === item.id
+                        ? <ActivityIndicator size="small" color="#EF4444" />
+                        : <Ionicons name="close-circle" size={20} color="#EF4444" />}
+                    </TouchableOpacity>
+                  </View>
+                );
+              }}
+            />
+          )}
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -997,4 +1127,90 @@ const styles = StyleSheet.create({
   successModalSub: { fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, textAlign: "center", lineHeight: 22, marginBottom: 28 },
   successConfirmBtn: { backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 48, alignItems: "center", justifyContent: "center", width: "100%" },
   successConfirmText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16 },
+
+  /* NOTIFICATION PANEL */
+  notifOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  notifPanel: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    maxHeight: "72%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  notifPanelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF2F7",
+  },
+  notifPanelTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  notifPanelTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 16,
+    color: "#1A237E",
+  },
+  notifCentered: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+    gap: 12,
+  },
+  notifEmpty: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    color: "#90A4AE",
+  },
+  notifRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  notifIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  notifIconGreen: { backgroundColor: "#D1FAE5" },
+  notifIconBlue: { backgroundColor: "#DBEAFE" },
+  notifIconAmber: { backgroundColor: "#FEF3C7" },
+  notifText: {
+    flex: 1,
+    gap: 2,
+  },
+  notifTitle: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13.5,
+    color: "#1E293B",
+  },
+  notifSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    color: "#78909C",
+  },
+  notifDeleteBtn: {
+    padding: 4,
+    flexShrink: 0,
+  },
 });

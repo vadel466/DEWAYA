@@ -145,6 +145,17 @@ router.post("/:id/request-unlock", async (req, res) => {
   }
 });
 
+router.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.delete(notificationsTable).where(eq(notificationsTable.id, id));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.post("/:id/confirm-payment", async (req, res) => {
   try {
     const { id } = req.params;

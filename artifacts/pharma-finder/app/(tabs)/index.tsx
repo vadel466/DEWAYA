@@ -13,7 +13,9 @@ import {
   FlatList,
   Animated,
   Linking,
+  ScrollView,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -64,6 +66,19 @@ export default function HomeScreen() {
   const [adminPinInput, setAdminPinInput] = useState("");
   const [adminPinError, setAdminPinError] = useState(false);
   const [adminPinSuccess, setAdminPinSuccess] = useState(false);
+  const [adminPinChecking, setAdminPinChecking] = useState(false);
+
+  /* ── Brute force protection ── */
+  const [pinAttempts, setPinAttempts] = useState(0);
+  const [pinLockUntil, setPinLockUntil] = useState<number>(0);
+  const [lockCountdown, setLockCountdown] = useState(0);
+
+  /* ── Terms acceptance ── */
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(true);
+
+  /* ── Estimated wait time ── */
+  const [waitTime, setWaitTime] = useState<string | null>(null);
 
   /* ── Notification panel ── */
   const [showNotifPanel, setShowNotifPanel] = useState(false);
@@ -97,7 +112,28 @@ export default function HomeScreen() {
   const logoAnimation = useRef<Animated.CompositeAnimation | null>(null);
   const adminPinRef = useRef<TextInput>(null);
 
-  const ADMIN_PIN = "2026";
+  /* ── On mount: check terms acceptance + fetch wait time ── */
+  useEffect(() => {
+    (async () => {
+      try {
+        const accepted = await AsyncStorage.getItem("@dewaya_terms_accepted");
+        if (!accepted) setShowTermsModal(true);
+        const wt = await fetch(`${API_BASE}/settings/wait-time`);
+        if (wt.ok) { const d = await wt.json(); if (d.value) setWaitTime(d.value); }
+      } catch { /* silent */ }
+    })();
+  }, []);
+
+  /* ── Lockout countdown ticker ── */
+  useEffect(() => {
+    if (pinLockUntil <= Date.now()) { setLockCountdown(0); return; }
+    const interval = setInterval(() => {
+      const remaining = Math.ceil((pinLockUntil - Date.now()) / 1000);
+      if (remaining <= 0) { setLockCountdown(0); setPinLockUntil(0); clearInterval(interval); }
+      else setLockCountdown(remaining);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [pinLockUntil]);
 
   const handleLogoLongPress = () => {
     logoAnimation.current?.stop();
@@ -124,22 +160,52 @@ export default function HomeScreen() {
   };
 
   const handleAdminPinSubmit = async () => {
-    if (adminPinInput.trim() === ADMIN_PIN) {
-      setAdminPinSuccess(true);
-      setAdminPinError(false);
-      await setIsAdmin(true);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setTimeout(() => {
-        setShowAdminPinModal(false);
-        setAdminPinInput("");
-        setAdminPinSuccess(false);
-        router.push("/(tabs)/admin");
-      }, 800);
-    } else {
+    if (pinLockUntil > Date.now()) return;
+    if (!adminPinInput.trim()) return;
+    setAdminPinChecking(true);
+    try {
+      const resp = await fetch(`${API_BASE}/settings/check-admin-pin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: adminPinInput.trim() }),
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        setAdminPinSuccess(true);
+        setAdminPinError(false);
+        setPinAttempts(0);
+        await setIsAdmin(true);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setTimeout(() => {
+          setShowAdminPinModal(false);
+          setAdminPinInput("");
+          setAdminPinSuccess(false);
+          router.push("/(tabs)/admin");
+        }, 800);
+      } else {
+        const newAttempts = pinAttempts + 1;
+        setPinAttempts(newAttempts);
+        setAdminPinError(true);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setTimeout(() => setAdminPinError(false), 2500);
+        if (newAttempts >= 5) {
+          setPinLockUntil(Date.now() + 5 * 60 * 1000);
+          setLockCountdown(300);
+          setPinAttempts(0);
+        }
+      }
+    } catch {
       setAdminPinError(true);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setTimeout(() => setAdminPinError(false), 2500);
+      setTimeout(() => setAdminPinError(false), 2000);
+    } finally {
+      setAdminPinChecking(false);
     }
+  };
+
+  const acceptTerms = async () => {
+    await AsyncStorage.setItem("@dewaya_terms_accepted", "1");
+    setTermsAccepted(true);
+    setShowTermsModal(false);
   };
 
   const openCamera = async () => {
@@ -562,16 +628,25 @@ export default function HomeScreen() {
         </View>
 
         {/* ════ FOOTER ════ */}
-        <TouchableOpacity
-          style={styles.aboutLink}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/about"); }}
-          activeOpacity={0.7}
-        >
-          <MaterialCommunityIcons name="information-outline" size={12} color="#90A4AE" />
-          <Text style={styles.aboutLinkText}>
-            {isRTL ? "عن دواية • سياسة الخصوصية" : "À propos de Dewaya • Confidentialité"}
-          </Text>
-        </TouchableOpacity>
+        <View style={[styles.aboutLink, { gap: 12 }]}>
+          <TouchableOpacity
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/about"); }}
+            activeOpacity={0.7}
+            style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+          >
+            <MaterialCommunityIcons name="information-outline" size={12} color="#90A4AE" />
+            <Text style={styles.aboutLinkText}>{isRTL ? "عن دواية" : "À propos"}</Text>
+          </TouchableOpacity>
+          <Text style={[styles.aboutLinkText, { color: "#C5D0DA" }]}>•</Text>
+          <TouchableOpacity
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/privacy-policy"); }}
+            activeOpacity={0.7}
+            style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+          >
+            <Ionicons name="shield-checkmark-outline" size={12} color="#90A4AE" />
+            <Text style={styles.aboutLinkText}>{isRTL ? "الخصوصية" : "Confidentialité"}</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.sourceRow}>
           <Text style={styles.sourceFlag}>🇲🇷</Text>
           <Text style={styles.sourceText}>
@@ -669,33 +744,50 @@ export default function HomeScreen() {
               </>
             ) : (
               <>
-                <View style={styles.adminPinIconWrap}>
-                  <Ionicons name="shield" size={40} color={Colors.primary} />
+                <View style={[styles.adminPinIconWrap, lockCountdown > 0 && { backgroundColor: Colors.danger + "14" }]}>
+                  <Ionicons name={lockCountdown > 0 ? "lock-closed" : "shield"} size={40} color={lockCountdown > 0 ? Colors.danger : Colors.primary} />
                 </View>
                 <Text style={[styles.adminPinTitle, isRTL && styles.textRight]}>{isRTL ? "رمز الدخول" : "Code d'accès"}</Text>
-                <Text style={[styles.adminPinSub, isRTL && styles.textRight]}>{isRTL ? "أدخل رمز الإدارة للمتابعة" : "Entrez le code administrateur"}</Text>
-                <View style={[styles.adminPinRow, adminPinError && styles.adminPinRowError, isRTL && styles.rowReverse]}>
-                  <Ionicons name="key-outline" size={20} color={adminPinError ? Colors.danger : Colors.light.textSecondary} />
-                  <TextInput
-                    ref={adminPinRef}
-                    style={[styles.adminPinField, isRTL && styles.textRight]}
-                    placeholder="••••"
-                    placeholderTextColor={Colors.light.textTertiary}
-                    value={adminPinInput}
-                    onChangeText={setAdminPinInput}
-                    secureTextEntry
-                    keyboardType="number-pad"
-                    textAlign="center"
-                    returnKeyType="go"
-                    onSubmitEditing={handleAdminPinSubmit}
-                    maxLength={10}
-                  />
-                </View>
-                {adminPinError && <Text style={styles.adminPinErrorText}>{isRTL ? "رمز غير صحيح" : "Code incorrect"}</Text>}
-                <TouchableOpacity style={[styles.adminPinBtn, !adminPinInput.trim() && styles.adminPinBtnDisabled]} onPress={handleAdminPinSubmit} disabled={!adminPinInput.trim()} activeOpacity={0.85}>
-                  <Ionicons name="enter" size={18} color="#fff" />
-                  <Text style={styles.adminPinBtnText}>{isRTL ? "دخول" : "Connexion"}</Text>
-                </TouchableOpacity>
+                {lockCountdown > 0 ? (
+                  <>
+                    <Text style={[styles.adminPinSub, { color: Colors.danger }, isRTL && styles.textRight]}>
+                      {isRTL ? `تم تجاوز عدد المحاولات\nالتجربة مجدداً بعد ${Math.floor(lockCountdown / 60)}:${String(lockCountdown % 60).padStart(2, "0")}` : `Trop de tentatives\nRéessayez dans ${Math.floor(lockCountdown / 60)}:${String(lockCountdown % 60).padStart(2, "0")}`}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={[styles.adminPinSub, isRTL && styles.textRight]}>{isRTL ? "أدخل رمز الإدارة للمتابعة" : "Entrez le code administrateur"}</Text>
+                    {pinAttempts > 0 && (
+                      <Text style={[styles.adminPinErrorText, { marginTop: -6 }]}>
+                        {isRTL ? `${pinAttempts}/5 محاولات` : `${pinAttempts}/5 tentatives`}
+                      </Text>
+                    )}
+                    <View style={[styles.adminPinRow, adminPinError && styles.adminPinRowError, isRTL && styles.rowReverse]}>
+                      <Ionicons name="key-outline" size={20} color={adminPinError ? Colors.danger : Colors.light.textSecondary} />
+                      <TextInput
+                        ref={adminPinRef}
+                        style={[styles.adminPinField, isRTL && styles.textRight]}
+                        placeholder="••••"
+                        placeholderTextColor={Colors.light.textTertiary}
+                        value={adminPinInput}
+                        onChangeText={setAdminPinInput}
+                        secureTextEntry
+                        keyboardType="number-pad"
+                        textAlign="center"
+                        returnKeyType="go"
+                        onSubmitEditing={handleAdminPinSubmit}
+                        maxLength={10}
+                        editable={!adminPinChecking}
+                      />
+                      {adminPinChecking && <ActivityIndicator size="small" color={Colors.primary} />}
+                    </View>
+                    {adminPinError && <Text style={styles.adminPinErrorText}>{isRTL ? "رمز غير صحيح" : "Code incorrect"}</Text>}
+                    <TouchableOpacity style={[styles.adminPinBtn, (!adminPinInput.trim() || adminPinChecking) && styles.adminPinBtnDisabled]} onPress={handleAdminPinSubmit} disabled={!adminPinInput.trim() || adminPinChecking} activeOpacity={0.85}>
+                      <Ionicons name="enter" size={18} color="#fff" />
+                      <Text style={styles.adminPinBtnText}>{isRTL ? "دخول" : "Connexion"}</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
                 <TouchableOpacity style={styles.adminPinCancel} onPress={() => { setShowAdminPinModal(false); setAdminPinInput(""); }} activeOpacity={0.7}>
                   <Text style={styles.adminPinCancelText}>{t("cancel")}</Text>
                 </TouchableOpacity>
@@ -717,6 +809,14 @@ export default function HomeScreen() {
             </View>
             <Text style={[styles.successModalTitle, isRTL && styles.textRight]}>{t("requestSent")}</Text>
             <Text style={[styles.successModalSub, isRTL && styles.textRight]}>{t("requestSentSubtitle")}</Text>
+            {waitTime && (
+              <View style={styles.waitTimeRow}>
+                <Ionicons name="time-outline" size={14} color="#00796B" />
+                <Text style={[styles.waitTimeText, isRTL && styles.textRight]}>
+                  {isRTL ? `وقت الاستجابة المتوقع: ${waitTime}` : `Délai estimé : ${waitTime}`}
+                </Text>
+              </View>
+            )}
             <TouchableOpacity style={styles.successConfirmBtn} onPress={handleNewSearch} activeOpacity={0.85}>
               <Text style={styles.successConfirmText}>{isRTL ? "تأكيد" : "Confirmer"}</Text>
             </TouchableOpacity>
@@ -770,29 +870,37 @@ export default function HomeScreen() {
               keyExtractor={n => n.id}
               showsVerticalScrollIndicator={false}
               renderItem={({ item }) => {
+                const isNotFound = item.pharmacyName === "NOT_FOUND";
                 const isPending = item.isLocked && item.paymentPending;
-                const isUnlocked = !item.isLocked;
+                const isUnlocked = !item.isLocked && !isNotFound;
                 return (
                   <View style={[styles.notifRow, isRTL && styles.rowReverse]}>
                     <View style={[styles.notifIconWrap,
-                      isUnlocked ? styles.notifIconGreen : isPending ? styles.notifIconBlue : styles.notifIconAmber
+                      isNotFound ? styles.notifIconRed :
+                      isUnlocked ? styles.notifIconGreen :
+                      isPending ? styles.notifIconBlue : styles.notifIconAmber
                     ]}>
                       <Ionicons
-                        name={isUnlocked ? "checkmark-circle" : isPending ? "time" : "lock-closed"}
+                        name={isNotFound ? "close-circle" : isUnlocked ? "checkmark-circle" : isPending ? "time" : "lock-closed"}
                         size={18}
-                        color={isUnlocked ? "#059669" : isPending ? Colors.primary : "#D97706"}
+                        color={isNotFound ? "#DC2626" : isUnlocked ? "#059669" : isPending ? Colors.primary : "#D97706"}
                       />
                     </View>
                     <View style={[styles.notifText, isRTL && { alignItems: "flex-end" }]}>
-                      <Text style={styles.notifTitle} numberOfLines={1}>
-                        {isUnlocked ? item.pharmacyName : (isRTL ? "إشعار جديد" : "Nouvelle notification")}
+                      <Text style={[styles.notifTitle, isNotFound && { color: "#DC2626" }]} numberOfLines={1}>
+                        {isNotFound
+                          ? (isRTL ? "الدواء غير متوفر" : "Médicament introuvable")
+                          : isUnlocked ? item.pharmacyName
+                          : (isRTL ? "إشعار جديد" : "Nouvelle notification")}
                       </Text>
                       <Text style={styles.notifSub} numberOfLines={1}>
-                        {isUnlocked
-                          ? item.pharmacyAddress
-                          : isPending
-                            ? (isRTL ? "في انتظار التأكيد..." : "En attente de confirmation...")
-                            : (isRTL ? "يتطلب الدفع" : "Paiement requis")}
+                        {isNotFound
+                          ? (isRTL ? `لم يُوجد: ${item.pharmacyAddress}` : `Introuvable : ${item.pharmacyAddress}`)
+                          : isUnlocked
+                            ? item.pharmacyAddress
+                            : isPending
+                              ? (isRTL ? "في انتظار التأكيد..." : "En attente de confirmation...")
+                              : (isRTL ? "يتطلب الدفع" : "Paiement requis")}
                       </Text>
                     </View>
                     <TouchableOpacity
@@ -810,6 +918,56 @@ export default function HomeScreen() {
               }}
             />
           )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ════ TERMS ACCEPTANCE MODAL ════ */}
+      <Modal visible={showTermsModal} transparent animationType="fade" statusBarTranslucent>
+        <View style={styles.termsOverlay}>
+          <View style={styles.termsSheet}>
+            <View style={styles.termsHeader}>
+              <View style={styles.termsIconWrap}>
+                <Ionicons name="shield-checkmark" size={32} color={Colors.primary} />
+              </View>
+              <Text style={[styles.termsTitle, isRTL && styles.textRight]}>
+                {isRTL ? "شروط الاستخدام والخصوصية" : "Conditions & Confidentialité"}
+              </Text>
+              <Text style={[styles.termsSub, isRTL && styles.textRight]}>
+                {isRTL
+                  ? "باستخدام أدْوَايَ، فإنك توافق على الشروط التالية:"
+                  : "En utilisant أدْوَايَ, vous acceptez les conditions suivantes :"}
+              </Text>
+            </View>
+            <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
+              {[
+                isRTL ? "رسوم البحث عن الدواء: 50 أوقية لفتح النتائج" : "Frais de recherche : 50 MRU pour débloquer les résultats",
+                isRTL ? "رسوم طلب ممرض: 100 أوقية" : "Frais infirmier : 100 MRU",
+                isRTL ? "الخدمة بحثية بشرية ولا تضمن توفر الدواء" : "Le service est humain, la disponibilité n'est pas garantie",
+                isRTL ? "نحفظ رقم هاتفك لإبلاغك بالنتائج فحسب" : "Votre numéro est conservé uniquement pour vous informer",
+                isRTL ? "لا نبيع بياناتك ولا نشاركها تجارياً" : "Vos données ne sont ni vendues ni partagées commercialement",
+              ].map((item, i) => (
+                <View key={i} style={[styles.termsItem, isRTL && styles.rowReverse]}>
+                  <Ionicons name="checkmark-circle" size={16} color={Colors.primary} style={{ flexShrink: 0 }} />
+                  <Text style={[styles.termsItemText, isRTL && styles.textRight]}>{item}</Text>
+                </View>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={{ marginTop: 4 }}
+              onPress={() => { setShowTermsModal(false); router.push("/privacy-policy"); }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.termsReadMore}>
+                {isRTL ? "قراءة السياسة الكاملة ◀" : "▶ Lire la politique complète"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.termsAcceptBtn} onPress={acceptTerms} activeOpacity={0.85}>
+              <Ionicons name="checkmark" size={18} color="#fff" />
+              <Text style={styles.termsAcceptText}>
+                {isRTL ? "أوافق على الشروط" : "J'accepte les conditions"}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1195,6 +1353,7 @@ const styles = StyleSheet.create({
   notifIconGreen: { backgroundColor: "#D1FAE5" },
   notifIconBlue: { backgroundColor: "#DBEAFE" },
   notifIconAmber: { backgroundColor: "#FEF3C7" },
+  notifIconRed: { backgroundColor: "#FEE2E2" },
   notifText: {
     flex: 1,
     gap: 2,
@@ -1212,5 +1371,61 @@ const styles = StyleSheet.create({
   notifDeleteBtn: {
     padding: 4,
     flexShrink: 0,
+  },
+
+  /* WAIT TIME */
+  waitTimeRow: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "#E0F2F1", borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 7,
+    marginBottom: 16, alignSelf: "stretch",
+  },
+  waitTimeText: {
+    fontFamily: "Inter_500Medium", fontSize: 12.5, color: "#00796B", flex: 1,
+  },
+
+  /* TERMS ACCEPTANCE MODAL */
+  termsOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center", justifyContent: "center", paddingHorizontal: 20,
+  },
+  termsSheet: {
+    backgroundColor: "#fff", borderRadius: 24,
+    padding: 24, width: "100%", maxWidth: 360,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.20, shadowRadius: 24, elevation: 20,
+    gap: 12,
+  },
+  termsHeader: { alignItems: "center", gap: 8 },
+  termsIconWrap: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: "#E8EAF6", alignItems: "center", justifyContent: "center",
+  },
+  termsTitle: {
+    fontFamily: "Inter_700Bold", fontSize: 17, color: "#1A237E", textAlign: "center",
+  },
+  termsSub: {
+    fontFamily: "Inter_400Regular", fontSize: 13, color: "#78909C",
+    textAlign: "center", lineHeight: 19,
+  },
+  termsItem: {
+    flexDirection: "row", alignItems: "flex-start", gap: 10,
+    paddingVertical: 6, paddingHorizontal: 2,
+  },
+  termsItemText: {
+    fontFamily: "Inter_400Regular", fontSize: 13, color: "#455A64",
+    flex: 1, lineHeight: 19,
+  },
+  termsReadMore: {
+    fontFamily: "Inter_500Medium", fontSize: 12, color: Colors.primary,
+    textAlign: "center",
+  },
+  termsAcceptBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, backgroundColor: Colors.primary, borderRadius: 14,
+    paddingVertical: 14, marginTop: 4,
+  },
+  termsAcceptText: {
+    fontFamily: "Inter_700Bold", fontSize: 15, color: "#fff",
   },
 });

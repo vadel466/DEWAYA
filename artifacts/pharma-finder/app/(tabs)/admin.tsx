@@ -140,6 +140,11 @@ export default function AdminScreen() {
   const [pharmacyPhoneR, setPharmacyPhoneR] = useState("");
   const [payNumInput, setPayNumInput] = useState("");
   const [editingPayNum, setEditingPayNum] = useState(false);
+  const [waitTimeInput, setWaitTimeInput] = useState("");
+  const [editingWaitTime, setEditingWaitTime] = useState(false);
+  const [pin2Input, setPin2Input] = useState("");
+  const [editingPin2, setEditingPin2] = useState(false);
+  const [markingNotFoundId, setMarkingNotFoundId] = useState<string | null>(null);
 
   const [showPharmacyModal, setShowPharmacyModal] = useState(false);
   const [editingPharmacy, setEditingPharmacy] = useState<Pharmacy | null>(null);
@@ -224,6 +229,63 @@ export default function AdminScreen() {
       return r.json();
     },
     onSuccess: () => { setEditingPayNum(false); refetchPayNum(); },
+  });
+
+  const { data: waitTimeData, refetch: refetchWaitTime } = useQuery<{ value: string | null }>({
+    queryKey: ["admin-wait-time"],
+    queryFn: async () => { const r = await fetch(`${API_BASE}/settings/wait-time`); if (!r.ok) return { value: null }; return r.json(); },
+    enabled: isAdmin, staleTime: 30_000,
+  });
+  const saveWaitTimeMutation = useMutation({
+    mutationFn: async (value: string) => {
+      const r = await fetch(`${API_BASE}/settings/wait-time`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+        body: JSON.stringify({ value }),
+      });
+      if (!r.ok) throw new Error();
+      return r.json();
+    },
+    onSuccess: () => { setEditingWaitTime(false); refetchWaitTime(); },
+  });
+
+  const { data: pin2ExistsData, refetch: refetchPin2Exists } = useQuery<{ exists: boolean }>({
+    queryKey: ["admin-pin2-exists"],
+    queryFn: async () => { const r = await fetch(`${API_BASE}/settings/admin-pin-2-exists`, { headers: { "x-admin-secret": ADMIN_SECRET } }); if (!r.ok) return { exists: false }; return r.json(); },
+    enabled: isAdmin, staleTime: 60_000,
+  });
+  const savePin2Mutation = useMutation({
+    mutationFn: async (pin: string) => {
+      const r = await fetch(`${API_BASE}/settings/admin-pin-2`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+        body: JSON.stringify({ pin }),
+      });
+      if (!r.ok) throw new Error();
+      return r.json();
+    },
+    onSuccess: () => { setEditingPin2(false); setPin2Input(""); refetchPin2Exists(); Alert.alert(isRTL ? "✅ تم" : "✅ OK", isRTL ? "تم حفظ الرمز الاحتياطي" : "Code de secours enregistré"); },
+    onError: () => Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "يجب أن يكون الرمز 4 أرقام على الأقل" : "Le code doit comporter au moins 4 chiffres"),
+  });
+  const deletePin2Mutation = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`${API_BASE}/settings/admin-pin-2`, { method: "DELETE", headers: { "x-admin-secret": ADMIN_SECRET } });
+      if (!r.ok) throw new Error();
+      return r.json();
+    },
+    onSuccess: () => { refetchPin2Exists(); Alert.alert(isRTL ? "تم الحذف" : "Supprimé", isRTL ? "تم حذف الرمز الاحتياطي" : "Code de secours supprimé"); },
+  });
+
+  const markNotFoundMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`${API_BASE}/requests/${id}/mark-not-found`, {
+        method: "PATCH", headers: { "x-admin-secret": ADMIN_SECRET },
+      });
+      if (!r.ok) throw new Error();
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-requests"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
   });
 
   const { data: pharmacies = [], isLoading: pharmaLoading, refetch: refetchPharma, isRefetching: pharmaRefetching } = useQuery<Pharmacy[]>({
@@ -1265,6 +1327,29 @@ export default function AdminScreen() {
         </View>
         <View style={{ flexDirection: "column", gap: 8, alignItems: "center" }}>
           {item.status === "pending" && <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />}
+          {item.status === "pending" && (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                Alert.alert(
+                  isRTL ? "الدواء غير متوفر؟" : "Médicament introuvable ?",
+                  isRTL ? "سيُبلَّغ المستخدم بعدم توفر الدواء" : "L'utilisateur sera notifié que le médicament est introuvable",
+                  [
+                    { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+                    { text: isRTL ? "تأكيد" : "Confirmer", style: "destructive", onPress: () => markNotFoundMutation.mutate(item.id) },
+                  ]
+                );
+              }}
+              disabled={markNotFoundMutation.isPending && markNotFoundMutation.variables === item.id}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ padding: 6, backgroundColor: "#FEF2F2", borderRadius: 8, alignItems: "center", justifyContent: "center" }}
+            >
+              <Ionicons name="close-circle-outline" size={20} color="#DC2626" />
+              <Text style={{ fontSize: 9, fontFamily: "Inter_600SemiBold", color: "#DC2626", marginTop: 1 }}>
+                {isRTL ? "غير متوفر" : "Introuvable"}
+              </Text>
+            </Pressable>
+          )}
           <Pressable
             onPress={(e) => {
               e.stopPropagation?.();
@@ -1902,6 +1987,12 @@ export default function AdminScreen() {
             <Text style={styles.dailyStatValue}>{dailyStats.total}</Text>
             <Text style={styles.dailyStatLabel}>{isRTL ? "إجمالي" : "Total"}</Text>
           </View>
+          <View style={styles.dailyStatDivider} />
+          <View style={styles.dailyStatItem}>
+            <MaterialCommunityIcons name="cash-multiple" size={13} color="#059669" />
+            <Text style={[styles.dailyStatValue, { color: "#059669", fontSize: 11 }]}>{(dailyStats.responded * 50).toLocaleString()}</Text>
+            <Text style={styles.dailyStatLabel}>{isRTL ? "أوق. متوقعة" : "MRU est."}</Text>
+          </View>
         </View>
       )}
 
@@ -2196,6 +2287,116 @@ export default function AdminScreen() {
                       <Text style={{ fontFamily: "Inter_400Regular", fontSize: 13, color: "#9CA3AF" }}>
                         {isRTL ? "لم يُضبط بعد — اضغط تعديل" : "Non défini — appuyez sur Modifier"}
                       </Text>
+                    )}
+                  </View>
+                )}
+              </View>
+
+              {/* ── Estimated wait time ── */}
+              <View style={{ backgroundColor: "#E0F2F1", borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: "#80CBC4" }}>
+                <View style={{ flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <Ionicons name="time-outline" size={20} color="#00796B" />
+                  <Text style={{ fontFamily: "Inter_700Bold", fontSize: 14, color: "#004D40", flex: 1, textAlign: isRTL ? "right" : "left" }}>
+                    {isRTL ? "وقت الاستجابة المتوقع" : "Délai de réponse estimé"}
+                  </Text>
+                  {!editingWaitTime && (
+                    <TouchableOpacity
+                      style={{ backgroundColor: "#00796B", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
+                      onPress={() => { setWaitTimeInput(waitTimeData?.value ?? ""); setEditingWaitTime(true); }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12 }}>{isRTL ? "تعديل" : "Modifier"}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {editingWaitTime ? (
+                  <View style={{ gap: 8 }}>
+                    <TextInput
+                      style={{ backgroundColor: "#fff", borderRadius: 10, borderWidth: 1, borderColor: "#80CBC4", paddingHorizontal: 14, paddingVertical: 10, fontFamily: "Inter_600SemiBold", fontSize: 15, color: "#004D40", textAlign: isRTL ? "right" : "left" }}
+                      value={waitTimeInput}
+                      onChangeText={setWaitTimeInput}
+                      placeholder={isRTL ? "مثال: 30 دقيقة - ساعتان" : "Ex: 30 min - 2 heures"}
+                      placeholderTextColor="#94A3B8"
+                      autoFocus
+                    />
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <TouchableOpacity
+                        style={{ flex: 1, backgroundColor: "#00796B", borderRadius: 10, paddingVertical: 10, alignItems: "center" }}
+                        onPress={() => saveWaitTimeMutation.mutate(waitTimeInput)}
+                        disabled={saveWaitTimeMutation.isPending || waitTimeInput.trim().length < 2}
+                        activeOpacity={0.85}
+                      >
+                        {saveWaitTimeMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 14 }}>{isRTL ? "حفظ" : "Enregistrer"}</Text>}
+                      </TouchableOpacity>
+                      <TouchableOpacity style={{ flex: 1, backgroundColor: "#E5E7EB", borderRadius: 10, paddingVertical: 10, alignItems: "center" }} onPress={() => setEditingWaitTime(false)} activeOpacity={0.85}>
+                        <Text style={{ color: "#374151", fontFamily: "Inter_600SemiBold", fontSize: 14 }}>{isRTL ? "إلغاء" : "Annuler"}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={{ backgroundColor: "#fff", borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: "#B2DFDB" }}>
+                    <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: waitTimeData?.value ? "#00796B" : "#9CA3AF", textAlign: isRTL ? "right" : "left" }}>
+                      {waitTimeData?.value ?? (isRTL ? "لم يُضبط بعد — اضغط تعديل" : "Non défini — appuyez sur Modifier")}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* ── Second admin PIN ── */}
+              <View style={{ backgroundColor: "#EDE7F6", borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: "#CE93D8" }}>
+                <View style={{ flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <Ionicons name="key" size={20} color="#6A1B9A" />
+                  <Text style={{ fontFamily: "Inter_700Bold", fontSize: 14, color: "#4A148C", flex: 1, textAlign: isRTL ? "right" : "left" }}>
+                    {isRTL ? "رمز الدخول الاحتياطي" : "Code d'accès de secours"}
+                  </Text>
+                  {!editingPin2 && (
+                    <TouchableOpacity
+                      style={{ backgroundColor: "#6A1B9A", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
+                      onPress={() => { setPin2Input(""); setEditingPin2(true); }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12 }}>
+                        {pin2ExistsData?.exists ? (isRTL ? "تغيير" : "Changer") : (isRTL ? "إضافة" : "Ajouter")}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {editingPin2 ? (
+                  <View style={{ gap: 8 }}>
+                    <TextInput
+                      style={{ backgroundColor: "#fff", borderRadius: 10, borderWidth: 1, borderColor: "#CE93D8", paddingHorizontal: 14, paddingVertical: 10, fontFamily: "Inter_600SemiBold", fontSize: 20, color: "#4A148C", textAlign: "center", letterSpacing: 8 }}
+                      value={pin2Input}
+                      onChangeText={setPin2Input}
+                      secureTextEntry
+                      keyboardType="number-pad"
+                      placeholder="••••"
+                      placeholderTextColor="#CE93D8"
+                      maxLength={10}
+                      autoFocus
+                    />
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <TouchableOpacity
+                        style={{ flex: 1, backgroundColor: "#6A1B9A", borderRadius: 10, paddingVertical: 10, alignItems: "center" }}
+                        onPress={() => savePin2Mutation.mutate(pin2Input)}
+                        disabled={savePin2Mutation.isPending || pin2Input.trim().length < 4}
+                        activeOpacity={0.85}
+                      >
+                        {savePin2Mutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 14 }}>{isRTL ? "حفظ" : "Enregistrer"}</Text>}
+                      </TouchableOpacity>
+                      <TouchableOpacity style={{ flex: 1, backgroundColor: "#E5E7EB", borderRadius: 10, paddingVertical: 10, alignItems: "center" }} onPress={() => setEditingPin2(false)} activeOpacity={0.85}>
+                        <Text style={{ color: "#374151", fontFamily: "Inter_600SemiBold", fontSize: 14 }}>{isRTL ? "إلغاء" : "Annuler"}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={{ backgroundColor: "#fff", borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: "#E1BEE7", flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: pin2ExistsData?.exists ? "#6A1B9A" : "#9CA3AF" }}>
+                      {pin2ExistsData?.exists ? (isRTL ? "✓ رمز احتياطي مُضبوط" : "✓ Code de secours configuré") : (isRTL ? "لا يوجد رمز احتياطي" : "Aucun code de secours")}
+                    </Text>
+                    {pin2ExistsData?.exists && (
+                      <TouchableOpacity onPress={() => { Alert.alert(isRTL ? "حذف الرمز الاحتياطي؟" : "Supprimer le code ?", "", [{ text: isRTL ? "إلغاء" : "Annuler", style: "cancel" }, { text: isRTL ? "حذف" : "Supprimer", style: "destructive", onPress: () => deletePin2Mutation.mutate() }]); }} activeOpacity={0.7}>
+                        <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                      </TouchableOpacity>
                     )}
                   </View>
                 )}

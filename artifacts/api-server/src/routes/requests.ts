@@ -145,6 +145,38 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+router.patch("/:id/mark-not-found", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminSecret = process.env.ADMIN_SECRET ?? "DEWAYA_ADMIN_2026";
+    if (req.headers["x-admin-secret"] !== adminSecret) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const [request] = await db
+      .update(drugRequestsTable)
+      .set({ status: "not_found", respondedAt: new Date() })
+      .where(eq(drugRequestsTable.id, id))
+      .returning();
+    if (!request) return res.status(404).json({ error: "Request not found" });
+
+    await db.insert(notificationsTable).values({
+      id: generateId(),
+      userId: request.userId,
+      requestId: request.id,
+      pharmacyName: "NOT_FOUND",
+      pharmacyAddress: request.drugName ?? "",
+      pharmacyPhone: "",
+      isLocked: false,
+      isRead: false,
+    });
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.post("/:id/respond", async (req, res) => {
   try {
     const { id } = req.params;

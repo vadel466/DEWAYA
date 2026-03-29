@@ -359,3 +359,9 @@ export const nursingRequestsTable = pgTable("nursing_requests", {
 export const insertNursingRequestSchema = createInsertSchema(nursingRequestsTable).omit({ createdAt: true, respondedAt: true });
 export type InsertNursingRequest = z.infer<typeof insertNursingRequestSchema>;
 export type NursingRequest = typeof nursingRequestsTable.$inferSelect;
+
+export const adminPushTokensTable = pgTable("admin_push_tokens", {
+  id: text("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});

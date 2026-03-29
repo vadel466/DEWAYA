@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { notificationsTable, drugRequestsTable } from "@workspace/db";
+import { notificationsTable, drugRequestsTable, adminPushTokensTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -13,6 +13,54 @@ function generatePaymentRef(): string {
   }
   return ref;
 }
+
+async function sendAdminPushNotifications(title: string, body: string) {
+  try {
+    const tokens = await db.select().from(adminPushTokensTable);
+    if (tokens.length === 0) return;
+
+    const messages = tokens.map((t) => ({
+      to: t.token,
+      sound: "default" as const,
+      title,
+      body,
+      priority: "high" as const,
+      channelId: "admin-alerts",
+    }));
+
+    await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip, deflate",
+      },
+      body: JSON.stringify(messages),
+    });
+  } catch {
+    /* non-critical — never block the main response */
+  }
+}
+
+router.post("/admin/register-token", async (req, res) => {
+  try {
+    const { token } = req.body as { token?: string };
+    if (!token || typeof token !== "string" || !token.startsWith("ExponentPushToken")) {
+      res.status(400).json({ error: "Invalid push token" });
+      return;
+    }
+
+    await db
+      .insert(adminPushTokensTable)
+      .values({ id: token, token })
+      .onConflictDoNothing();
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 router.get("/admin/pending-payments", async (req, res) => {
   try {
@@ -89,6 +137,12 @@ router.post("/:id/request-unlock", async (req, res) => {
       .returning();
 
     res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+
+    /* إرسال إشعار للمسؤول — بعد الرد على المستخدم مباشرةً */
+    sendAdminPushNotifications(
+      "🔔 طلب دفع جديد",
+      `الكود: ${paymentRef} — في انتظار تأكيدك`
+    );
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });

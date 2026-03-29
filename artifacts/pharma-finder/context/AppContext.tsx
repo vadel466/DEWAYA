@@ -433,6 +433,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setRegion = (r: Region | null) => setRegionSt(r);
 
+  /* ── Register admin push token when admin logs in ── */
+  useEffect(() => {
+    if (!isAdmin || Platform.OS === "web") return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status !== "granted") return;
+        const tokenData = await Notifications.getExpoPushTokenAsync();
+        if (cancelled) return;
+        await fetch(`${API_BASE}/notifications/admin/register-token`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: tokenData.data }),
+        });
+      } catch {
+        /* non-critical */
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [isAdmin]);
+
   const setIsAdmin = async (v: boolean) => {
     setIsAdminSt(v);
     await AsyncStorage.setItem("isAdmin", v ? "true" : "false");

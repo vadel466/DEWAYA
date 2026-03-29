@@ -364,8 +364,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         if (cancelled) return;
 
-        const locked = notifs.filter((n) => n.isLocked);
-        const newCount = locked.length;
+        const newCount = notifs.filter((n) => !n.isLocked && !n.isRead).length;
         setLockedCount(newCount);
 
         /* Only update badge on native */

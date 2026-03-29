@@ -302,7 +302,7 @@ export default function HomeScreen() {
 
             {/* App name + tagline */}
             <View style={styles.appNameGroup}>
-              <Text style={styles.appNameAr}>أدوايـا</Text>
+              <Text style={styles.appNameAr}>أدْوَايَ</Text>
               <Text style={styles.logoSubText}>D E W A Y A</Text>
               <Text style={styles.sloganText}>خدمة صحية متكاملة</Text>
             </View>
@@ -377,17 +377,28 @@ export default function HomeScreen() {
 
           {/* Row 2 */}
           <View style={[styles.searchRow2, isRTL && styles.rowReverse]}>
-            <TouchableOpacity
-              style={[styles.regionChip, isRTL && styles.rowReverse]}
-              onPress={() => setShowRegionPicker(true)}
-              activeOpacity={0.75}
-            >
-              <Ionicons name="location" size={12} color={Colors.primary} />
-              <Text style={styles.regionChipText} numberOfLines={1}>
-                {region ? (language === "ar" ? region.ar : region.fr) : (isRTL ? "المنطقة" : "Région")}
-              </Text>
-              <Ionicons name="chevron-down" size={11} color={Colors.primary + "99"} />
-            </TouchableOpacity>
+            <View style={[styles.regionChipWrap, isRTL && styles.rowReverse]}>
+              <TouchableOpacity
+                style={[styles.regionChip, isRTL && styles.rowReverse]}
+                onPress={() => setShowRegionPicker(true)}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="location" size={12} color={Colors.primary} />
+                <Text style={styles.regionChipText} numberOfLines={1}>
+                  {region ? (language === "ar" ? region.ar : region.fr) : (isRTL ? "المنطقة" : "Région")}
+                </Text>
+                {!region && <Ionicons name="chevron-down" size={11} color={Colors.primary + "99"} />}
+              </TouchableOpacity>
+              {region && (
+                <TouchableOpacity
+                  onPress={() => setRegion(null)}
+                  hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+                  style={styles.regionClearBtn}
+                >
+                  <Ionicons name="close-circle" size={15} color={Colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
             <View style={styles.inputVDivider} />
             <TextInput
               ref={inputRef}
@@ -789,9 +800,15 @@ const styles = StyleSheet.create({
   },
   searchHDivider: { height: 1, backgroundColor: "#CFD8DC" },
   searchRow2: { flexDirection: "row", alignItems: "center", minHeight: 42 },
+  regionChipWrap: {
+    flexDirection: "row", alignItems: "center", minWidth: 95,
+  },
   regionChip: {
     flexDirection: "row", alignItems: "center", gap: 3,
-    paddingHorizontal: 10, paddingVertical: 12, minWidth: 95,
+    paddingHorizontal: 10, paddingVertical: 12, flex: 1,
+  },
+  regionClearBtn: {
+    paddingRight: 6, paddingLeft: 2,
   },
   regionChipText: { fontFamily: "Inter_600SemiBold", fontSize: 11.5, color: Colors.primary, flexShrink: 1 },
   inputVDivider: { width: 1, height: 26, backgroundColor: "#CFD8DC" },

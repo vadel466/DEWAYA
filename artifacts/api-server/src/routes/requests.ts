@@ -1,7 +1,18 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { drugRequestsTable, notificationsTable, pharmaciesTable } from "@workspace/db";
-import { eq, and, count, sql, desc } from "drizzle-orm";
+import { drugRequestsTable, notificationsTable, pharmaciesTable, adminPushTokensTable } from "@workspace/db";
+import { eq, and, count, sql, desc, isNotNull } from "drizzle-orm";
+
+async function sendPush(tokens: string[], title: string, body: string) {
+  if (!tokens.length) return;
+  try {
+    await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json", "Accept-Encoding": "gzip, deflate" },
+      body: JSON.stringify(tokens.map(to => ({ to, sound: "default", title, body, priority: "high", channelId: "alerts" }))),
+    });
+  } catch { /* non-critical */ }
+}
 
 const router: IRouter = Router();
 
@@ -69,6 +80,14 @@ router.post("/", async (req, res) => {
       createdAt: request.createdAt.toISOString(),
       respondedAt: null,
     });
+
+    /* ── Push notification to all active pharmacies with push tokens ── */
+    const pharmacies = await db
+      .select({ pushToken: pharmaciesTable.pushToken })
+      .from(pharmaciesTable)
+      .where(and(eq(pharmaciesTable.isActive, true), isNotNull(pharmaciesTable.pushToken)));
+    const tokens = pharmacies.map(p => p.pushToken!).filter(Boolean);
+    sendPush(tokens, "🔔 طلب دواء جديد", `${drugName}`);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
@@ -175,6 +194,10 @@ router.post("/:id/respond", async (req, res) => {
         ? request.respondedAt.toISOString()
         : null,
     });
+
+    /* ── Push notification to admin when pharmacy responds ── */
+    const adminTokens = await db.select({ token: adminPushTokensTable.token }).from(adminPushTokensTable);
+    sendPush(adminTokens.map(t => t.token), "💊 رد صيدلية جديد", `${pharmacyName} — ${request.drugName ?? ""}`);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });

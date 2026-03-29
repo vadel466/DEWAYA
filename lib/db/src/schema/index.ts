@@ -58,6 +58,7 @@ export const pharmaciesTable = pgTable("pharmacies", {
   lon: real("lon"),
   region: text("region"),
   portalPin: text("portal_pin"),
+  pushToken: text("push_token"),
   isActive: boolean("is_active").notNull().default(true),
   b2bEnabled: boolean("b2b_enabled").notNull().default(false),
   subscriptionActive: boolean("subscription_active").notNull().default(true),
@@ -324,6 +325,7 @@ export const nursesTable = pgTable("nurses", {
   isVerified: boolean("is_verified").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   passwordHash: text("password_hash").notNull(),
+  pushToken: text("push_token"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("nurses_phone_idx").on(table.phone),

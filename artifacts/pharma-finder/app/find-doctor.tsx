@@ -4,6 +4,7 @@ import {
   Platform, ActivityIndicator, ScrollView, Alert, Modal, FlatList, Linking,
   Animated, Vibration,
 } from "react-native";
+import * as Notifications from "expo-notifications";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -160,6 +161,20 @@ export default function NursingCareScreen() {
     }
   };
 
+  const registerNursePushToken = async (session: NurseSession) => {
+    if (Platform.OS === "web") return;
+    try {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== "granted") return;
+      const tokenData = await Notifications.getExpoPushTokenAsync();
+      fetch(`${API_BASE}/nursing/nurse/register-push-token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-nurse-id": session.id, "x-nurse-token": session.token },
+        body: JSON.stringify({ token: tokenData.data }),
+      }).catch(() => {});
+    } catch { /* non-critical */ }
+  };
+
   const handleNurseLogin = async () => {
     if (!nursePhone.trim() || !nursePassword.trim()) {
       Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "يرجى إدخال الهاتف وكلمة المرور" : "Téléphone et mot de passe requis");
@@ -180,6 +195,7 @@ export default function NursingCareScreen() {
       await AsyncStorage.setItem("nurse_session", JSON.stringify(session));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       loadNurseRequests(session);
+      registerNursePushToken(session);
     } catch (err: any) {
       Alert.alert(isRTL ? "خطأ" : "Erreur", err.message || (isRTL ? "رقم هاتف أو كلمة مرور خاطئة" : "Numéro ou mot de passe incorrect"));
     } finally {
@@ -210,6 +226,7 @@ export default function NursingCareScreen() {
       await AsyncStorage.setItem("nurse_session", JSON.stringify(session));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       loadNurseRequests(session);
+      registerNursePushToken(session);
     } catch (err: any) {
       Alert.alert(isRTL ? "خطأ" : "Erreur", err.message || (isRTL ? "فشل التسجيل" : "Échec de l'inscription"));
     } finally {

@@ -4,6 +4,7 @@ import {
   Linking, RefreshControl, Platform, TextInput, Alert, KeyboardAvoidingView,
   ScrollView, Animated, Vibration, Modal, Image,
 } from "react-native";
+import * as Notifications from "expo-notifications";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -178,6 +179,21 @@ export default function PharmacyPortalScreen() {
       setPharmacy(data);
       setStep("dashboard");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      /* ── Register push token for this pharmacy ── */
+      if (Platform.OS !== "web") {
+        try {
+          const { status } = await Notifications.getPermissionsAsync();
+          if (status === "granted") {
+            const tokenData = await Notifications.getExpoPushTokenAsync();
+            fetch(`${API_BASE}/pharmacy-portal/register-push-token`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-pharmacy-pin": pin.trim() },
+              body: JSON.stringify({ token: tokenData.data }),
+            }).catch(() => {});
+          }
+        } catch { /* non-critical */ }
+      }
     } catch {
       Alert.alert(isRTL ? "خطأ" : "Erreur", isRTL ? "خطأ في الاتصال" : "Erreur de connexion");
     } finally { setAuthLoading(false); }

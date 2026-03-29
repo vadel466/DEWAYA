@@ -1,8 +1,19 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { nursesTable, nursingRequestsTable } from "@workspace/db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, isNotNull } from "drizzle-orm";
 import crypto from "crypto";
+
+async function sendPush(tokens: string[], title: string, body: string) {
+  if (!tokens.length) return;
+  try {
+    await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json", "Accept-Encoding": "gzip, deflate" },
+      body: JSON.stringify(tokens.map(to => ({ to, sound: "default", title, body, priority: "high", channelId: "alerts" }))),
+    });
+  } catch { /* non-critical */ }
+}
 
 const router: IRouter = Router();
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "DEWAYA_ADMIN_2026";
@@ -48,6 +59,14 @@ router.post("/request", async (req, res) => {
       status: "pending", paymentCode, paymentStatus: "pending", nurseCount: 0,
     });
     res.json({ ok: true, id, paymentCode });
+
+    /* ── Push notification to all active nurses with push tokens ── */
+    const nurses = await db
+      .select({ pushToken: nursesTable.pushToken })
+      .from(nursesTable)
+      .where(and(eq(nursesTable.isActive, true), isNotNull(nursesTable.pushToken)));
+    const tokens = nurses.map(n => n.pushToken!).filter(Boolean);
+    sendPush(tokens, "🔔 طلب تمريض جديد", `${careType.trim()} — ${region.trim()}`);
   } catch (err) {
     console.error("[nursing/request]", err);
     res.status(500).json({ error: "Erreur serveur" });
@@ -184,6 +203,28 @@ router.post("/nurse/login", async (req, res) => {
     res.json({ ok: true, id: nurse.id, name: nurse.name, phone: nurse.phone, region: nurse.region, specialty: nurse.specialty, token, isVerified: nurse.isVerified });
   } catch (err) {
     console.error("[nursing/nurse/login]", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+/* ── Register push token for a nurse (called after login/register) ── */
+router.post("/nurse/register-push-token", async (req, res) => {
+  try {
+    const nurseId = req.headers["x-nurse-id"] as string | undefined;
+    const nurseToken = req.headers["x-nurse-token"] as string | undefined;
+    const { token } = req.body as { token?: string };
+    if (!nurseId || !nurseToken || !token || !token.startsWith("ExponentPushToken")) {
+      res.status(400).json({ error: "Invalid request" }); return;
+    }
+    const [nurse] = await db.select({ id: nursesTable.id, passwordHash: nursesTable.passwordHash, phone: nursesTable.phone })
+      .from(nursesTable).where(and(eq(nursesTable.id, nurseId), eq(nursesTable.isActive, true)));
+    if (!nurse || hashPassword(nurse.phone + nurse.id) !== nurseToken) {
+      res.status(401).json({ error: "Non autorisé" }); return;
+    }
+    await db.update(nursesTable).set({ pushToken: token }).where(eq(nursesTable.id, nurseId));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[nursing/nurse/register-push-token]", err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });

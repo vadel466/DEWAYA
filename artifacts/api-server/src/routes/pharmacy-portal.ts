@@ -69,6 +69,23 @@ router.post("/auth", async (req, res) => {
   }
 });
 
+/* ── Register push token for a pharmacy (called after login) ── */
+router.post("/register-push-token", async (req, res) => {
+  try {
+    const pin = req.headers["x-pharmacy-pin"] as string | undefined;
+    const { token } = req.body as { token?: string };
+    if (!pin || !token || !token.startsWith("ExponentPushToken")) {
+      res.status(400).json({ error: "Invalid request" }); return;
+    }
+    await db.update(pharmaciesTable)
+      .set({ pushToken: token })
+      .where(eq(pharmaciesTable.portalPin, pin.trim()));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
 router.get("/requests", async (_req, res) => {
   try {
     const requests = await db.select().from(drugRequestsTable).where(eq(drugRequestsTable.status, "pending"));

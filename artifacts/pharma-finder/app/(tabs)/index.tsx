@@ -417,28 +417,35 @@ export default function HomeScreen() {
 
           {(drugName.length > 0 || capturedImage !== null) && (
             <>
-              <View style={styles.searchHDivider} />
               {/* Row 3 — رقم الهاتف */}
-              <View style={[styles.searchRow2, isRTL && styles.rowReverse]}>
-                <Ionicons name="call-outline" size={15} color={Colors.primary} style={{ marginHorizontal: 10 }} />
+              <View style={[styles.phoneRow, isRTL && styles.rowReverse]}>
+                <View style={[styles.phoneIconWrap, isRTL && { marginLeft: 0, marginRight: 10 }]}>
+                  <Ionicons name="call" size={15} color={Colors.primary} />
+                </View>
                 <TextInput
-                  style={[styles.drugInput, isRTL && styles.textRight, { flex: 1 }]}
-                  placeholder={isRTL ? "رقم هاتفك للدفع *" : "Votre numéro pour paiement *"}
-                  placeholderTextColor="#B0BEC5"
+                  style={[styles.phoneInput, isRTL && styles.textRight]}
+                  placeholder={isRTL ? "أدخل رقمك هنا..." : "Entrez votre numéro..."}
+                  placeholderTextColor={Colors.primary + "70"}
                   value={userPhone}
                   onChangeText={setUserPhone}
                   keyboardType="phone-pad"
                   textAlign={isRTL ? "right" : "left"}
+                  autoFocus
                 />
                 {userPhone.length > 0 && (
-                  <TouchableOpacity onPress={() => setUserPhone("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginHorizontal: 10 }}>
-                    <Ionicons name="close-circle" size={16} color="#B0BEC5" />
+                  <TouchableOpacity onPress={() => setUserPhone("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginRight: 10 }}>
+                    <Ionicons name="close-circle" size={16} color={Colors.primary + "80"} />
                   </TouchableOpacity>
                 )}
               </View>
-              <Text style={[styles.phoneHint, isRTL && styles.textRight]}>
-                {isRTL ? "⚠️ أدخل الرقم الذي ستُرسل منه الدفع" : "⚠️ Entrez le numéro depuis lequel vous enverrez le paiement"}
-              </Text>
+              <View style={styles.phoneHintBlock}>
+                <Text style={[styles.phoneHint, isRTL && styles.textRight]}>
+                  {isRTL ? "⚠️ أدخل الرقم الذي ستُرسل منه الدفع" : "⚠️ Entrez le numéro depuis lequel vous enverrez le paiement"}
+                </Text>
+                <Text style={[styles.phoneNoRefund, isRTL && styles.textRight]}>
+                  {isRTL ? "📌 الرسوم غير قابلة للاسترداد بعد تأكيد الطلب" : "📌 Les frais ne sont pas remboursables après confirmation"}
+                </Text>
+              </View>
             </>
           )}
 
@@ -786,9 +793,31 @@ const styles = StyleSheet.create({
     color: Colors.danger, fontFamily: "Inter_400Regular", fontSize: 11.5,
     paddingHorizontal: 12, paddingBottom: 8, textAlign: "center",
   },
+  /* PHONE ROW — styled as a distinct input field */
+  phoneRow: {
+    flexDirection: "row", alignItems: "center",
+    marginHorizontal: 10, marginTop: 8, marginBottom: 4,
+    backgroundColor: Colors.primary + "0D",
+    borderWidth: 1.5, borderColor: Colors.primary + "55",
+    borderRadius: 10, minHeight: 44,
+  },
+  phoneIconWrap: {
+    paddingHorizontal: 10, justifyContent: "center", alignItems: "center",
+  },
+  phoneInput: {
+    flex: 1, fontFamily: "Inter_600SemiBold", fontSize: 14, color: Colors.primary,
+    paddingVertical: 10, letterSpacing: 0.5,
+  },
+  phoneHintBlock: {
+    paddingHorizontal: 12, paddingBottom: 8, gap: 2,
+  },
   phoneHint: {
     color: "#F59E0B", fontFamily: "Inter_400Regular", fontSize: 10.5,
-    paddingHorizontal: 14, paddingBottom: 6, textAlign: "center",
+    textAlign: "center",
+  },
+  phoneNoRefund: {
+    color: "#94A3B8", fontFamily: "Inter_400Regular", fontSize: 10,
+    textAlign: "center",
   },
 
   /* QUICK SEARCH BUTTON (Row 1, opposite camera) */

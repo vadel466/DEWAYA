@@ -311,8 +311,8 @@ export default function NotificationsScreen() {
                     </Text>
                     <Text style={[styles.paymentSubtitle, isRTL && styles.rtlText]}>
                       {isRTL
-                        ? "أرسل 10 MRU إلى الرقم أدناه. سيتحقق المسؤول ويُفتح الإشعار تلقائياً في هاتفك."
-                        : "Envoyez 10 MRU au numéro ci-dessous. Le responsable vérifiera et débloquera automatiquement."}
+                        ? "أرسل 30 MRU إلى الرقم أدناه. سيتحقق المسؤول ويُفتح الإشعار تلقائياً في هاتفك."
+                        : "Envoyez 30 MRU au numéro ci-dessous. Le responsable vérifiera et débloquera automatiquement."}
                     </Text>
                   </View>
 
@@ -370,15 +370,15 @@ export default function NotificationsScreen() {
                     </Text>
                     <Text style={[styles.paymentSubtitle, isRTL && styles.rtlText]}>
                       {isRTL
-                        ? "لفتح هذا الإشعار، اضغط على «طلب فتح» ثم أرسل 10 MRU إلى رقم الدفع. سيتحقق المسؤول ويُفتح الإشعار تلقائياً في هاتفك."
-                        : "Pour débloquer, appuyez sur «Demander déblocage» puis envoyez 10 MRU au numéro indiqué. Le responsable vérifiera et débloquera automatiquement."}
+                        ? "لفتح هذا الإشعار، اضغط على «طلب فتح» ثم أرسل 30 MRU إلى رقم الدفع. سيتحقق المسؤول ويُفتح الإشعار تلقائياً في هاتفك."
+                        : "Pour débloquer, appuyez sur «Demander déblocage» puis envoyez 30 MRU au numéro indiqué. Le responsable vérifiera et débloquera automatiquement."}
                     </Text>
                   </View>
 
                   <View style={styles.stepsBox}>
                     {[
                       { n: "1", ar: "اضغط «طلب فتح» أدناه", fr: "Appuyez sur «Demander le déblocage»" },
-                      { n: "2", ar: "أرسل 10 MRU إلى رقم الدفع الظاهر", fr: "Envoyez 10 MRU au numéro affiché" },
+                      { n: "2", ar: "أرسل 30 MRU إلى رقم الدفع الظاهر", fr: "Envoyez 30 MRU au numéro affiché" },
                       { n: "3", ar: "سيُفتح الإشعار تلقائياً بعد التحقق", fr: "La notification s'ouvre automatiquement" },
                     ].map((step) => (
                       <View key={step.n} style={[styles.stepRow, isRTL && styles.rtlRow]}>
@@ -397,7 +397,7 @@ export default function NotificationsScreen() {
                     <Text style={styles.amountLabel}>
                       {isRTL ? "رسوم الخدمة:" : "Frais de service:"}
                     </Text>
-                    <Text style={styles.amountValue}>10 MRU</Text>
+                    <Text style={styles.amountValue}>30 MRU</Text>
                   </View>
 
                   <TouchableOpacity

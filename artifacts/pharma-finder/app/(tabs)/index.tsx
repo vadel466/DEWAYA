@@ -295,7 +295,7 @@ export default function HomeScreen() {
                 borderColor: logoProgress.interpolate({ inputRange: [0, 1], outputRange: [Colors.primary + "00", Colors.primary] }),
               }]} />
               <View style={styles.logoBubble}>
-                <MaterialCommunityIcons name="stethoscope" size={26} color="#fff" />
+                <MaterialCommunityIcons name="stethoscope" size={20} color="#fff" />
               </View>
               {isAdmin && <View style={styles.adminDot} />}
             </View>
@@ -314,7 +314,7 @@ export default function HomeScreen() {
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/(tabs)/notifications"); }}
             activeOpacity={0.75}
           >
-            <Ionicons name={lockedCount > 0 ? "notifications" : "notifications-outline"} size={22} color="#1A237E" />
+            <Ionicons name={lockedCount > 0 ? "notifications" : "notifications-outline"} size={20} color="#1A237E" />
             {lockedCount > 0 && (
               <View style={styles.bellBadge}>
                 <Text style={styles.bellBadgeText}>{lockedCount > 9 ? "9+" : String(lockedCount)}</Text>
@@ -322,17 +322,17 @@ export default function HomeScreen() {
             )}
           </TouchableOpacity>
 
-        </View>
+          {/* Language toggle — compact, inside header */}
+          <TouchableOpacity
+            style={styles.langLineCompact}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setLanguage(language === "ar" ? "fr" : "ar"); }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="globe-outline" size={11} color="#90A4AE" />
+            <Text style={styles.langLineCompactText}>العربية / Français</Text>
+          </TouchableOpacity>
 
-        {/* ════ LANGUAGE LINE ════ */}
-        <TouchableOpacity
-          style={styles.langLine}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setLanguage(language === "ar" ? "fr" : "ar"); }}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="globe-outline" size={14} color="#546E7A" />
-          <Text style={styles.langLineText}>العربية / Français</Text>
-        </TouchableOpacity>
+        </View>
 
         {/* ════ SEARCH CARD ════ */}
         <View style={styles.searchCard}>
@@ -415,29 +415,32 @@ export default function HomeScreen() {
             ) : null}
           </View>
 
-          <View style={styles.searchHDivider} />
-
-          {/* Row 3 — رقم الهاتف */}
-          <View style={[styles.searchRow2, isRTL && styles.rowReverse]}>
-            <Ionicons name="call-outline" size={15} color={Colors.primary} style={{ marginHorizontal: 10 }} />
-            <TextInput
-              style={[styles.drugInput, isRTL && styles.textRight, { flex: 1 }]}
-              placeholder={isRTL ? "رقم هاتفك للدفع *" : "Votre numéro pour paiement *"}
-              placeholderTextColor="#B0BEC5"
-              value={userPhone}
-              onChangeText={setUserPhone}
-              keyboardType="phone-pad"
-              textAlign={isRTL ? "right" : "left"}
-            />
-            {userPhone.length > 0 && (
-              <TouchableOpacity onPress={() => setUserPhone("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginHorizontal: 10 }}>
-                <Ionicons name="close-circle" size={16} color="#B0BEC5" />
-              </TouchableOpacity>
-            )}
-          </View>
-          <Text style={[styles.phoneHint, isRTL && styles.textRight]}>
-            {isRTL ? "⚠️ أدخل الرقم الذي ستُرسل منه الدفع" : "⚠️ Entrez le numéro depuis lequel vous enverrez le paiement"}
-          </Text>
+          {(drugName.length > 0 || capturedImage !== null) && (
+            <>
+              <View style={styles.searchHDivider} />
+              {/* Row 3 — رقم الهاتف */}
+              <View style={[styles.searchRow2, isRTL && styles.rowReverse]}>
+                <Ionicons name="call-outline" size={15} color={Colors.primary} style={{ marginHorizontal: 10 }} />
+                <TextInput
+                  style={[styles.drugInput, isRTL && styles.textRight, { flex: 1 }]}
+                  placeholder={isRTL ? "رقم هاتفك للدفع *" : "Votre numéro pour paiement *"}
+                  placeholderTextColor="#B0BEC5"
+                  value={userPhone}
+                  onChangeText={setUserPhone}
+                  keyboardType="phone-pad"
+                  textAlign={isRTL ? "right" : "left"}
+                />
+                {userPhone.length > 0 && (
+                  <TouchableOpacity onPress={() => setUserPhone("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginHorizontal: 10 }}>
+                    <Ionicons name="close-circle" size={16} color="#B0BEC5" />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <Text style={[styles.phoneHint, isRTL && styles.textRight]}>
+                {isRTL ? "⚠️ أدخل الرقم الذي ستُرسل منه الدفع" : "⚠️ Entrez le numéro depuis lequel vous enverrez le paiement"}
+              </Text>
+            </>
+          )}
 
           {error && <Text style={styles.errorText}>{error}</Text>}
         </View>
@@ -682,15 +685,15 @@ const styles = StyleSheet.create({
     position: "relative",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 10,
-    marginBottom: 2,
-    minHeight: 76,
+    paddingVertical: 4,
+    marginBottom: 4,
+    minHeight: 56,
   },
   bellBtn: {
     position: "absolute",
     right: 0,
-    top: 10,
-    width: 44, height: 44, borderRadius: 22,
+    top: 6,
+    width: 38, height: 38, borderRadius: 19,
     backgroundColor: "#fff",
     alignItems: "center", justifyContent: "center",
     borderWidth: 1, borderColor: "#E8EDF3",
@@ -714,50 +717,50 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   logoGroup: {
-    width: 54, height: 54,
+    width: 44, height: 44,
     alignItems: "center",
     justifyContent: "center",
   },
   logoRing: {
-    position: "absolute", top: -4, left: -4,
-    width: 62, height: 62, borderRadius: 31,
-    borderWidth: 2.5, borderColor: "transparent",
+    position: "absolute", top: -3, left: -3,
+    width: 50, height: 50, borderRadius: 25,
+    borderWidth: 2, borderColor: "transparent",
   },
   logoBubble: {
-    width: 54, height: 54, borderRadius: 27,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: Colors.primary,
     alignItems: "center", justifyContent: "center",
-    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8,
-    elevation: 5,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.30, shadowRadius: 6,
+    elevation: 4,
   },
   adminDot: {
     position: "absolute", bottom: 1, right: 0,
     width: 11, height: 11, borderRadius: 6,
     backgroundColor: Colors.accent, borderWidth: 2, borderColor: "#F0F4F8",
   },
-  appNameGroup: { alignItems: "flex-start", gap: 1 },
-  appNameAr: { fontFamily: "Inter_700Bold", fontSize: 26, color: "#0D1B6E", letterSpacing: 0.3 },
-  logoSubText: { fontFamily: "Inter_600SemiBold", fontSize: 9.5, color: "#546E7A", letterSpacing: 4 },
-  sloganText: { fontFamily: "Inter_400Regular", fontSize: 10, color: "#90A4AE", letterSpacing: 0.3, marginTop: 2 },
+  appNameGroup: { alignItems: "flex-start", gap: 0 },
+  appNameAr: { fontFamily: "Inter_700Bold", fontSize: 21, color: "#0D1B6E", letterSpacing: 0.3 },
+  logoSubText: { fontFamily: "Inter_600SemiBold", fontSize: 8.5, color: "#546E7A", letterSpacing: 3.5 },
+  sloganText: { fontFamily: "Inter_400Regular", fontSize: 9, color: "#90A4AE", letterSpacing: 0.2, marginTop: 1 },
 
-  /* LANGUAGE LINE */
-  langLine: {
+  /* LANGUAGE LINE — compact, inside header */
+  langLineCompact: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 5, marginBottom: 8, paddingVertical: 1,
+    gap: 4, paddingTop: 3,
   },
-  langLineText: { fontFamily: "Inter_500Medium", fontSize: 12.5, color: "#546E7A" },
+  langLineCompactText: { fontFamily: "Inter_400Regular", fontSize: 11, color: "#90A4AE" },
 
   /* SEARCH CARD */
   searchCard: {
     backgroundColor: "#fff",
-    borderRadius: 14, marginBottom: 8,
+    borderRadius: 14, marginBottom: 6,
     shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.10, shadowRadius: 10,
     elevation: 4, overflow: "hidden",
     borderWidth: 1.5, borderColor: "#CFD8DC",
   },
   searchRow1: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    paddingHorizontal: 12, paddingVertical: 9,
+    paddingHorizontal: 12, paddingVertical: 7,
   },
   cameraBtn: {
     width: 44, height: 44, borderRadius: 11,
@@ -768,7 +771,7 @@ const styles = StyleSheet.create({
     flex: 1, fontFamily: "Inter_500Medium", fontSize: 13.5, color: "#90A4AE", textAlign: "left",
   },
   searchHDivider: { height: 1, backgroundColor: "#CFD8DC" },
-  searchRow2: { flexDirection: "row", alignItems: "center", minHeight: 46 },
+  searchRow2: { flexDirection: "row", alignItems: "center", minHeight: 42 },
   regionChip: {
     flexDirection: "row", alignItems: "center", gap: 3,
     paddingHorizontal: 10, paddingVertical: 12, minWidth: 95,
@@ -812,18 +815,18 @@ const styles = StyleSheet.create({
   thumbRemove: { position: "absolute", top: -5, right: -5, backgroundColor: "#fff", borderRadius: 8 },
 
   /* PORTAL ROW */
-  portalRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  portalRow: { flexDirection: "row", gap: 8, marginBottom: 6 },
   portalPharmacy: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 5, backgroundColor: "#1B5E20", borderRadius: 12,
-    paddingVertical: 9, paddingHorizontal: 8,
+    paddingVertical: 7, paddingHorizontal: 8,
     shadowColor: "#1B5E20", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 4, elevation: 2,
   },
   portalPharmacyText: { flex: 1, fontFamily: "Inter_600SemiBold", fontSize: 12, color: "#fff", textAlign: "center" },
   portalPartner: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 5, backgroundColor: "#F5F3FF", borderRadius: 12,
-    paddingVertical: 9, paddingHorizontal: 8,
+    paddingVertical: 7, paddingHorizontal: 8,
     borderWidth: 1.5, borderColor: "#7C3AED40",
     shadowColor: "#7C3AED", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.10, shadowRadius: 4,
     elevation: 2,
@@ -833,13 +836,13 @@ const styles = StyleSheet.create({
   /* CARDS GRID — flex layout fills remaining space */
   cardsGrid: {
     flex: 1,
-    gap: 8,
-    marginBottom: 6,
+    gap: 7,
+    marginBottom: 4,
   },
   cardsRow: {
     flex: 1,
     flexDirection: "row",
-    gap: 8,
+    gap: 7,
   },
   card: {
     flex: 1,

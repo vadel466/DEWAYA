@@ -11,6 +11,7 @@ import doctorsRouter from "./doctors";
 import companyPortalRouter from "./company-portal";
 import otherServicesRouter from "./other-services";
 import nursingRouter from "./nursing";
+import settingsRouter from "./settings";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use("/doctors", doctorsRouter);
 router.use("/company-portal", companyPortalRouter);
 router.use("/other-services", otherServicesRouter);
 router.use("/nursing", nursingRouter);
+router.use("/settings", settingsRouter);
 
 export default router;

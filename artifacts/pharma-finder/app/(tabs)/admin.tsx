@@ -50,6 +50,7 @@ type PendingPayment = {
   id: string; userId: string; requestId: string;
   paymentRef: string | null; createdAt: string;
   pharmacyName: string; drugName: string | null;
+  userPhone: string | null;
 };
 type Pharmacy = {
   id: string; name: string; nameAr: string | null;
@@ -138,6 +139,8 @@ export default function AdminScreen() {
   const [pharmacyAddressR, setPharmacyAddressR] = useState("");
   const [pharmacyPhoneR, setPharmacyPhoneR] = useState("");
   const [copiedRef, setCopiedRef] = useState<string | null>(null);
+  const [payNumInput, setPayNumInput] = useState("");
+  const [editingPayNum, setEditingPayNum] = useState(false);
 
   const [showPharmacyModal, setShowPharmacyModal] = useState(false);
   const [editingPharmacy, setEditingPharmacy] = useState<Pharmacy | null>(null);
@@ -203,6 +206,25 @@ export default function AdminScreen() {
     queryFn: async () => { const r = await fetch(`${API_BASE}/notifications/admin/pending-payments`); if (!r.ok) throw new Error(); return r.json(); },
     refetchInterval: payTabActive ? 5000 : false,
     enabled: payTabActive,
+  });
+
+  const { data: payNumData, refetch: refetchPayNum } = useQuery<{ number: string | null }>({
+    queryKey: ["admin-payment-number"],
+    queryFn: async () => { const r = await fetch(`${API_BASE}/settings/payment-number`); if (!r.ok) return { number: null }; return r.json(); },
+    enabled: isAdmin,
+    staleTime: 30_000,
+  });
+
+  const savePayNumMutation = useMutation({
+    mutationFn: async (num: string) => {
+      const r = await fetch(`${API_BASE}/settings/payment-number`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
+        body: JSON.stringify({ number: num }),
+      });
+      if (!r.ok) throw new Error();
+      return r.json();
+    },
+    onSuccess: () => { setEditingPayNum(false); refetchPayNum(); },
   });
 
   const { data: pharmacies = [], isLoading: pharmaLoading, refetch: refetchPharma, isRefetching: pharmaRefetching } = useQuery<Pharmacy[]>({
@@ -1275,7 +1297,7 @@ export default function AdminScreen() {
           <View style={styles.paymentIconWrap}><Ionicons name="cash-outline" size={22} color={Colors.primary} /></View>
           <View style={[styles.paymentInfo, isRTL && styles.rtlInfo]}>
             <Text style={[styles.drugName, isRTL && styles.rtlText]}>{item.drugName ?? (isRTL ? "دواء" : "Médicament")}</Text>
-            <Text style={[styles.userId, isRTL && styles.rtlText]}>{isRTL ? "المستخدم:" : "Utilisateur:"} {item.userId.substring(0, 16)}...</Text>
+            {item.userPhone && <Text style={[styles.userId, isRTL && styles.rtlText]}>📱 {item.userPhone}</Text>}
             <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{formatTime(item.createdAt, language)}</Text>
           </View>
         </View>
@@ -2126,6 +2148,68 @@ export default function AdminScreen() {
                     : (isRTL ? `يُعرض ${allDrugPrices.length} من ${drugTotalCount || allDrugPrices.length}` : `Affichage: ${allDrugPrices.length} / ${drugTotalCount || allDrugPrices.length}`)
                   }
                 </Text>
+              </View>
+            ) : activeTab === "payments" ? (
+              <View style={{ backgroundColor: "#F0FDF4", borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: "#86EFAC" }}>
+                <View style={{ flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <MaterialCommunityIcons name="phone-settings" size={20} color="#059669" />
+                  <Text style={{ fontFamily: "Inter_700Bold", fontSize: 14, color: "#065F46", flex: 1, textAlign: isRTL ? "right" : "left" }}>
+                    {isRTL ? "رقم الدفع الموحّد" : "Numéro de paiement unique"}
+                  </Text>
+                  {!editingPayNum && (
+                    <TouchableOpacity
+                      style={{ backgroundColor: "#059669", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
+                      onPress={() => { setPayNumInput(payNumData?.number ?? ""); setEditingPayNum(true); }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12 }}>
+                        {isRTL ? "تعديل" : "Modifier"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {editingPayNum ? (
+                  <View style={{ gap: 8 }}>
+                    <TextInput
+                      style={{ backgroundColor: "#fff", borderRadius: 10, borderWidth: 1, borderColor: "#86EFAC", paddingHorizontal: 14, paddingVertical: 10, fontFamily: "Inter_600SemiBold", fontSize: 16, color: "#065F46", textAlign: "center", letterSpacing: 2 }}
+                      value={payNumInput}
+                      onChangeText={setPayNumInput}
+                      keyboardType="phone-pad"
+                      placeholder={isRTL ? "أدخل رقم الدفع..." : "Entrez le numéro..."}
+                      placeholderTextColor="#94A3B8"
+                      autoFocus
+                    />
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <TouchableOpacity
+                        style={{ flex: 1, backgroundColor: "#059669", borderRadius: 10, paddingVertical: 10, alignItems: "center" }}
+                        onPress={() => savePayNumMutation.mutate(payNumInput)}
+                        disabled={savePayNumMutation.isPending || payNumInput.trim().length < 4}
+                        activeOpacity={0.85}
+                      >
+                        {savePayNumMutation.isPending
+                          ? <ActivityIndicator color="#fff" size="small" />
+                          : <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 14 }}>{isRTL ? "حفظ" : "Enregistrer"}</Text>}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={{ flex: 1, backgroundColor: "#E5E7EB", borderRadius: 10, paddingVertical: 10, alignItems: "center" }}
+                        onPress={() => setEditingPayNum(false)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={{ color: "#374151", fontFamily: "Inter_600SemiBold", fontSize: 14 }}>{isRTL ? "إلغاء" : "Annuler"}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={{ backgroundColor: "#fff", borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, alignItems: "center", borderWidth: 1, borderColor: "#D1FAE5" }}>
+                    {payNumData?.number ? (
+                      <Text style={{ fontFamily: "Inter_700Bold", fontSize: 22, color: "#059669", letterSpacing: 3 }}>{payNumData.number}</Text>
+                    ) : (
+                      <Text style={{ fontFamily: "Inter_400Regular", fontSize: 13, color: "#9CA3AF" }}>
+                        {isRTL ? "لم يُضبط بعد — اضغط تعديل" : "Non défini — appuyez sur Modifier"}
+                      </Text>
+                    )}
+                  </View>
+                )}
               </View>
             ) : isAddTab ? (
               activeTab === "companies" ? (

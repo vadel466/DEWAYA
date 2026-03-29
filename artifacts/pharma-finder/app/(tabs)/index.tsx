@@ -37,6 +37,7 @@ export default function HomeScreen() {
   const inputRef = useRef<TextInput>(null);
 
   const [drugName, setDrugName] = useState("");
+  const [userPhone, setUserPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -168,13 +169,17 @@ export default function HomeScreen() {
 
   const handleSearch = async () => {
     if (!drugName.trim() && !capturedImage) return;
+    if (!userPhone.trim()) {
+      setError(isRTL ? "يرجى إدخال رقم هاتفك أولاً" : "Veuillez entrer votre numéro de téléphone");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const resp = await fetch(`${API_BASE}/requests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, drugName: drugName.trim() || t("imageDrug") }),
+        body: JSON.stringify({ userId, drugName: drugName.trim() || t("imageDrug"), userPhone: userPhone.trim() }),
       });
       if (!resp.ok) throw new Error("Failed");
       await resp.json();
@@ -193,6 +198,7 @@ export default function HomeScreen() {
     setSubmitted(false);
     setShowSuccessModal(false);
     setDrugName("");
+    setUserPhone("");
     setCapturedImage(null);
     setError(null);
   };
@@ -408,6 +414,31 @@ export default function HomeScreen() {
               </TouchableOpacity>
             ) : null}
           </View>
+
+          <View style={styles.searchHDivider} />
+
+          {/* Row 3 — رقم الهاتف */}
+          <View style={[styles.searchRow2, isRTL && styles.rowReverse]}>
+            <Ionicons name="call-outline" size={15} color={Colors.primary} style={{ marginHorizontal: 10 }} />
+            <TextInput
+              style={[styles.drugInput, isRTL && styles.textRight, { flex: 1 }]}
+              placeholder={isRTL ? "رقم هاتفك للدفع *" : "Votre numéro pour paiement *"}
+              placeholderTextColor="#B0BEC5"
+              value={userPhone}
+              onChangeText={setUserPhone}
+              keyboardType="phone-pad"
+              textAlign={isRTL ? "right" : "left"}
+            />
+            {userPhone.length > 0 && (
+              <TouchableOpacity onPress={() => setUserPhone("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginHorizontal: 10 }}>
+                <Ionicons name="close-circle" size={16} color="#B0BEC5" />
+              </TouchableOpacity>
+            )}
+          </View>
+          <Text style={[styles.phoneHint, isRTL && styles.textRight]}>
+            {isRTL ? "⚠️ أدخل الرقم الذي ستُرسل منه الدفع" : "⚠️ Entrez le numéro depuis lequel vous enverrez le paiement"}
+          </Text>
+
           {error && <Text style={styles.errorText}>{error}</Text>}
         </View>
 
@@ -751,6 +782,10 @@ const styles = StyleSheet.create({
   errorText: {
     color: Colors.danger, fontFamily: "Inter_400Regular", fontSize: 11.5,
     paddingHorizontal: 12, paddingBottom: 8, textAlign: "center",
+  },
+  phoneHint: {
+    color: "#F59E0B", fontFamily: "Inter_400Regular", fontSize: 10.5,
+    paddingHorizontal: 14, paddingBottom: 6, textAlign: "center",
   },
 
   /* QUICK SEARCH BUTTON (Row 1, opposite camera) */

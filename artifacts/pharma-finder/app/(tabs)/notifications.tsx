@@ -28,11 +28,6 @@ const API_BASE =
       ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
       : "/api";
 
-const PAYMENT_METHODS = [
-  { id: "masrafi", name: "مصرفي", nameFr: "Masrafi", number: "20479725", color: "#1A56DB", icon: "university" as const },
-  { id: "bankily", name: "بنكيلي", nameFr: "Bankily", number: "46576659", color: "#F59E0B", icon: "mobile-alt" as const },
-  { id: "bimbank", name: "بيم بنك", nameFr: "BIM Bank", number: "46576659", color: "#16A34A", icon: "building" as const },
-];
 
 type Notification = {
   id: string;
@@ -96,6 +91,17 @@ export default function NotificationsScreen() {
     enabled: !!userId,
     refetchInterval: 5000,
   });
+
+  const { data: paymentNumberData } = useQuery<{ number: string | null }>({
+    queryKey: ["payment-number"],
+    queryFn: async () => {
+      const resp = await fetch(`${API_BASE}/settings/payment-number`);
+      if (!resp.ok) return { number: null };
+      return resp.json();
+    },
+    staleTime: 60_000,
+  });
+  const paymentNumber = paymentNumberData?.number ?? null;
 
   useEffect(() => {
     const prev = prevNotificationsRef.current;
@@ -335,34 +341,38 @@ export default function NotificationsScreen() {
                     </Text>
                   </View>
 
-                  {/* أرقام الدفع */}
-                  <View style={styles.methodsContainer}>
-                    {PAYMENT_METHODS.map((method) => (
-                      <View key={method.id} style={[styles.methodCard, { borderLeftColor: method.color, borderLeftWidth: 4 }]}>
-                        <View style={[styles.methodTop, isRTL && styles.rtlRow]}>
-                          <View style={[styles.methodIconBg, { backgroundColor: method.color + "18" }]}>
-                            <FontAwesome5 name={method.icon} size={16} color={method.color} />
-                          </View>
-                          <Text style={[styles.methodName, { color: method.color }]}>
-                            {isRTL ? method.name : method.nameFr}
+                  {/* رقم الدفع الموحّد */}
+                  {paymentNumber ? (
+                    <View style={[styles.methodCard, { borderLeftColor: Colors.primary, borderLeftWidth: 4 }]}>
+                      <View style={[styles.methodTop, isRTL && styles.rtlRow]}>
+                        <View style={[styles.methodIconBg, { backgroundColor: Colors.primary + "18" }]}>
+                          <FontAwesome5 name="mobile-alt" size={16} color={Colors.primary} />
+                        </View>
+                        <Text style={[styles.methodName, { color: Colors.primary }]}>
+                          {isRTL ? "رقم الدفع" : "Numéro de paiement"}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.numberRow, copiedId === "payment" && { backgroundColor: Colors.accent + "12" }, isRTL && styles.rtlRow]}
+                        onPress={() => handleCopy(paymentNumber, "payment")}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.accountNumber, { color: Colors.primary }]}>{paymentNumber}</Text>
+                        <View style={[styles.copyBtn, { backgroundColor: copiedId === "payment" ? Colors.accent : Colors.primary }]}>
+                          <Ionicons name={copiedId === "payment" ? "checkmark" : "copy-outline"} size={14} color="#fff" />
+                          <Text style={styles.copyBtnText}>
+                            {copiedId === "payment" ? "✓" : (isRTL ? "نسخ" : "Copier")}
                           </Text>
                         </View>
-                        <TouchableOpacity
-                          style={[styles.numberRow, copiedId === method.id && { backgroundColor: Colors.accent + "12" }, isRTL && styles.rtlRow]}
-                          onPress={() => handleCopy(method.number, method.id)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={[styles.accountNumber, { color: method.color }]}>{method.number}</Text>
-                          <View style={[styles.copyBtn, { backgroundColor: copiedId === method.id ? Colors.accent : method.color }]}>
-                            <Ionicons name={copiedId === method.id ? "checkmark" : "copy-outline"} size={14} color="#fff" />
-                            <Text style={styles.copyBtnText}>
-                              {copiedId === method.id ? (isRTL ? "✓" : "✓") : (isRTL ? "نسخ" : "Copier")}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                  </View>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={styles.noNumberBox}>
+                      <Text style={[styles.noNumberText, isRTL && styles.rtlText]}>
+                        {isRTL ? "سيتم إضافة رقم الدفع قريباً" : "Numéro de paiement bientôt disponible"}
+                      </Text>
+                    </View>
+                  )}
 
                   <View style={styles.waitingFooter}>
                     <Ionicons name="shield-checkmark-outline" size={16} color={Colors.primary} />
@@ -602,6 +612,8 @@ const styles = StyleSheet.create({
   refCodeHint: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.light.textSecondary, textAlign: "center", lineHeight: 18 },
 
   methodsContainer: { gap: 10, marginBottom: 16 },
+  noNumberBox: { backgroundColor: Colors.light.inputBackground, borderRadius: 12, padding: 14, marginBottom: 12, alignItems: "center" },
+  noNumberText: { fontFamily: "Inter_400Regular", fontSize: 13, color: Colors.light.textSecondary, textAlign: "center" },
   methodCard: { backgroundColor: Colors.light.background, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: Colors.light.border, overflow: "hidden" },
   methodTop: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
   methodIconBg: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },

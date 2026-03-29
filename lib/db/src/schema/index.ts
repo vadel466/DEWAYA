@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 export const drugRequestsTable = pgTable("drug_requests", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
+  userPhone: text("user_phone"),
   drugName: text("drug_name").notNull(),
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -364,4 +365,10 @@ export const adminPushTokensTable = pgTable("admin_push_tokens", {
   id: text("id").primaryKey(),
   token: text("token").notNull().unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const appSettingsTable = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

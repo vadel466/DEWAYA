@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { notificationsTable, drugRequestsTable, adminPushTokensTable } from "@workspace/db";
+import { notificationsTable, drugRequestsTable, adminPushTokensTable, appSettingsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -73,6 +73,7 @@ router.get("/admin/pending-payments", async (req, res) => {
         createdAt: notificationsTable.createdAt,
         pharmacyName: notificationsTable.pharmacyName,
         drugName: drugRequestsTable.drugName,
+        userPhone: drugRequestsTable.userPhone,
       })
       .from(notificationsTable)
       .leftJoin(drugRequestsTable, eq(notificationsTable.requestId, drugRequestsTable.id))
@@ -139,9 +140,13 @@ router.post("/:id/request-unlock", async (req, res) => {
     res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 
     /* إرسال إشعار للمسؤول — بعد الرد على المستخدم مباشرةً */
+    const [drugReq] = await db.select({ userPhone: drugRequestsTable.userPhone })
+      .from(drugRequestsTable)
+      .where(eq(drugRequestsTable.id, existing.requestId));
+    const phoneStr = drugReq?.userPhone ? ` — 📱 ${drugReq.userPhone}` : "";
     sendAdminPushNotifications(
       "🔔 طلب دفع جديد",
-      `الكود: ${paymentRef} — في انتظار تأكيدك`
+      `الكود: ${paymentRef}${phoneStr}`
     );
   } catch (err) {
     console.error(err);

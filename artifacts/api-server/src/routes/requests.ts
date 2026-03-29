@@ -54,7 +54,7 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { userId, drugName } = req.body;
+    const { userId, drugName, userPhone } = req.body;
     if (!userId || !drugName) {
       res.status(400).json({ error: "userId and drugName are required" });
       return;
@@ -62,7 +62,7 @@ router.post("/", async (req, res) => {
     const id = generateId();
     const [request] = await db
       .insert(drugRequestsTable)
-      .values({ id, userId, drugName, status: "pending" })
+      .values({ id, userId, drugName, userPhone: userPhone?.trim() || null, status: "pending" })
       .returning();
     res.status(201).json({
       ...request,

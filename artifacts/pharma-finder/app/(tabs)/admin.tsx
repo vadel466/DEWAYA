@@ -2230,6 +2230,7 @@ export default function AdminScreen() {
                 </Text>
               </View>
             ) : activeTab === "payments" ? (
+              <>
               <View style={{ backgroundColor: "#F0FDF4", borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: "#86EFAC" }}>
                 <View style={{ flexDirection: isRTL ? "row-reverse" : "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
                   <MaterialCommunityIcons name="phone-settings" size={20} color="#059669" />
@@ -2401,6 +2402,7 @@ export default function AdminScreen() {
                   </View>
                 )}
               </View>
+              </>
             ) : isAddTab ? (
               activeTab === "companies" ? (
                 <View>

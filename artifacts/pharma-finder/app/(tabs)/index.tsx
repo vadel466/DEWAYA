@@ -308,7 +308,7 @@ export default function HomeScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Bell — absolute, top-right corner, independent of logo */}
+          {/* Bell — absolute, top-right corner */}
           <TouchableOpacity
             style={styles.bellBtn}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/(tabs)/notifications"); }}
@@ -322,14 +322,14 @@ export default function HomeScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Language toggle — compact, inside header */}
+          {/* Language toggle — absolute, top-left corner, mirrors the bell */}
           <TouchableOpacity
-            style={styles.langLineCompact}
+            style={styles.langBtn}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setLanguage(language === "ar" ? "fr" : "ar"); }}
-            activeOpacity={0.7}
+            activeOpacity={0.75}
           >
-            <Ionicons name="globe-outline" size={11} color="#90A4AE" />
-            <Text style={styles.langLineCompactText}>العربية / Français</Text>
+            <Ionicons name="globe-outline" size={14} color="#546E7A" />
+            <Text style={styles.langBtnText}>{language === "ar" ? "FR" : "ع"}</Text>
           </TouchableOpacity>
 
         </View>
@@ -750,12 +750,22 @@ const styles = StyleSheet.create({
   logoSubText: { fontFamily: "Inter_600SemiBold", fontSize: 8.5, color: "#546E7A", letterSpacing: 3.5 },
   sloganText: { fontFamily: "Inter_400Regular", fontSize: 9, color: "#90A4AE", letterSpacing: 0.2, marginTop: 1 },
 
-  /* LANGUAGE LINE — compact, inside header */
-  langLineCompact: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 4, paddingTop: 3,
+  /* LANGUAGE BUTTON — absolute top-left, mirrors bell */
+  langBtn: {
+    position: "absolute",
+    left: 0,
+    top: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    borderWidth: 1, borderColor: "#E8EDF3",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 3,
+    elevation: 2,
   },
-  langLineCompactText: { fontFamily: "Inter_400Regular", fontSize: 11, color: "#90A4AE" },
+  langBtnText: { fontFamily: "Inter_700Bold", fontSize: 12, color: "#546E7A" },
 
   /* SEARCH CARD */
   searchCard: {

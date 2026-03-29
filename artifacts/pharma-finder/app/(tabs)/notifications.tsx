@@ -311,33 +311,8 @@ export default function NotificationsScreen() {
                     </Text>
                     <Text style={[styles.paymentSubtitle, isRTL && styles.rtlText]}>
                       {isRTL
-                        ? "أرسل 10 MRU مع ذكر الكود المرجعي. سيتحقق المسؤول ويُفتح الإشعار تلقائياً."
-                        : "Envoyez 10 MRU avec le code de référence. Le responsable vérifiera et débloquera automatiquement."}
-                    </Text>
-                  </View>
-
-                  {/* الكود المرجعي */}
-                  <View style={styles.refCodeBox}>
-                    <Text style={[styles.refCodeLabel, isRTL && styles.rtlText]}>
-                      {isRTL ? "الكود المرجعي للدفع" : "Code de référence"}
-                    </Text>
-                    <View style={styles.refCodeRow}>
-                      <Text style={styles.refCodeText}>{currentNotif?.paymentRef}</Text>
-                      <TouchableOpacity
-                        style={[styles.copyRefBtn, copiedId === "ref" && { backgroundColor: Colors.accent }]}
-                        onPress={() => handleCopy(currentNotif?.paymentRef ?? "", "ref")}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons name={copiedId === "ref" ? "checkmark" : "copy-outline"} size={16} color="#fff" />
-                        <Text style={styles.copyRefBtnText}>
-                          {copiedId === "ref" ? (isRTL ? "تم!" : "Copié!") : (isRTL ? "نسخ" : "Copier")}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                    <Text style={[styles.refCodeHint, isRTL && styles.rtlText]}>
-                      {isRTL
-                        ? "⚠️ اذكر هذا الكود في وصف تحويلك حتى يتمكن المسؤول من التحقق"
-                        : "⚠️ Mentionnez ce code dans la description de votre virement pour que l'admin puisse vérifier"}
+                        ? "أرسل 10 MRU إلى الرقم أدناه. سيتحقق المسؤول ويُفتح الإشعار تلقائياً في هاتفك."
+                        : "Envoyez 10 MRU au numéro ci-dessous. Le responsable vérifiera et débloquera automatiquement."}
                     </Text>
                   </View>
 
@@ -395,15 +370,15 @@ export default function NotificationsScreen() {
                     </Text>
                     <Text style={[styles.paymentSubtitle, isRTL && styles.rtlText]}>
                       {isRTL
-                        ? "لفتح هذا الإشعار، اضغط على «طلب فتح» لتحصل على كود مرجعي فريد، ثم أرسل 10 MRU مع ذكر الكود. سيتحقق المسؤول ويُفتح الإشعار تلقائياً في هاتفك."
-                        : "Pour débloquer, appuyez sur «Demander déblocage» pour obtenir un code unique, puis envoyez 10 MRU avec ce code. Le responsable vérifiera et débloquera automatiquement."}
+                        ? "لفتح هذا الإشعار، اضغط على «طلب فتح» ثم أرسل 10 MRU إلى رقم الدفع. سيتحقق المسؤول ويُفتح الإشعار تلقائياً في هاتفك."
+                        : "Pour débloquer, appuyez sur «Demander déblocage» puis envoyez 10 MRU au numéro indiqué. Le responsable vérifiera et débloquera automatiquement."}
                     </Text>
                   </View>
 
                   <View style={styles.stepsBox}>
                     {[
-                      { n: "1", ar: "اضغط «طلب فتح» لتحصل على كودك", fr: "Appuyez «Demander» pour obtenir votre code" },
-                      { n: "2", ar: "أرسل 10 MRU وأذكر الكود في الوصف", fr: "Envoyez 10 MRU avec le code en description" },
+                      { n: "1", ar: "اضغط «طلب فتح» أدناه", fr: "Appuyez sur «Demander le déblocage»" },
+                      { n: "2", ar: "أرسل 10 MRU إلى رقم الدفع الظاهر", fr: "Envoyez 10 MRU au numéro affiché" },
                       { n: "3", ar: "سيُفتح الإشعار تلقائياً بعد التحقق", fr: "La notification s'ouvre automatiquement" },
                     ].map((step) => (
                       <View key={step.n} style={[styles.stepRow, isRTL && styles.rtlRow]}>

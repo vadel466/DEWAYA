@@ -5,14 +5,6 @@ import { eq, and } from "drizzle-orm";
 
 const router: IRouter = Router();
 
-function generatePaymentRef(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let ref = "DW-";
-  for (let i = 0; i < 6; i++) {
-    ref += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return ref;
-}
 
 async function sendAdminPushNotifications(title: string, body: string) {
   try {
@@ -130,10 +122,9 @@ router.post("/:id/request-unlock", async (req, res) => {
       return;
     }
 
-    const paymentRef = existing.paymentRef ?? generatePaymentRef();
     const [updated] = await db
       .update(notificationsTable)
-      .set({ paymentPending: true, paymentRef })
+      .set({ paymentPending: true })
       .where(eq(notificationsTable.id, id))
       .returning();
 
@@ -143,10 +134,10 @@ router.post("/:id/request-unlock", async (req, res) => {
     const [drugReq] = await db.select({ userPhone: drugRequestsTable.userPhone })
       .from(drugRequestsTable)
       .where(eq(drugRequestsTable.id, existing.requestId));
-    const phoneStr = drugReq?.userPhone ? ` — 📱 ${drugReq.userPhone}` : "";
+    const phoneStr = drugReq?.userPhone ? `📱 ${drugReq.userPhone}` : "رقم غير محدد";
     sendAdminPushNotifications(
       "🔔 طلب دفع جديد",
-      `الكود: ${paymentRef}${phoneStr}`
+      phoneStr
     );
   } catch (err) {
     console.error(err);

@@ -138,7 +138,6 @@ export default function AdminScreen() {
   const [pharmacyNameR, setPharmacyNameR] = useState("");
   const [pharmacyAddressR, setPharmacyAddressR] = useState("");
   const [pharmacyPhoneR, setPharmacyPhoneR] = useState("");
-  const [copiedRef, setCopiedRef] = useState<string | null>(null);
   const [payNumInput, setPayNumInput] = useState("");
   const [editingPayNum, setEditingPayNum] = useState(false);
 
@@ -1135,10 +1134,6 @@ export default function AdminScreen() {
     }
   };
 
-  const handleCopyRef = async (ref: string) => {
-    await Clipboard.setStringAsync(ref); setCopiedRef(ref); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setTimeout(() => setCopiedRef(null), 3000);
-  };
 
   const pendingRequests = requests.filter((r) => r.status === "pending");
   const respondedRequests = requests.filter((r) => r.status === "responded");
@@ -1290,29 +1285,23 @@ export default function AdminScreen() {
 
   const renderPayment = ({ item }: { item: PendingPayment }) => {
     const isConfirming = confirmPayMutation.isPending && confirmPayMutation.variables === item.id;
-    const isCopied = copiedRef === item.paymentRef;
     return (
       <View style={styles.paymentCard}>
         <View style={[styles.paymentCardTop, isRTL && styles.rtlRow]}>
           <View style={styles.paymentIconWrap}><Ionicons name="cash-outline" size={22} color={Colors.primary} /></View>
           <View style={[styles.paymentInfo, isRTL && styles.rtlInfo]}>
             <Text style={[styles.drugName, isRTL && styles.rtlText]}>{item.drugName ?? (isRTL ? "دواء" : "Médicament")}</Text>
-            {item.userPhone && <Text style={[styles.userId, isRTL && styles.rtlText]}>📱 {item.userPhone}</Text>}
+            {item.userPhone && (
+              <Text style={[styles.userId, isRTL && styles.rtlText]}>
+                📱 {item.userPhone}
+              </Text>
+            )}
             <Text style={[styles.requestTime, isRTL && styles.rtlText]}>{formatTime(item.createdAt, language)}</Text>
           </View>
         </View>
-        <View style={styles.refBox}>
-          <View style={[styles.refRow, isRTL && styles.rtlRow]}>
-            <View style={styles.refLabelWrap}><Ionicons name="key-outline" size={14} color={Colors.primary} /><Text style={styles.refLabel}>{isRTL ? "الكود:" : "Code:"}</Text></View>
-            <View style={[styles.refCodeWrap, isRTL && styles.rtlRow]}>
-              <Text style={styles.refCode}>{item.paymentRef}</Text>
-              <TouchableOpacity style={[styles.copyRefSmall, isCopied && { backgroundColor: Colors.accent }]} onPress={() => item.paymentRef && handleCopyRef(item.paymentRef)}>
-                <Ionicons name={isCopied ? "checkmark" : "copy-outline"} size={13} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          </View>
-          <Text style={[styles.refHint, isRTL && styles.rtlText]}>{isRTL ? "تحقق أن التحويل المستلم يحمل هذا الكود في الوصف" : "Vérifiez que le virement reçu contient ce code dans la description"}</Text>
-        </View>
+        <Text style={[styles.refHint, isRTL && styles.rtlText]}>
+          {isRTL ? "تحقق أن الدفع جاء من الرقم أعلاه في بانكيلي أو مصرفي" : "Vérifiez que le paiement provient du numéro ci-dessus dans Bankily ou Masrafi"}
+        </Text>
         <TouchableOpacity style={[styles.confirmPayBtn, isConfirming && { opacity: 0.7 }]} onPress={() => confirmPayMutation.mutate(item.id)} activeOpacity={0.85} disabled={isConfirming}>
           {isConfirming ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="shield-checkmark" size={18} color="#fff" /><Text style={styles.confirmPayBtnText}>{isRTL ? "تأكيد الدفع وفتح الإشعار" : "Confirmer et débloquer"}</Text></>}
         </TouchableOpacity>

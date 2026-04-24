@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.26.1",
   "scripts": {
-    "dev": "pnpm --filter @workspace/pharma-finder run dev"
+    "dev": "expo start",
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"

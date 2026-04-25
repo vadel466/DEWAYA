@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.26.1",
   "scripts": {
-    "dev": "expo start",
+    "build": "expo export -p web"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"
